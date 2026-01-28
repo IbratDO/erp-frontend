@@ -77,7 +77,7 @@ const Products = () => {
     }
     
     setFilteredProducts(filtered);
-  }, [filters, allSizes]);
+  }, [filters]);
 
   const fetchProducts = useCallback(async () => {
     try {
