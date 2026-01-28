@@ -3,7 +3,6 @@ import api from '../utils/api';
 import './TablePage.css';
 
 const Inventory = () => {
-  const [inventory, setInventory] = useState([]);
   const [filteredInventory, setFilteredInventory] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);

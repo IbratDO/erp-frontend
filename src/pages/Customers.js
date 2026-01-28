@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import './TablePage.css';
 
@@ -37,11 +37,19 @@ const Customers = () => {
     { value: 'tashkent_city', label: 'Tashkent city' },
   ];
 
-  useEffect(() => {
-    fetchCustomers();
-  }, []);
+  const applyFilters = useCallback((customersList) => {
+    let filtered = customersList;
+    
+    if (filters.name && filters.name.trim()) {
+      filtered = filtered.filter(customer => 
+        customer.name?.toLowerCase().includes(filters.name.toLowerCase())
+      );
+    }
+    
+    setFilteredCustomers(filtered);
+  }, [filters]);
 
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const response = await api.get('/customers/');
       const customersList = response.data.results || response.data;
@@ -52,26 +60,11 @@ const Customers = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const applyFilters = (customersList) => {
-    let filtered = customersList;
-    
-    if (filters.name && filters.name.trim()) {
-      filtered = filtered.filter(customer => 
-        customer.name?.toLowerCase().includes(filters.name.toLowerCase())
-      );
-    }
-    
-    setFilteredCustomers(filtered);
-  };
+  }, [applyFilters]);
 
   useEffect(() => {
-    if (customers.length > 0) {
-      applyFilters(customers);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+    fetchCustomers();
+  }, [fetchCustomers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

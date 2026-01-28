@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import './TablePage.css';
 
@@ -10,11 +10,7 @@ const AuditLogs = () => {
     object_id: '',
   });
 
-  useEffect(() => {
-    fetchLogs();
-  }, [filter]);
-
-  const fetchLogs = async () => {
+  const fetchLogs = useCallback(async () => {
     try {
       let url = '/audit-logs/';
       const params = new URLSearchParams();
@@ -29,7 +25,11 @@ const AuditLogs = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    fetchLogs();
+  }, [fetchLogs]);
 
   if (loading) {
     return <div className="page-container">Loading...</div>;

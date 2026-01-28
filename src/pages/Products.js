@@ -3,8 +3,8 @@ import api from '../utils/api';
 import './TablePage.css';
 
 const Products = () => {
-  const [products, setProducts] = useState([]);
   const [filteredProducts, setFilteredProducts] = useState([]);
+  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -84,18 +84,12 @@ const Products = () => {
     try {
       const response = await api.get('/products/');
       const productsList = response.data.results || response.data;
-      setProducts(productsList);
       
       // Use all sizes from 36 to 46
       setAvailableSizes(allSizes);
       
       applyFilters(productsList);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, [applyFilters]);
+
 
   useEffect(() => {
     fetchProducts();

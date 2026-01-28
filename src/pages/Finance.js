@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import './TablePage.css';
 
 const Finance = () => {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState('records'); // 'records', 'receivables', 'payables'
   const [records, setRecords] = useState([]);
   const [receivables, setReceivables] = useState([]);
@@ -30,27 +30,16 @@ const Finance = () => {
     month: '',
   });
 
-  useEffect(() => {
-    fetchWorkers(); // Always fetch workers when component mounts or updates
-    if (activeTab === 'records') {
-      fetchRecords();
-    } else if (activeTab === 'receivables') {
-      fetchReceivables();
-    } else if (activeTab === 'payables') {
-      fetchPayables();
-    }
-  }, [filter, activeTab]);
-
-  const fetchWorkers = async () => {
+  const fetchWorkers = useCallback(async () => {
     try {
       const response = await api.get('/workers/');
       setWorkers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching workers:', error);
     }
-  };
+  }, []);
 
-  const fetchRecords = async () => {
+  const fetchRecords = useCallback(async () => {
     try {
       let url = '/finance/';
       const params = new URLSearchParams();
@@ -92,9 +81,9 @@ const Finance = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
 
-  const fetchReceivables = async () => {
+  const fetchReceivables = useCallback(async () => {
     try {
       let url = '/receivables/';
       const params = new URLSearchParams();

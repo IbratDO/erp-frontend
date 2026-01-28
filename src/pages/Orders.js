@@ -92,6 +92,46 @@ const Orders = () => {
     { value: 'tashkent_city', label: 'Tashkent city' },
   ];
 
+  const applyFilters = useCallback((ordersList) => {
+    let filtered = ordersList;
+    
+    if (filters.brand && filters.brand.trim()) {
+      filtered = filtered.filter(order => 
+        order.product_detail?.brand?.toLowerCase().includes(filters.brand.toLowerCase())
+      );
+    }
+    if (filters.size && filters.size.trim()) {
+      filtered = filtered.filter(order => 
+        order.product_detail?.size?.toLowerCase().includes(filters.size.toLowerCase())
+      );
+    }
+    if (filters.color && filters.color.trim()) {
+      filtered = filtered.filter(order => 
+        order.product_detail?.color?.toLowerCase().includes(filters.color.toLowerCase())
+      );
+    }
+    if (filters.order_type) {
+      filtered = filtered.filter(order => order.order_type === filters.order_type);
+    }
+    if (filters.status) {
+      filtered = filtered.filter(order => order.status === filters.status);
+    }
+    if (filters.year) {
+      filtered = filtered.filter(order => {
+        const orderYear = new Date(order.order_date || order.created_at).getFullYear();
+        return orderYear.toString() === filters.year;
+      });
+    }
+    if (filters.month) {
+      filtered = filtered.filter(order => {
+        const orderMonth = new Date(order.order_date || order.created_at).getMonth() + 1;
+        return orderMonth.toString() === filters.month;
+      });
+    }
+    
+    setFilteredOrders(filtered);
+  }, [filters]);
+
   const fetchCustomers = useCallback(async () => {
     try {
       const response = await api.get('/customers/');
@@ -141,46 +181,6 @@ const Orders = () => {
       alert(error.response?.data?.error || 'Error creating customer');
     }
   };
-
-  const applyFilters = useCallback((ordersList) => {
-    let filtered = ordersList;
-    
-    if (filters.brand && filters.brand.trim()) {
-      filtered = filtered.filter(order => 
-        order.product_detail?.brand?.toLowerCase().includes(filters.brand.toLowerCase())
-      );
-    }
-    if (filters.size && filters.size.trim()) {
-      filtered = filtered.filter(order => 
-        order.product_detail?.size?.toLowerCase().includes(filters.size.toLowerCase())
-      );
-    }
-    if (filters.color && filters.color.trim()) {
-      filtered = filtered.filter(order => 
-        order.product_detail?.color?.toLowerCase().includes(filters.color.toLowerCase())
-      );
-    }
-    if (filters.order_type) {
-      filtered = filtered.filter(order => order.order_type === filters.order_type);
-    }
-    if (filters.status) {
-      filtered = filtered.filter(order => order.status === filters.status);
-    }
-    if (filters.year) {
-      filtered = filtered.filter(order => {
-        const orderYear = new Date(order.order_date || order.created_at).getFullYear();
-        return orderYear.toString() === filters.year;
-      });
-    }
-    if (filters.month) {
-      filtered = filtered.filter(order => {
-        const orderMonth = new Date(order.order_date || order.created_at).getMonth() + 1;
-        return orderMonth.toString() === filters.month;
-      });
-    }
-    
-    setFilteredOrders(filtered);
-  }, [filters]);
 
   useEffect(() => {
     if (orders.length > 0) {
