@@ -89,7 +89,12 @@ const Products = () => {
       setAvailableSizes(allSizes);
       
       applyFilters(productsList);
-
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyFilters]);
 
   useEffect(() => {
     fetchProducts();

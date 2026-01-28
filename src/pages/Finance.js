@@ -116,12 +116,10 @@ const Finance = () => {
       setReceivables(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching receivables:', error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [filter]);
 
-  const fetchPayables = async () => {
+  const fetchPayables = useCallback(async () => {
     try {
       let url = '/payables/';
       const params = new URLSearchParams();
@@ -156,7 +154,18 @@ const Finance = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    fetchWorkers();
+    if (activeTab === 'records') {
+      fetchRecords();
+    } else if (activeTab === 'receivables') {
+      fetchReceivables();
+    } else if (activeTab === 'payables') {
+      fetchPayables();
+    }
+  }, [activeTab, fetchWorkers, fetchRecords, fetchReceivables, fetchPayables]);
 
   const handleExpenseSubmit = async (e) => {
     e.preventDefault();

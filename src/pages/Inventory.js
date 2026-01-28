@@ -63,7 +63,6 @@ const Inventory = () => {
     try {
       const response = await api.get('/inventory/');
       const inventoryList = response.data.results || response.data;
-      setInventory(inventoryList);
       applyFilters(inventoryList);
     } catch (error) {
       console.error('Error fetching inventory:', error);
