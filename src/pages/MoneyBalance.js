@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import { useAuth } from '../contexts/AuthContext';
 import './TablePage.css';
 
 const MoneyBalance = () => {
-  const { user, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const [balances, setBalances] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,12 +24,7 @@ const MoneyBalance = () => {
     month: '',
   });
 
-  useEffect(() => {
-    fetchBalances();
-    fetchTransactions();
-  }, [filter]);
-
-  const fetchBalances = async () => {
+  const fetchBalances = useCallback(async () => {
     try {
       const response = await api.get('/cash-balance/');
       const balancesList = response.data.results || response.data;
@@ -59,9 +54,9 @@ const MoneyBalance = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchTransactions = async () => {
+  const fetchTransactions = useCallback(async () => {
     try {
       let url = '/balance-transactions/';
       const params = new URLSearchParams();
@@ -108,7 +103,12 @@ const MoneyBalance = () => {
     } catch (error) {
       console.error('Error fetching transactions:', error);
     }
-  };
+  }, [filter]);
+
+  useEffect(() => {
+    fetchBalances();
+    fetchTransactions();
+  }, [fetchBalances, fetchTransactions]);
 
   const handleAdjust = async (e) => {
     e.preventDefault();

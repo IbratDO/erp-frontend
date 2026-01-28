@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import './TablePage.css';
 
@@ -92,20 +92,41 @@ const Orders = () => {
     { value: 'tashkent_city', label: 'Tashkent city' },
   ];
 
-  useEffect(() => {
-    fetchOrders();
-    fetchProducts();
-    fetchCustomers();
-  }, []);
-  
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const response = await api.get('/customers/');
       setCustomers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
-  };
+  }, []);
+  
+  const fetchOrders = useCallback(async () => {
+    try {
+      const response = await api.get('/orders/');
+      setOrders(response.data.results || response.data);
+      applyFilters(response.data.results || response.data);
+    } catch (error) {
+      console.error('Error fetching orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await api.get('/products/');
+      setProducts(response.data.results || response.data);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchOrders();
+    fetchProducts();
+    fetchCustomers();
+  }, [fetchOrders, fetchProducts, fetchCustomers]);
   
   const handleCreateCustomer = async (e) => {
     e.preventDefault();

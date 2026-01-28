@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import './TablePage.css';
 
@@ -32,26 +32,7 @@ const Returns = () => {
   });
   const [showRefundForm, setShowRefundForm] = useState(false);
 
-  useEffect(() => {
-    fetchReturns();
-    fetchProducts();
-    fetchSales();
-  }, []);
-
-  const fetchReturns = async () => {
-    try {
-      const response = await api.get('/returns/');
-      const returnsList = response.data.results || response.data;
-      setReturns(returnsList);
-      applyFilters(returnsList);
-    } catch (error) {
-      console.error('Error fetching returns:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = (returnsList) => {
+  const applyFilters = useCallback((returnsList) => {
     let filtered = returnsList;
     
     if (filters.brand && filters.brand.trim()) {
@@ -86,32 +67,44 @@ const Returns = () => {
     }
     
     setFilteredReturns(filtered);
-  };
-
-  useEffect(() => {
-    if (returns.length > 0) {
-      applyFilters(returns);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  const fetchProducts = async () => {
+  const fetchReturns = useCallback(async () => {
+    try {
+      const response = await api.get('/returns/');
+      const returnsList = response.data.results || response.data;
+      setReturns(returnsList);
+      applyFilters(returnsList);
+    } catch (error) {
+      console.error('Error fetching returns:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyFilters]);
+
+  const fetchProducts = useCallback(async () => {
     try {
       const response = await api.get('/products/');
       setProducts(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
-  };
+  }, []);
 
-  const fetchSales = async () => {
+  const fetchSales = useCallback(async () => {
     try {
       const response = await api.get('/sales/');
       setSales(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching sales:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchReturns();
+    fetchProducts();
+    fetchSales();
+  }, [fetchReturns, fetchProducts, fetchSales]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

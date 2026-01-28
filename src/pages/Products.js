@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import './TablePage.css';
 
@@ -46,28 +46,7 @@ const Products = () => {
     'Pink'
   ];
 
-  useEffect(() => {
-    fetchProducts();
-  }, []);
-
-  const fetchProducts = async () => {
-    try {
-      const response = await api.get('/products/');
-      const productsList = response.data.results || response.data;
-      setProducts(productsList);
-      
-      // Use all sizes from 36 to 46
-      setAvailableSizes(allSizes);
-      
-      applyFilters(productsList);
-    } catch (error) {
-      console.error('Error fetching products:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = (productsList) => {
+  const applyFilters = useCallback((productsList) => {
     let filtered = productsList;
     
     if (filters.brand) {
@@ -99,13 +78,28 @@ const Products = () => {
     }
     
     setFilteredProducts(filtered);
-  };
+  }, [filters]);
+
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await api.get('/products/');
+      const productsList = response.data.results || response.data;
+      setProducts(productsList);
+      
+      // Use all sizes from 36 to 46
+      setAvailableSizes(allSizes);
+      
+      applyFilters(productsList);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyFilters]);
 
   useEffect(() => {
-    if (products.length > 0) {
-      applyFilters(products);
-    }
-  }, [filters, products]);
+    fetchProducts();
+  }, [fetchProducts]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

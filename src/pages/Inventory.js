@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import './TablePage.css';
 
@@ -23,25 +23,7 @@ const Inventory = () => {
     location: '',
   });
 
-  useEffect(() => {
-    fetchInventory();
-    fetchProducts();
-  }, []);
-
-  const fetchInventory = async () => {
-    try {
-      const response = await api.get('/inventory/');
-      const inventoryList = response.data.results || response.data;
-      setInventory(inventoryList);
-      applyFilters(inventoryList);
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = (inventoryList) => {
+  const applyFilters = useCallback((inventoryList) => {
     let filtered = inventoryList;
     
     if (filters.brand && filters.brand.trim()) {
@@ -76,23 +58,34 @@ const Inventory = () => {
     }
     
     setFilteredInventory(filtered);
-  };
-
-  useEffect(() => {
-    if (inventory.length > 0) {
-      applyFilters(inventory);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  const fetchProducts = async () => {
+  const fetchInventory = useCallback(async () => {
+    try {
+      const response = await api.get('/inventory/');
+      const inventoryList = response.data.results || response.data;
+      setInventory(inventoryList);
+      applyFilters(inventoryList);
+    } catch (error) {
+      console.error('Error fetching inventory:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyFilters]);
+
+  const fetchProducts = useCallback(async () => {
     try {
       const response = await api.get('/products/');
       setProducts(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchInventory();
+    fetchProducts();
+  }, [fetchInventory, fetchProducts]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();

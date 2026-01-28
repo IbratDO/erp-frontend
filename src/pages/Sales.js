@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import './TablePage.css';
 
@@ -55,21 +55,14 @@ const Sales = () => {
     { value: 'tashkent_city', label: 'Tashkent city' },
   ];
 
-  useEffect(() => {
-    fetchSales();
-    fetchProducts();
-    fetchInventory();
-    fetchCustomers();
-  }, []);
-  
-  const fetchCustomers = async () => {
+  const fetchCustomers = useCallback(async () => {
     try {
       const response = await api.get('/customers/');
       setCustomers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
     }
-  };
+  }, []);
   
   const handleCreateCustomer = async (e) => {
     e.preventDefault();
@@ -85,20 +78,7 @@ const Sales = () => {
     }
   };
 
-  const fetchSales = async () => {
-    try {
-      const response = await api.get('/sales/');
-      const salesList = response.data.results || response.data;
-      setSales(salesList);
-      applyFilters(salesList);
-    } catch (error) {
-      console.error('Error fetching sales:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = (salesList) => {
+  const applyFilters = useCallback((salesList) => {
     let filtered = salesList;
     
     if (filters.brand && filters.brand.trim()) {
@@ -133,32 +113,45 @@ const Sales = () => {
     }
     
     setFilteredSales(filtered);
-  };
-
-  useEffect(() => {
-    if (sales.length > 0) {
-      applyFilters(sales);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
 
-  const fetchProducts = async () => {
+  const fetchSales = useCallback(async () => {
+    try {
+      const response = await api.get('/sales/');
+      const salesList = response.data.results || response.data;
+      setSales(salesList);
+      applyFilters(salesList);
+    } catch (error) {
+      console.error('Error fetching sales:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [applyFilters]);
+
+  const fetchProducts = useCallback(async () => {
     try {
       const response = await api.get('/products/');
       setProducts(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching products:', error);
     }
-  };
+  }, []);
 
-  const fetchInventory = async () => {
+  const fetchInventory = useCallback(async () => {
     try {
       const response = await api.get('/inventory/');
       setInventory(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchSales();
+    fetchProducts();
+    fetchInventory();
+    fetchCustomers();
+  }, [fetchSales, fetchProducts, fetchInventory, fetchCustomers]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -359,7 +352,6 @@ const Sales = () => {
     e.preventDefault();
     try {
       const sellingPrice = parseFloat(completeFromOrderData.selling_price);
-      const advancePayment = parseFloat(completeFromOrderData.advance_payment_received || 0);
       const nowPaidAmount = parseFloat(completeFromOrderData.now_paid_amount);
       
       if (!sellingPrice || sellingPrice <= 0) {
