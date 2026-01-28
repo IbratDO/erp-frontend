@@ -4,7 +4,6 @@ import './TablePage.css';
 
 const Products = () => {
   const [filteredProducts, setFilteredProducts] = useState([]);
-  const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState(null);
@@ -78,7 +77,7 @@ const Products = () => {
     }
     
     setFilteredProducts(filtered);
-  }, [filters]);
+  }, [filters, allSizes]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -94,7 +93,7 @@ const Products = () => {
     } finally {
       setLoading(false);
     }
-  }, [applyFilters]);
+  }, [applyFilters, allSizes]);
 
   useEffect(() => {
     fetchProducts();

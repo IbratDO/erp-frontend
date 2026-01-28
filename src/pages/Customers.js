@@ -3,7 +3,6 @@ import api from '../utils/api';
 import './TablePage.css';
 
 const Customers = () => {
-  const [customers, setCustomers] = useState([]);
   const [filteredCustomers, setFilteredCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -53,7 +52,6 @@ const Customers = () => {
     try {
       const response = await api.get('/customers/');
       const customersList = response.data.results || response.data;
-      setCustomers(customersList);
       applyFilters(customersList);
     } catch (error) {
       console.error('Error fetching customers:', error);
