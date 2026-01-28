@@ -111,7 +111,7 @@ const Orders = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyFilters]);
 
   const fetchProducts = useCallback(async () => {
     try {
@@ -142,20 +142,7 @@ const Orders = () => {
     }
   };
 
-  const fetchOrders = async () => {
-    try {
-      const response = await api.get('/orders/');
-      const ordersList = response.data.results || response.data;
-      setOrders(ordersList);
-      applyFilters(ordersList);
-    } catch (error) {
-      console.error('Error fetching orders:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = (ordersList) => {
+  const applyFilters = useCallback((ordersList) => {
     let filtered = ordersList;
     
     if (filters.brand && filters.brand.trim()) {
@@ -193,14 +180,13 @@ const Orders = () => {
     }
     
     setFilteredOrders(filtered);
-  };
+  }, [filters]);
 
   useEffect(() => {
     if (orders.length > 0) {
       applyFilters(orders);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters]);
+  }, [filters, orders, applyFilters]);
 
   const fetchProducts = async () => {
     try {
