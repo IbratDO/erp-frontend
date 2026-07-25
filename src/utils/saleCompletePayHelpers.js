@@ -338,6 +338,24 @@ export function buildOverpayConfirmMessage(meta, exchangeRate) {
     .join('\n\n');
 }
 
+/** Multiline confirm when payment exceeds amount due and nothing was selected — additional profit. */
+export function buildAdditionalProfitConfirmMessage(meta, exchangeRate) {
+  const dueLabel = formatDisplayAmount(meta.due, meta.sc);
+  const paidLabel = formatDisplayAmount(meta.paid, meta.sc);
+  const excessLabel = formatDisplayAmount(meta.overpaymentAmount, meta.sc);
+  return [
+    cp('confirmOverpayTitle'),
+    `${cp('confirmOverpayDue')} ${dueLabel} · ${cp('confirmOverpayEntered')} ${paidLabel} · ${cp('confirmOverpayExcess')} ${excessLabel}.`,
+    meta.splitCurrency && exchangeRate?.label
+      ? cp('confirmOverpayCbu', { label: exchangeRate.label })
+      : null,
+    cp('confirmAdditionalProfitBook'),
+    cp('confirmContinue'),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export const emptyPaymentFormState = () => ({
   saleId: null,
   uzs: '',
@@ -350,6 +368,7 @@ export const emptyPaymentFormState = () => ({
   balance_shortfall_type: '',
   balance_shortfall_amount: '',
   apply_currency_conversion_difference: false,
+  apply_additional_profit: false,
   completion_notes: '',
 });
 
@@ -450,6 +469,7 @@ export function buildPaymentFormDataFromSale(sale, cbuRate) {
     balance_shortfall_type: '',
     balance_shortfall_amount: '',
     apply_currency_conversion_difference: false,
+    apply_additional_profit: false,
   };
 }
 
@@ -477,18 +497,27 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
   const remainingAfterDiscount = base.paid - (base.due - discountAmount);
   const tol = (base.sc || 'USD').toUpperCase() === 'UZS' ? 1 : PAYMENT_SHORTFALL_TOLERANCE;
   const wantFx = !!paymentFormData.apply_currency_conversion_difference;
-  const unexplained = wantFx ? 0 : remainingAfterDiscount;
+  const wantAdditionalProfit = !!paymentFormData.apply_additional_profit;
+  const isOverpay = remainingAfterDiscount > tol;
+  // FX wins if both are somehow set; additional profit only ever explains a genuine surplus.
+  const apExplained = !wantFx && wantAdditionalProfit && isOverpay;
+  const unexplained = (wantFx || apExplained) ? 0 : remainingAfterDiscount;
   const differenceNeedsClassification = Math.abs(unexplained) > tol;
+  // Reachable only for overpayment with nothing selected yet (advance sales stay hard-blocked).
+  const needsAdditionalProfitConfirm =
+    !wantFx && !wantAdditionalProfit && isOverpay && !base.hasAdvance;
 
   return {
     ...base,
     discountAmount,
     remainingAfterDiscount,
     conversionDifference: wantFx ? remainingAfterDiscount : null,
+    additionalProfitAmount: apExplained ? remainingAfterDiscount : null,
     differenceNeedsClassification,
-    // Surplus classified as FX is not a generic overpayment confirm.
-    hasOverpayment: wantFx ? false : base.hasOverpayment,
-    overpaymentAmount: wantFx ? null : base.overpaymentAmount,
+    needsAdditionalProfitConfirm,
+    // Surplus classified as FX or additional profit is not a generic overpayment confirm.
+    hasOverpayment: (wantFx || apExplained) ? false : base.hasOverpayment,
+    overpaymentAmount: (wantFx || apExplained) ? null : base.overpaymentAmount,
     exceedsRemainingDue: wantFx ? false : base.exceedsRemainingDue,
   };
 }
@@ -642,6 +671,9 @@ export function buildCompleteSaleRequest(paymentFormData, meta, exchangeRate) {
   if (paymentFormData.apply_currency_conversion_difference) {
     requestData.apply_currency_conversion_difference = true;
   }
+  if (paymentFormData.apply_additional_profit && !paymentFormData.apply_currency_conversion_difference) {
+    requestData.apply_additional_profit = true;
+  }
   const uzsT = requestData.uzs;
   const usdT = requestData.usd;
   const needsCbu =
@@ -720,4 +752,41 @@ export function shopDeliverySettlementStep3Label(sale) {
   return needsDispatchFeePayment
     ? i18n.t('deliverySettlement.btnStep3Pay', { ns: 'sales' })
     : i18n.t('deliverySettlement.btnStep3Complete', { ns: 'sales' });
+}
+
+/** True while a customer-declined item hasn't yet been confirmed physically back at the shop. */
+export function lineIsDeclinedPending(sale) {
+  return !!(sale?.delivery_customer_declined_at && !sale?.delivery_return_confirmed_at);
+}
+
+/** True when this line is still an active part of the delivery settlement flow (not declined). */
+export function lineNeedsSettlement(sale) {
+  return shopDeliverySettlementRequired(sale) && !sale?.delivery_customer_declined_at;
+}
+
+function _groupLines(saleOrGroup) {
+  const lines = saleOrGroup?.groupSales?.length ? saleOrGroup.groupSales : [saleOrGroup];
+  return lines.filter(Boolean);
+}
+
+/** Lowest active step (1/2/3) across a group's still-active lines; 0 if none need settlement. */
+export function groupSettlementActiveStep(lines) {
+  const steps = (lines || [])
+    .filter((l) => lineNeedsSettlement(l))
+    .map((l) => shopDeliverySettlementActiveStep(l))
+    .filter((s) => s != null && s !== 0);
+  if (!steps.length) return 0;
+  return Math.min(...steps);
+}
+
+/** True if any line in the group was declined at step 1 but not yet confirmed physically returned. */
+export function groupHasPendingDeclinedReturns(lines) {
+  return (lines || []).some((l) => lineIsDeclinedPending(l));
+}
+
+/** Group-aware replacement for shopDeliverySettlementRequired — true if any line still needs
+ * settlement, or any line has a pending declined-return confirmation still outstanding. */
+export function shopDeliverySettlementRequiredForGroup(saleOrGroup) {
+  const lines = _groupLines(saleOrGroup);
+  return lines.some((l) => lineNeedsSettlement(l)) || groupHasPendingDeclinedReturns(lines);
 }

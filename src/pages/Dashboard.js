@@ -14,6 +14,7 @@ import {
   YAxis,
 } from 'recharts';
 import {
+  buildMonthlyStacked,
   buildNetMonthlyStacked,
   buildNetWeekdayAverages,
   CHART_PALETTE,
@@ -203,6 +204,10 @@ const Dashboard = () => {
   const monthlyUsers = useMemo(
     () => buildNetMonthlyStacked(filteredFacts, filteredReturnFacts, 'salesman_name'),
     [filteredFacts, filteredReturnFacts],
+  );
+  const monthlyOrdersByUser = useMemo(
+    () => buildMonthlyStacked(filteredFacts, 'salesman_name', () => 1),
+    [filteredFacts],
   );
   const monthlyCategories = useMemo(
     () => buildNetMonthlyStacked(filteredFacts, filteredReturnFacts, 'category'),
@@ -459,6 +464,18 @@ const Dashboard = () => {
             onLegendClick={handleLegendCustomer}
             activeCross={crossFilter.customerType}
           />
+          {!targetologView ? (
+          <ChartPanel
+            emptyLabel={chartEmpty}
+            title={td('chartOrdersByUser')}
+            data={monthlyOrdersByUser.data}
+            seriesKeys={monthlyOrdersByUser.keys}
+            xKey="monthLabel"
+            chartType="bar"
+            onLegendClick={handleLegendUser}
+            activeCross={crossFilter.salesman}
+          />
+          ) : null}
         </div>
       </section>
 

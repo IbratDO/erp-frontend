@@ -16,6 +16,7 @@ import {
   buildReturnCrossCurrencyConfirmMessage,
   buildReturnCombinedRefundConfirmMessage,
 } from '../utils/returnRefundHelpers';
+import { uzsToUsd, usdToUzs, saleEffectiveUnitPrice } from '../utils/saleCompletePayHelpers';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime } from '../utils/localeFormat';
@@ -31,8 +32,7 @@ function returnProductPickerLabel(p, tr) {
 
 function getSaleUnitPrice(sale) {
   if (!sale || sale.selling_price == null || sale.selling_price === '') return NaN;
-  const unit = parseFloat(sale.selling_price);
-  return Number.isFinite(unit) ? unit : NaN;
+  return saleEffectiveUnitPrice(sale);
 }
 
 function getSaleCurrency(sale) {
@@ -265,7 +265,7 @@ const Returns = () => {
   }, []);
 
   useEffect(() => {
-    if (!showRefundForm) {
+    if (!showRefundForm && !showForm) {
       setExchangeRate(null);
       setExchangeRateError(null);
       return;
@@ -288,7 +288,7 @@ const Returns = () => {
     return () => {
       cancelled = true;
     };
-  }, [showRefundForm, t]);
+  }, [showRefundForm, showForm, t]);
 
   const refundReturnItem = useMemo(
     () => (refundFormData.returnId ? returns.find((r) => r.id === refundFormData.returnId) : null),
@@ -1110,13 +1110,32 @@ const Returns = () => {
                       ? sales.find((s) => s.id === parseInt(saleId, 10))
                       : null;
                     const quantity = formData.quantity || '1';
-                    setFormData((prev) =>
-                      mergeSuggestedRefund(
-                        { ...prev, sale: saleId, quantity },
-                        sale,
-                        quantity,
-                      ),
-                    );
+                    if (sale) {
+                      if (sale.product_detail?.category) {
+                        setFormCategory(sale.product_detail.category);
+                      }
+                      setFormData((prev) =>
+                        mergeSuggestedRefund(
+                          {
+                            ...prev,
+                            sale: saleId,
+                            quantity,
+                            customer: sale.customer != null ? String(sale.customer) : prev.customer,
+                            product: sale.product != null ? String(sale.product) : prev.product,
+                          },
+                          sale,
+                          quantity,
+                        ),
+                      );
+                    } else {
+                      setFormData((prev) =>
+                        mergeSuggestedRefund(
+                          { ...prev, sale: saleId, quantity },
+                          sale,
+                          quantity,
+                        ),
+                      );
+                    }
                     setRefundAmountTouched(false);
                   }}
                   options={newReturnEligibleSales.map((sale) => ({
@@ -1224,7 +1243,7 @@ const Returns = () => {
                     <input
                       type="number"
                       step={formData.sold_price_currency === 'UZS' ? '1' : '0.01'}
-                      min="0.01"
+                      min={formData.sold_price_currency === 'UZS' ? '1' : '0.01'}
                       required
                       value={formData.sold_price}
                       onChange={(e) => {
@@ -1241,8 +1260,25 @@ const Returns = () => {
                     <select
                       value={formData.sold_price_currency}
                       onChange={(e) => {
+                        const nextCurrency = e.target.value;
                         setRefundAmountTouched(true);
-                        setFormData({ ...formData, sold_price_currency: e.target.value });
+                        setFormData((prev) => {
+                          const prevCurrency = prev.sold_price_currency;
+                          if (prevCurrency === nextCurrency) return prev;
+                          const amountNum = parseFloat(prev.sold_price);
+                          if (!Number.isFinite(amountNum) || !cbuRate) {
+                            return { ...prev, sold_price_currency: nextCurrency };
+                          }
+                          const converted =
+                            nextCurrency === 'UZS'
+                              ? usdToUzs(amountNum, cbuRate)
+                              : uzsToUsd(amountNum, cbuRate);
+                          return {
+                            ...prev,
+                            sold_price_currency: nextCurrency,
+                            sold_price: formatSoldPriceForApi(converted, nextCurrency) ?? prev.sold_price,
+                          };
+                        });
                       }}
                       style={{ width: '96px', flexShrink: 0 }}
                     >

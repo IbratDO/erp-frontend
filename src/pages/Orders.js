@@ -1524,7 +1524,7 @@ const Orders = () => {
           className="form-card"
           style={{ marginBottom: '20px' }}
           ref={paymentFormRef}
-          key={`pay-form-${paymentFormData.orderId}-${paymentFormData.uzs}-${paymentFormData.usd}-${paymentFormData.is_pay_order}`}
+          key={`pay-form-${paymentFormData.orderId}-${paymentFormData.is_pay_order}`}
         >
           <h2>
             {paymentFormData.is_pay_order

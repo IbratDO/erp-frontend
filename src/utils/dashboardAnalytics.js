@@ -93,8 +93,12 @@ function monthLabel(monthKey) {
   return MONTH_NAMES[idx] || m;
 }
 
-/** Stacked series by month for a dimension field (salesman_name | category | customer_type). */
-export function buildMonthlyStacked(facts, dimensionField) {
+/**
+ * Stacked series by month for a dimension field (salesman_name | category | customer_type).
+ * `valueFn` picks the value summed per fact row — defaults to unit quantity;
+ * pass `() => 1` to count records (e.g. number of sales) instead.
+ */
+export function buildMonthlyStacked(facts, dimensionField, valueFn = (f) => f.units) {
   const keys = uniqueKeys(facts, dimensionField);
   const byMonth = new Map();
 
@@ -105,7 +109,7 @@ export function buildMonthlyStacked(facts, dimensionField) {
     }
     const row = byMonth.get(mk);
     const dim = f[dimensionField] || 'Other';
-    row[dim] = (row[dim] || 0) + f.units;
+    row[dim] = (row[dim] || 0) + valueFn(f);
   }
 
   return {

@@ -7,6 +7,7 @@ import {
   paymentHasShortfall,
   uzsToUsd,
   usdToUzs,
+  saleEffectiveUnitPrice,
 } from './saleCompletePayHelpers';
 import { formatDisplayAmount } from './currencyFormat';
 import i18n from '../i18n';
@@ -33,7 +34,10 @@ export function computeReturnRefundDue(returnItem) {
     return { amount: null, currency: 'USD', unitPrice: NaN };
   }
   const currency = (sale.sale_currency || 'USD').toUpperCase();
-  const unitPrice = parseFloat(sale.selling_price);
+  if (sale.selling_price == null || sale.selling_price === '') {
+    return { amount: null, currency, unitPrice: NaN };
+  }
+  const unitPrice = saleEffectiveUnitPrice(sale);
   if (!Number.isFinite(unitPrice)) {
     return { amount: null, currency, unitPrice: NaN };
   }

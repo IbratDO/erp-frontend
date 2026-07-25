@@ -124,6 +124,17 @@
   margin-bottom: 20px;
 }
 
+/* Delivery settlement Step 1: UZS + USD + Accepted/Declined dropdown in one row per product. */
+.settlement-line-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+.settlement-line-row .form-group {
+  flex: 1 1 160px;
+}
+
 /* Orders — New Order: aligned rows vs one auto-fit grid */
 .orders-new-order-form {
   display: flex;

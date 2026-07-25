@@ -103,24 +103,33 @@ export function layerSalePickerLabel(product, layer) {
   return `${layerNo} · ${core} · ${price} · ${qty} in stock`;
 }
 
-/** Resolve list/final price for a specific inventory layer and sale currency. */
-export function resolveLayerListPrice(layer, product, saleCur) {
+/**
+ * Resolve list/final price for a specific inventory layer and sale currency.
+ * `rate` (UZS per 1 USD) converts a planned/product price found only in the other
+ * currency instead of reusing its raw number as if it were already in `saleCur`.
+ */
+export function resolveLayerListPrice(layer, product, saleCur, rate) {
   if (!layer) return null;
   const stocking = layer.stocking_order;
-  let priceNum = null;
+  const r = parseFloat(rate);
+  const hasRate = Number.isFinite(r) && r > 0;
   if (stocking) {
     if (saleCur === 'UZS') {
-      priceNum = plannedSellingUzsPerUnit(stocking);
-      if (priceNum == null || priceNum <= 0) priceNum = plannedSellingUsdPerUnit(stocking);
+      const native = plannedSellingUzsPerUnit(stocking);
+      if (native != null && native > 0) return native;
+      const usd = plannedSellingUsdPerUnit(stocking);
+      if (usd != null && usd > 0) return hasRate ? Math.round(usd * r) : usd;
     } else {
-      priceNum = plannedSellingUsdPerUnit(stocking);
-      if (priceNum == null || priceNum <= 0) priceNum = plannedSellingUzsPerUnit(stocking);
+      const native = plannedSellingUsdPerUnit(stocking);
+      if (native != null && native > 0) return native;
+      const uzs = plannedSellingUzsPerUnit(stocking);
+      if (uzs != null && uzs > 0) return hasRate ? Math.round((uzs / r) * 100) / 100 : uzs;
     }
   }
-  if (priceNum != null && priceNum > 0) return priceNum;
   const sp = parseFloat(product?.selling_price);
   if (product?.selling_price != null && product.selling_price !== '' && !Number.isNaN(sp) && sp > 0) {
-    return sp;
+    // Product.selling_price is stored in USD; convert when selling in UZS.
+    return saleCur === 'UZS' && hasRate ? Math.round(sp * r) : sp;
   }
   return null;
 }

@@ -11,7 +11,7 @@ import {
   validateAdvanceCompletionPayment,
   buildCrossCurrencyAdvanceConfirmMessage,
   buildSplitCurrencyConfirmMessage,
-  buildOverpayConfirmMessage,
+  buildAdditionalProfitConfirmMessage,
   saleHasOrderAdvance,
 } from '../utils/saleCompletePayHelpers';
 
@@ -156,18 +156,22 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
         return;
       }
 
-      if (meta.differenceNeedsClassification) {
+      let effForm = paymentFormData;
+      let effMeta = meta;
+      if (meta.needsAdditionalProfitConfirm) {
+        if (!window.confirm(buildAdditionalProfitConfirmMessage(meta, exchangeRate))) return;
+        effForm = { ...paymentFormData, apply_additional_profit: true };
+        effMeta = computePaymentDifferenceMeta(sale, effForm, cbuRate);
+      }
+
+      if (effMeta.differenceNeedsClassification) {
         showNotification(t('completePay.errShortfall'), 'error');
         return;
       }
 
-      if (meta.hasOverpayment && meta.due != null && meta.overpaymentAmount != null) {
-        if (!window.confirm(buildOverpayConfirmMessage(meta, exchangeRate))) return;
-      }
-
-      const requestData = buildCompleteSaleRequest(paymentFormData, meta, exchangeRate);
+      const requestData = buildCompleteSaleRequest(effForm, effMeta, exchangeRate);
       if (groupSales?.length) {
-        const requests = buildGroupCompleteRequests(groupSales, paymentFormData, meta, exchangeRate);
+        const requests = buildGroupCompleteRequests(groupSales, effForm, effMeta, exchangeRate);
         for (const req of requests) {
           await api.post(`/sales/${req.id}/update_status/`, req.data);
         }

@@ -8,7 +8,7 @@ import {
   validateAdvanceCompletionPayment,
   buildCrossCurrencyAdvanceConfirmMessage,
   buildSplitCurrencyConfirmMessage,
-  buildOverpayConfirmMessage,
+  buildAdditionalProfitConfirmMessage,
   buildCompleteSaleRequest,
   paymentAmountInSaleCurrency,
 } from './saleCompletePayHelpers';
@@ -115,17 +115,21 @@ export async function runSalePaymentSubmitFlow({
     return { ok: false };
   }
 
-  if (allowDiscount && meta.differenceNeedsClassification) {
+  let effForm = paymentFormData;
+  let effMeta = meta;
+  if (meta.needsAdditionalProfitConfirm) {
+    if (!window.confirm(buildAdditionalProfitConfirmMessage(meta, exchangeRate))) return { ok: false };
+    effForm = { ...paymentFormData, apply_additional_profit: true };
+    effMeta = computePaymentDifferenceMeta(sale, effForm, cbuRate);
+  }
+
+  if (allowDiscount && effMeta.differenceNeedsClassification) {
     showNotification?.(cp('errShortfall'), 'error');
     return { ok: false };
   }
 
-  if (meta.hasOverpayment && meta.due != null && meta.overpaymentAmount != null) {
-    if (!window.confirm(buildOverpayConfirmMessage(meta, exchangeRate))) return { ok: false };
-  }
-
-  const requestData = buildCompleteSaleRequest(paymentFormData, meta, exchangeRate);
-  return { ok: true, requestData, meta };
+  const requestData = buildCompleteSaleRequest(effForm, effMeta, exchangeRate);
+  return { ok: true, requestData, meta: effMeta };
 }
 
 /** Total in sale list currency from UZS/USD legs (for delivery settlement display/API). */

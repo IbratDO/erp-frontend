@@ -61,18 +61,23 @@ export function aggregateGroupSales(groupSales) {
       uzsPay: 0,
       usdPay: 0,
       statuses: [],
+      activeStatuses: [],
+      declinedCount: 0,
       saleCurrency: 'USD',
     };
   }
   const first = groupSales[0];
   const ids = groupSales.map((s) => s.id);
-  const quantity = groupSales.reduce((sum, s) => sum + (parseInt(s.quantity, 10) || 0), 0);
-  const totalAmount = groupSales.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
-  const totalDiscount = groupSales.reduce(
+  // Cancelled lines (including declined-at-the-door items) never counted as revenue/quantity —
+  // matches P&L/Balance Sheet, which exclude 'cancelled' sales entirely.
+  const activeSales = groupSales.filter((s) => s.status !== 'cancelled');
+  const quantity = activeSales.reduce((sum, s) => sum + (parseInt(s.quantity, 10) || 0), 0);
+  const totalAmount = activeSales.reduce((sum, s) => sum + (parseFloat(s.total_amount) || 0), 0);
+  const totalDiscount = activeSales.reduce(
     (sum, s) => sum + (parseFloat(s.total_discount_amount) || 0),
     0
   );
-  const completionDiscount = groupSales.reduce(
+  const completionDiscount = activeSales.reduce(
     (sum, s) =>
       s.balance_shortfall_type === 'discount' && s.balance_shortfall_amount
         ? sum + (parseFloat(s.balance_shortfall_amount) || 0)
@@ -81,15 +86,17 @@ export function aggregateGroupSales(groupSales) {
   );
   const totalDiscountAll = totalDiscount + completionDiscount;
   /** UZS/USD: sum of each line's stored payment (split across items at Complete & Pay). */
-  const uzsPay = groupSales.reduce(
+  const uzsPay = activeSales.reduce(
     (sum, s) => sum + (parseFloat(s.payment_uzs_cash) || 0) + (parseFloat(s.payment_uzs_card) || 0),
     0
   );
-  const usdPay = groupSales.reduce(
+  const usdPay = activeSales.reduce(
     (sum, s) => sum + (parseFloat(s.payment_usd_cash) || 0) + (parseFloat(s.payment_usd_card) || 0),
     0
   );
   const statuses = [...new Set(groupSales.map((s) => s.status))];
+  const activeStatuses = [...new Set(activeSales.map((s) => s.status))];
+  const declinedCount = groupSales.filter((s) => !!s.delivery_customer_declined_at).length;
   const currencies = [...new Set(groupSales.map((s) => s.sale_currency || 'USD'))];
   return {
     first,
@@ -106,8 +113,12 @@ export function aggregateGroupSales(groupSales) {
     uzsPay,
     usdPay,
     statuses,
+    activeStatuses,
+    declinedCount,
     saleCurrency: currencies.length === 1 ? currencies[0] : null,
-    hasMixedStatus: statuses.length > 1,
+    // Mixed only among still-active lines — a group with one cancelled/declined line and the
+    // rest sharing one status should still show that shared status, not a generic "pending".
+    hasMixedStatus: activeStatuses.length > 1,
   };
 }
 
@@ -137,10 +148,16 @@ export function buildCombinedSaleForGroup(groupSales) {
 export function saleLikeForDisplayRow(row) {
   if (row.type === 'single') return row.sale;
   const agg = aggregateGroupSales(row.sales);
+  // Status reflects the still-active lines; only falls back to 'cancelled' when every line in
+  // the group is cancelled (declined items excluded from this, per aggregateGroupSales).
+  const displayStatus = agg.activeStatuses.length
+    ? (agg.hasMixedStatus ? 'pending' : agg.activeStatuses[0])
+    : (agg.statuses[0] || 'cancelled');
   return {
     ...agg.first,
     id: agg.first?.id ?? 0,
-    status: agg.hasMixedStatus ? 'pending' : agg.statuses[0],
+    status: displayStatus,
+    declinedCount: agg.declinedCount,
     quantity: agg.quantity,
     total_amount: agg.totalAmount,
     total_discount_amount: agg.totalDiscountAll,

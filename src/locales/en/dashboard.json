@@ -33,6 +33,7 @@
   "weekdayAverages": "Weekday averages",
   "weekdayHint": "Average units by weekday within the selected period (cross-filters apply).",
   "chartNewVsExisting": "New vs existing customers",
+  "chartOrdersByUser": "Orders per user",
   "chartAvgByUser": "Avg units by user",
   "chartAvgByCategory": "Avg units by category",
   "chartAvgByCustomer": "Avg units by customer type",

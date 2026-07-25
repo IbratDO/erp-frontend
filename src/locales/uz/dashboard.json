@@ -35,6 +35,7 @@
   "chartUnitsByUser": "Foydalanuvchi bo‘yicha sotilgan dona",
   "chartUnitsByCategory": "Kategoriya bo‘yicha sotilgan dona",
   "chartNewVsExisting": "Yangi va mavjud mijozlar",
+  "chartOrdersByUser": "Foydalanuvchi bo‘yicha tushgan buyurtma",
   "chartAvgByUser": "Foydalanuvchi bo‘yicha o‘rtacha dona",
   "chartAvgByCategory": "Kategoriya bo‘yicha o‘rtacha dona",
   "chartAvgByCustomer": "Mijoz turi bo‘yicha o‘rtacha dona",

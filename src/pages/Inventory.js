@@ -11,9 +11,27 @@ import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import FormSearchableSelect from '../components/FormSearchableSelect';
+import FilterSearchableSelect from '../components/FilterSearchableSelect';
 import './TablePage.css';
 
 const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
+
+/** All active inventory filters except Layer No (used both to filter the table and to build the Layer No dropdown's own options). */
+function matchesInventoryFiltersExceptLayer(item, filters) {
+  if (filters.category_type && item.product_detail?.category_type !== filters.category_type) return false;
+  if (!matchesProductCatalogFilters(item.product_detail, filters)) return false;
+  if (filters.status && item.status !== filters.status) return false;
+  const d = item.created_at || item.updated_at;
+  if (filters.year) {
+    const y = new Date(d).getFullYear().toString();
+    if (y !== filters.year) return false;
+  }
+  if (filters.month) {
+    const m = (new Date(d).getMonth() + 1).toString();
+    if (m !== filters.month) return false;
+  }
+  return true;
+}
 
 const categoryTypeLabel = (value, t) =>
   value ? t(`categoryTypes.${value}`, { defaultValue: '' }) : '';
@@ -106,6 +124,7 @@ const Inventory = () => {
     status: '',
     year: '',
     month: '',
+    layer: '',
   });
   const [formData, setFormData] = useState({
     product: '',
@@ -138,30 +157,10 @@ const Inventory = () => {
 
 
   const applyFilters = (inventoryList) => {
-    let filtered = inventoryList;
-    
-    if (filters.category_type) {
-      filtered = filtered.filter(
-        (item) => item.product_detail?.category_type === filters.category_type,
-      );
+    let filtered = inventoryList.filter((item) => matchesInventoryFiltersExceptLayer(item, filters));
+    if (filters.layer) {
+      filtered = filtered.filter((item) => String(item.batch_id) === String(filters.layer));
     }
-    filtered = filtered.filter((item) => matchesProductCatalogFilters(item.product_detail, filters));
-    if (filters.status) {
-      filtered = filtered.filter(item => item.status === filters.status);
-    }
-    if (filters.year) {
-      filtered = filtered.filter(item => {
-        const itemYear = new Date(item.created_at || item.updated_at).getFullYear();
-        return itemYear.toString() === filters.year;
-      });
-    }
-    if (filters.month) {
-      filtered = filtered.filter(item => {
-        const itemMonth = new Date(item.created_at || item.updated_at).getMonth() + 1;
-        return itemMonth.toString() === filters.month;
-      });
-    }
-    
     setFilteredInventory(filtered);
   };
 
@@ -171,6 +170,18 @@ const Inventory = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters]);
+
+  const layerFilterOptions = useMemo(
+    () =>
+      [...new Set(
+        inventory
+          .filter((item) => matchesInventoryFiltersExceptLayer(item, filters))
+          .map((item) => item.batch_id),
+      )]
+        .filter((id) => id != null)
+        .sort((a, b) => a - b),
+    [inventory, filters],
+  );
 
   const inventoryColumnTotals = useMemo(() => {
     let quantity = 0;
@@ -469,6 +480,7 @@ const Inventory = () => {
                 const m = (new Date(d).getMonth() + 1).toString();
                 if (m !== filters.month) return false;
               }
+              if (filters.layer && String(item.batch_id) !== String(filters.layer)) return false;
               return true;
             })}
             t={t}
@@ -501,9 +513,25 @@ const Inventory = () => {
               ))}
             </select>
           </div>
+          <div className="filter-field">
+            <label>{t('table.layerNo')}</label>
+            <FilterSearchableSelect
+              value={filters.layer}
+              onChange={(val) => setFilters({ ...filters, layer: val })}
+              options={layerFilterOptions.map((id) => ({ value: String(id), label: `#${id}` }))}
+              emptyLabel={t('filters.allLayers')}
+              aria-label={t('table.layerNo')}
+            />
+          </div>
           {(() => {
             const invDateAccessor = (item) => item.created_at || item.updated_at;
-            const dateOpts = getCascadedDateOptions(inventory, filters, invDateAccessor, (i) => i.product_detail);
+            const dateOpts = getCascadedDateOptions(
+              inventory,
+              filters,
+              invDateAccessor,
+              (i) => i.product_detail,
+              (item) => !filters.layer || String(item.batch_id) === String(filters.layer),
+            );
             return (
               <>
                 <div className="filter-field">
@@ -551,6 +579,7 @@ const Inventory = () => {
                   status: '',
                   year: '',
                   month: '',
+                  layer: '',
                 })
               }
             >

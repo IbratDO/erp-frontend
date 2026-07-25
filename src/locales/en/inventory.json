@@ -21,7 +21,8 @@
     "modelSearchApply": "Search for \"{{query}}\"",
     "allSizes": "All sizes",
     "allColors": "All colors",
-    "allStatuses": "All statuses"
+    "allStatuses": "All statuses",
+    "allLayers": "All layers"
   },
   "form": {
     "categoryType": "Category type",

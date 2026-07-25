@@ -10,7 +10,10 @@ import {
 } from '../utils/currencyFormat';
 import SaleCompletePayForm from '../components/SaleCompletePayForm';
 import SaleDeliverySettlementForm from '../components/SaleDeliverySettlementForm';
-import { shopDeliverySettlementRequired } from '../utils/saleCompletePayHelpers';
+import {
+  shopDeliverySettlementRequired,
+  shopDeliverySettlementRequiredForGroup,
+} from '../utils/saleCompletePayHelpers';
 import ShopDeliverySettlementButtons from '../components/ShopDeliverySettlementButtons';
 import ProductSearchableSelect from '../components/ProductSearchableSelect';
 import CustomerSearchableSelect from '../components/CustomerSearchableSelect';
@@ -24,6 +27,9 @@ import {
   getAdvanceCurrency,
   computeReservedPaymentMeta,
   buildSplitCurrencyConfirmMessage,
+  buildAdditionalProfitConfirmMessage,
+  uzsToUsd,
+  usdToUzs,
 } from '../utils/saleCompletePayHelpers';
 import { runSalePaymentSubmitFlow } from '../utils/salePaymentFlowHelpers';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
@@ -377,6 +383,8 @@ const Sales = () => {
     sale_currency: 'USD',
   });
   const [batchLines, setBatchLines] = useState([]);
+  const { cbuRate: batchCbuRate, exchangeRateError: batchExchangeRateError } =
+    useCbuExchangeRate(showBatchForm);
   const [filters, setFilters] = useState({
     category_type: '',
     category: [],
@@ -743,7 +751,7 @@ const Sales = () => {
           }
           const layer = findInventoryLayer(inventory, value);
           const p = productForLayer(layer, products);
-          const priceNum = resolveLayerListPrice(layer, p, saleCur);
+          const priceNum = resolveLayerListPrice(layer, p, saleCur, batchCbuRate);
           const formatted = formatSalePriceForCurrency(priceNum, saleCur);
           next.product = layer ? String(layer.product) : '';
           next.inventory_batch_id = layer ? String(layer.batch_id) : '';
@@ -953,6 +961,7 @@ const Sales = () => {
     balance_shortfall_type: '',
     balance_shortfall_amount: '',
     apply_currency_conversion_difference: false,
+    apply_additional_profit: false,
   });
   
   /** When set, shows shared Complete & Pay form (same flow as Dispatchers tab). */
@@ -1003,10 +1012,13 @@ const Sales = () => {
     sales,
   ]);
 
-  const openDeliverySettlementModal = async (saleId) => {
+  const openDeliverySettlementModal = async (saleId, groupSales = null) => {
     try {
-      const res = await api.get(`/sales/${saleId}/`);
-      setCompletePaySale(res.data);
+      const ids = groupSales?.length ? groupSales.map((s) => s.id) : [saleId];
+      const results = await Promise.all(ids.map((id) => api.get(`/sales/${id}/`)));
+      const lines = results.map((r) => r.data);
+      const primary = lines.find((l) => l.id === saleId) || lines[0];
+      setCompletePaySale({ ...primary, isSaleGroup: lines.length > 1, groupSales: lines });
     } catch (e) {
       console.error(e);
       showNotification(e.response?.data?.detail || e.response?.data?.error || t('notifications.errLoadSale'), 'error');
@@ -1127,8 +1139,6 @@ const Sales = () => {
       const dispatchData = {
         dispatch_type: dispatchFormData.dispatch_type,
         is_paid: dispatchFormData.is_paid,
-        delivery_cost: dispatchFormData.currency === 'USD' ? dispatchFormData.delivery_cost : 0,
-        delivery_cost_uzs: dispatchFormData.currency === 'UZS' ? dispatchFormData.delivery_cost : 0,
         tracking_number: dispatchFormData.tracking_number || '',
         status: 'dispatched',
         logistics_notes: dn || '',
@@ -1136,14 +1146,7 @@ const Sales = () => {
       if (dispatchFormData.dispatch_type === 'dostavshik' && dispatchFormData.dispatcher) {
         dispatchData.dispatcher = parseInt(dispatchFormData.dispatcher, 10);
       }
-
-      if (dispatchFormData.currency === 'UZS') {
-        dispatchData.delivery_payment_cash = dispatchFormData.delivery_cost;
-        dispatchData.delivery_payment_card = 0;
-      } else {
-        dispatchData.delivery_payment_cash = 0;
-        dispatchData.delivery_payment_card = 0;
-      }
+      dispatchData.delivery_payment_card = 0;
 
       const saleIds =
         dispatchFormData.saleIds?.length > 0
@@ -1151,8 +1154,39 @@ const Sales = () => {
           : dispatchFormData.saleId != null
             ? [dispatchFormData.saleId]
             : [];
-      for (const sid of saleIds) {
-        await api.post('/dispatches/', { ...dispatchData, sale: sid });
+
+      // The entered delivery cost is for the WHOLE trip, not per item — split it proportionally
+      // by quantity across every line's Dispatch so the group's total cost recorded matches what
+      // was actually spent (avoids double/triple-counting the trip cost into COGS/P&L per product).
+      const rawCost = parseFloat(dispatchFormData.delivery_cost) || 0;
+      const totalQty =
+        saleIds.reduce((sum, sid) => {
+          const s = sales.find((x) => x.id === sid);
+          return sum + (parseInt(s?.quantity, 10) || 1);
+        }, 0) || saleIds.length;
+      const perUnit = totalQty > 0 ? rawCost / totalQty : 0;
+      let allocatedSoFar = 0;
+      const lineCosts = saleIds.map((sid, idx) => {
+        if (idx === saleIds.length - 1) {
+          return Math.round((rawCost - allocatedSoFar) * 100) / 100;
+        }
+        const s = sales.find((x) => x.id === sid);
+        const qty = parseInt(s?.quantity, 10) || 1;
+        const share = Math.round(perUnit * qty * 100) / 100;
+        allocatedSoFar += share;
+        return share;
+      });
+
+      for (let i = 0; i < saleIds.length; i++) {
+        const sid = saleIds[i];
+        const lineCost = saleIds.length > 1 ? lineCosts[i] : rawCost;
+        const lineDispatchData = {
+          ...dispatchData,
+          delivery_cost: dispatchFormData.currency === 'USD' ? lineCost : 0,
+          delivery_cost_uzs: dispatchFormData.currency === 'UZS' ? lineCost : 0,
+          delivery_payment_cash: dispatchFormData.currency === 'UZS' ? lineCost : 0,
+        };
+        await api.post('/dispatches/', { ...lineDispatchData, sale: sid });
       }
       
       setShowDispatchForm(false);
@@ -1258,6 +1292,9 @@ const Sales = () => {
           ...(flow.requestData.exchange_rate != null
             ? { exchange_rate: flow.requestData.exchange_rate }
             : {}),
+          ...(flow.requestData.apply_additional_profit
+            ? { apply_additional_profit: true }
+            : {}),
         };
       }
 
@@ -1271,6 +1308,9 @@ const Sales = () => {
         usd: paymentPayload.usd,
         ...(paymentPayload.exchange_rate != null
           ? { exchange_rate: paymentPayload.exchange_rate }
+          : {}),
+        ...(paymentPayload.apply_additional_profit
+          ? { apply_additional_profit: true }
           : {}),
         ...(cfoActiveLines.length > 0 ? {
           package_lines: cfoActiveLines.map(({ package_type, quantity }) => ({ package_type, quantity })),
@@ -1390,6 +1430,7 @@ const Sales = () => {
         balance_shortfall_type: '',
         balance_shortfall_amount: '',
         apply_currency_conversion_difference: false,
+        apply_additional_profit: false,
       });
       setShowSellReservedForm(true);
     }
@@ -1462,11 +1503,27 @@ const Sales = () => {
       if (wantFx) {
         payload.apply_currency_conversion_difference = true;
       }
+      const overpayTol = meta.sc === 'UZS' ? 1 : 0.005;
+      const isOverpay = meta.paid != null && meta.due != null && meta.paid - meta.due > overpayTol;
+      if (isOverpay && !wantDisc && !wantFx) {
+        if (
+          !window.confirm(
+            buildAdditionalProfitConfirmMessage(
+              { ...meta, overpaymentAmount: meta.paid - meta.due },
+              sellReservedExchangeRate,
+            ),
+          )
+        ) {
+          return;
+        }
+        payload.apply_additional_profit = true;
+      }
       await api.post(`/sales/${sellReservedData.saleId}/sell_reserved/`, payload);
       setShowSellReservedForm(false);
       setSellReservedData({
         saleId: null, uzs: '', usd: '', balance_shortfall_type: '',
         balance_shortfall_amount: '', apply_currency_conversion_difference: false,
+        apply_additional_profit: false,
       });
       fetchSales();
       showNotification(t('sellReserved.success'), 'success');
@@ -1519,9 +1576,10 @@ const Sales = () => {
               {t('rowActions.completeSale', { ns: 'sales' })}
             </button>
           )}
-        {sale.status === 'dispatched' && shopDeliverySettlementRequired(sale) && canDeliverySettle && (
+        {shopDeliverySettlementRequiredForGroup(groupSales?.length ? { groupSales } : sale) && canDeliverySettle && (
           <ShopDeliverySettlementButtons
             sale={sale}
+            groupSales={groupSales}
             classNameButton="btn-status"
             onOpenSettlement={openDeliverySettlementModal}
           />
@@ -1609,6 +1667,11 @@ const Sales = () => {
       <>
         <td className={detailClass}>
           <span className={`status-badge ${sale.status}`}>{tStatus(sale.status, 'sale')}</span>
+          {sale.declinedCount > 0 && (
+            <small style={{ display: 'block', color: '#b45309', marginTop: 2 }}>
+              {t('deliverySettlement.declinedCountBadge', { ns: 'sales', count: sale.declinedCount })}
+            </small>
+          )}
         </td>
         <td className={detailClass}>
           {sale.product_detail?.category_type
@@ -2062,7 +2125,7 @@ const Sales = () => {
         </div>
       )}
 
-      {completePaySale && shopDeliverySettlementRequired(completePaySale) && (
+      {completePaySale && shopDeliverySettlementRequiredForGroup(completePaySale) && (
         <SaleDeliverySettlementForm
           sale={completePaySale}
           onClose={() => setCompletePaySale(null)}
@@ -2074,7 +2137,7 @@ const Sales = () => {
           showNotification={showNotification}
         />
       )}
-      {completePaySale && !shopDeliverySettlementRequired(completePaySale) && (
+      {completePaySale && !shopDeliverySettlementRequiredForGroup(completePaySale) && (
         <SaleCompletePayForm
           sale={completePaySale}
           onClose={() => setCompletePaySale(null)}
@@ -2211,6 +2274,7 @@ const Sales = () => {
                   setSellReservedData({
                     saleId: null, uzs: '', usd: '', balance_shortfall_type: '',
                     balance_shortfall_amount: '', apply_currency_conversion_difference: false,
+                    apply_additional_profit: false,
                   });
                 }}
               >
@@ -2268,11 +2332,42 @@ const Sales = () => {
                 <label>{t('batch.currencyAll')}</label>
                 <select
                   value={batchDefaults.sale_currency}
-                  onChange={(e) => setBatchDefaults({ ...batchDefaults, sale_currency: e.target.value })}
+                  onChange={(e) => {
+                    const nextCurrency = e.target.value;
+                    const prevCurrency = batchDefaults.sale_currency || 'USD';
+                    setBatchDefaults({ ...batchDefaults, sale_currency: nextCurrency });
+                    if (nextCurrency === prevCurrency) return;
+                    setBatchLines((lines) =>
+                      lines.map((l) => {
+                        if (!l.layer && !l.list_price && !l.selling_price && !l.discount_price) return l;
+                        const convert = (val) => {
+                          const num = parsePriceNum(val);
+                          if (num == null) return val;
+                          if (!batchCbuRate) return val;
+                          const converted =
+                            nextCurrency === 'UZS'
+                              ? usdToUzs(num, batchCbuRate)
+                              : uzsToUsd(num, batchCbuRate);
+                          return formatSalePriceForCurrency(converted, nextCurrency);
+                        };
+                        return {
+                          ...l,
+                          list_price: convert(l.list_price),
+                          selling_price: convert(l.selling_price),
+                          discount_price: convert(l.discount_price),
+                        };
+                      })
+                    );
+                  }}
                 >
                   <option value="USD">{t('currency.usd', { ns: 'common' })}</option>
                   <option value="UZS">{t('currency.uzs', { ns: 'common' })}</option>
                 </select>
+                {!batchCbuRate && batchExchangeRateError && (
+                  <small style={{ color: '#b45309', display: 'block', marginTop: '4px' }}>
+                    {batchExchangeRateError}
+                  </small>
+                )}
               </div>
             </div>
             <div className="batch-sale-lines-block">

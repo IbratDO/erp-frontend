@@ -21,7 +21,8 @@
     "modelSearchApply": "«{{query}}» bo‘yicha qidirish",
     "allSizes": "Barcha o‘lchamlar",
     "allColors": "Barcha ranglar",
-    "allStatuses": "Barcha holatlar"
+    "allStatuses": "Barcha holatlar",
+    "allLayers": "Barcha qatlamlar"
   },
   "form": {
     "categoryType": "Kategoriya turi",
