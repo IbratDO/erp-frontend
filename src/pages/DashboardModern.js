@@ -435,21 +435,6 @@ const DashboardModern = () => {
             />
           </section>
 
-          <section className="dash-section">
-            <div className="dash-charts-row">
-              <ChartPanel
-                emptyLabel={chartEmpty}
-                title={td('chartNewVsExisting')}
-                data={monthlyCustomers.data}
-                seriesKeys={monthlyCustomers.keys}
-                xKey="monthLabel"
-                chartType="area"
-                onLegendClick={handleLegendCustomer}
-                activeCross={crossFilter.customerType}
-              />
-            </div>
-          </section>
-
           {canViewMgmt ? (
             <section className="mgmt-section">
               <MoneyBalanceCards data={mgmtData} />

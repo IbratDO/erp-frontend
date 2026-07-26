@@ -202,7 +202,6 @@ export function NetProfitChart({ data }) {
 
 export function FinanceCharts({ data, expensesGranularity, setExpensesGranularity }) {
   const { t } = useAppTranslation(['dashboard', 'common']);
-  const { managerChartData, managerNames } = useManagerChartData(data);
   return (
     <div className="mgmt-grid">
       <MgmtChart title={t('mgmt.netProfitMonthly')}>
@@ -220,28 +219,6 @@ export function FinanceCharts({ data, expensesGranularity, setExpensesGranularit
               strokeWidth={2}
               dot={{ r: 3 }}
             />
-          </LineChart>
-        </ResponsiveContainer>
-      </MgmtChart>
-
-      <MgmtChart title={t('mgmt.managerMargin')}>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={managerChartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip contentStyle={tooltipStyle} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            {managerNames.map((name, i) => (
-              <Line
-                key={name}
-                type="monotone"
-                dataKey={name}
-                stroke={CHART_PALETTE[i % CHART_PALETTE.length]}
-                strokeWidth={2}
-                dot={false}
-              />
-            ))}
           </LineChart>
         </ResponsiveContainer>
       </MgmtChart>
