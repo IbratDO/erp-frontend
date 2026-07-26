@@ -20,10 +20,23 @@ import {
 } from '../utils/salePaymentFlowHelpers';
 import { buildCombinedSaleForGroup } from '../utils/saleGroupDisplay';
 
+/** Amount-due summary — same gray info-box treatment SaleCompletePayForm uses for its
+ * list/discount/final-price/amount-due box, so Complete & Pay and delivery settlement look
+ * consistent. */
 function PaymentDueNote({ meta, t }) {
   if (meta.due == null || Number.isNaN(meta.due)) return null;
   return (
-    <p style={{ margin: '4px 0 0', fontSize: '0.9em', color: '#444' }}>
+    <div
+      style={{
+        marginTop: 8,
+        padding: '10px 12px',
+        background: '#f8f9fa',
+        borderRadius: 6,
+        fontSize: '0.9em',
+        color: '#444',
+        lineHeight: 1.5,
+      }}
+    >
       <strong>{t('deliverySettlement.amountDue')}</strong> {formatDisplayAmount(meta.due, meta.sc)}
       {meta.paid != null ? (
         <>
@@ -39,7 +52,7 @@ function PaymentDueNote({ meta, t }) {
       ) : meta.mixed ? (
         <span style={{ color: '#b45309' }}> — {t('deliverySettlement.loadingCbu')}</span>
       ) : null}
-    </p>
+    </div>
   );
 }
 
@@ -74,6 +87,135 @@ function DeliveryPaymentAmountFields({ form, setForm, meta, t, disabled = false,
         </div>
       )}
     </>
+  );
+}
+
+/** Discount / currency-difference classification for a payment shortfall — shared by Step 1
+ * (courier proposes when under-collecting) and Step 2 per-line/combined (shop reviews/confirms). */
+function ShortfallClassificationFields({ form, setForm, meta, t }) {
+  return (
+    <>
+      <p style={{ margin: '0 0 10px', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
+        {t('completePay.shortfallHint')}
+      </p>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input
+          type="checkbox"
+          checked={form.balance_shortfall_type === 'discount'}
+          onChange={(e) => {
+            const checked = e.target.checked;
+            const def =
+              meta.short > 0
+                ? meta.sc === 'UZS'
+                  ? String(Math.round(meta.short))
+                  : meta.short.toFixed(2)
+                : '';
+            setForm((prev) => ({
+              ...prev,
+              balance_shortfall_type: checked ? 'discount' : '',
+              balance_shortfall_amount: checked ? prev.balance_shortfall_amount || def : '',
+            }));
+          }}
+        />
+        <span>{t('completePay.discountOption')}</span>
+      </label>
+      {form.balance_shortfall_type === 'discount' && (
+        <div style={{ marginTop: 10, maxWidth: 280 }}>
+          <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
+            {t('completePay.discountAmountLabel', { currency: meta.sc || 'UZS/USD' })}
+          </label>
+          <input
+            type="number"
+            step={meta.sc === 'UZS' ? '1' : '0.01'}
+            min="0"
+            value={form.balance_shortfall_amount ?? ''}
+            onChange={(e) => setForm((prev) => ({ ...prev, balance_shortfall_amount: e.target.value }))}
+          />
+        </div>
+      )}
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={!!form.apply_currency_conversion_difference}
+          onChange={(e) => setForm((prev) => ({ ...prev, apply_currency_conversion_difference: e.target.checked }))}
+        />
+        <span>{t('completePay.conversionDifferenceOption')}</span>
+      </label>
+    </>
+  );
+}
+
+/** True when a payment-difference meta reflects a genuine underpayment (not overpayment/exact). */
+function isUnderpaidMeta(meta) {
+  if (meta.short == null || Number.isNaN(meta.short)) return false;
+  const tol = (meta.sc || 'USD').toUpperCase() === 'UZS' ? 1 : 0.005;
+  return meta.short > tol;
+}
+
+/** Step 2's default form for a line, computed fresh from its current fields every render (no
+ * effect/ref timing to get wrong) — prefills the courier's step-1-collected amount and, if they
+ * classified a shortfall, pre-checks the matching discount/FX option. Caller merges any of the
+ * shop's own edits (stored separately in step2ByLine) on top of this. */
+function step2DefaultFormFor(line, cbuRate) {
+  const fd = buildPaymentFormDataFromSale(line, cbuRate);
+  const step2FromStep1 = deliveryStep2PaymentFromStep1(line);
+  const merged = step2FromStep1 ? { ...fd, uzs: step2FromStep1.uzs, usd: step2FromStep1.usd } : fd;
+  if (line.delivery_step1_shortfall_type === 'discount') {
+    merged.balance_shortfall_type = 'discount';
+    merged.balance_shortfall_amount = String(line.delivery_step1_shortfall_amount ?? '');
+  } else if (line.delivery_step1_shortfall_type === 'fx') {
+    merged.apply_currency_conversion_difference = true;
+  }
+  return merged;
+}
+
+/** Courier-proposal rollup for the combined Step 2 form — computed fresh at render time from
+ * `lines` (no effect/ref), so it never lags behind a reload. */
+function combinedShortfallDefault(linesForGroup) {
+  let discountSum = 0;
+  let anyDiscountProposed = false;
+  let anyFxProposed = false;
+  for (const line of linesForGroup) {
+    if (line.delivery_step1_shortfall_type === 'discount') {
+      anyDiscountProposed = true;
+      discountSum += parseFloat(line.delivery_step1_shortfall_amount) || 0;
+    } else if (line.delivery_step1_shortfall_type === 'fx') {
+      anyFxProposed = true;
+    }
+  }
+  return {
+    balance_shortfall_type: anyDiscountProposed ? 'discount' : '',
+    balance_shortfall_amount: anyDiscountProposed ? String(discountSum) : '',
+    apply_currency_conversion_difference: anyFxProposed,
+  };
+}
+
+/** Amber alert quoting exactly what the courier proposed at Step 1, so the shop can't miss it
+ * even though the checkbox/amount below are already pre-filled from the same proposal. */
+function CourierShortfallAlert({ line, t }) {
+  if (!line?.delivery_step1_shortfall_type) return null;
+  const sc = (line.sale_currency || 'USD').toUpperCase();
+  const key =
+    line.delivery_step1_shortfall_type === 'fx'
+      ? 'deliverySettlement.step1ShortfallProposedFx'
+      : 'deliverySettlement.step1ShortfallProposedDiscount';
+  return (
+    <div
+      style={{
+        marginBottom: 12,
+        padding: '10px 12px',
+        background: '#fffbeb',
+        border: '1px solid #fcd34d',
+        borderRadius: 6,
+        fontSize: '0.88em',
+        color: '#92400e',
+      }}
+    >
+      {t(key, {
+        product: productLabelFor(line, t),
+        amount: formatDisplayAmount(parseFloat(line.delivery_step1_shortfall_amount) || 0, sc),
+      })}
+    </div>
   );
 }
 
@@ -123,9 +265,11 @@ export default function SaleDeliverySettlementForm({
   const [step3Combined, setStep3Combined] = useState({ uzs: '', usd: '' });
   const cardRef = useRef(null);
   const initedIdsRef = useRef(new Set());
-  const step2InitedIdsRef = useRef(new Set());
   const combinedStep2InitedRef = useRef(false);
   const combinedStep3InitedRef = useRef(false);
+  // Once the shop touches the combined form's discount/FX controls, stop overlaying the
+  // courier-proposal default — their explicit choice (including unchecking it) wins from then on.
+  const combinedShortfallTouchedRef = useRef(false);
   const { exchangeRate, exchangeRateError, cbuRate } = useCbuExchangeRate(!!saleProp?.id);
 
   const lineIds = saleProp?.groupSales?.length
@@ -186,7 +330,7 @@ export default function SaleDeliverySettlementForm({
     }
     setLinesLoading(true);
     initedIdsRef.current = new Set();
-    step2InitedIdsRef.current = new Set();
+    combinedShortfallTouchedRef.current = false;
     combinedStep2InitedRef.current = false;
     combinedStep3InitedRef.current = false;
     (async () => {
@@ -231,28 +375,6 @@ export default function SaleDeliverySettlementForm({
       return next;
     });
     for (const line of lines) initedIdsRef.current.add(line.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lines, linesLoading, cbuRate]);
-
-  // Step 2 prefill: computed exactly once per line, the moment it actually has step-1-collected
-  // data to prefill from (delivery_customer_paid_at just became truthy) — NOT at initial load,
-  // when every group line is still fetched up front but most haven't reached step 2 yet.
-  useEffect(() => {
-    if (linesLoading || !lines.length) return;
-    setStep2ByLine((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const line of lines) {
-        if (!line.delivery_customer_paid_at) continue;
-        if (step2InitedIdsRef.current.has(line.id)) continue;
-        const fd = buildPaymentFormDataFromSale(line, cbuRate);
-        const step2FromStep1 = deliveryStep2PaymentFromStep1(line);
-        next[line.id] = step2FromStep1 ? { ...fd, uzs: step2FromStep1.uzs, usd: step2FromStep1.usd } : fd;
-        step2InitedIdsRef.current.add(line.id);
-        changed = true;
-      }
-      return changed ? next : prev;
-    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lines, linesLoading, cbuRate]);
 
@@ -309,6 +431,9 @@ export default function SaleDeliverySettlementForm({
           else usdSum += due;
         }
       }
+      // Courier-proposal seeding (balance_shortfall_type/amount, apply_currency_conversion_difference)
+      // is intentionally NOT done here — it's computed inline at render time (see
+      // combinedShortfallDefault below) so it can't lag behind lines updating.
       setStep2Combined((prev) => ({
         ...prev,
         uzs: uzsSum > 0 ? String(Math.round(uzsSum)) : '',
@@ -374,10 +499,10 @@ export default function SaleDeliverySettlementForm({
         showNotification?.(t('deliverySettlement.errAmountForItem', { product: productLabelFor(line, t) }), 'error');
         return;
       }
-      toAccept.push({ line, uzsT, usdT });
+      toAccept.push({ line, uzsT, usdT, f });
     }
 
-    for (const { line, uzsT, usdT } of toAccept) {
+    for (const { line, uzsT, usdT, f } of toAccept) {
       const sc = line.sale_currency || 'USD';
       const needsCbuRate =
         (uzsT > 0 && usdT > 0) ||
@@ -386,6 +511,22 @@ export default function SaleDeliverySettlementForm({
       if (needsCbuRate && !cbuRate) {
         showNotification?.(exchangeRateError || t('completePay.errRateLoading'), 'error');
         return;
+      }
+      const meta = computePaymentDifferenceMeta(line, f, cbuRate);
+      if (isUnderpaidMeta(meta)) {
+        const wantDiscount = f.balance_shortfall_type === 'discount';
+        const wantFx = !!f.apply_currency_conversion_difference;
+        if (!wantDiscount && !wantFx) {
+          showNotification?.(
+            t('deliverySettlement.step1ShortfallRequired', { product: productLabelFor(line, t) }),
+            'error',
+          );
+          return;
+        }
+        if (wantDiscount && !(parseFloat(f.balance_shortfall_amount) > 0)) {
+          showNotification?.(t('completePay.errDiscountAmount'), 'error');
+          return;
+        }
       }
     }
 
@@ -409,13 +550,23 @@ export default function SaleDeliverySettlementForm({
         await api.post(`/sales/${line.id}/delivery_customer_paid/`, { item_status: 'declined' });
         done += 1;
       }
-      for (const { line, uzsT, usdT } of toAccept) {
+      for (const { line, uzsT, usdT, f } of toAccept) {
         const sc = line.sale_currency || 'USD';
         const body = { uzs: uzsT, usd: usdT, sale_currency: sc, item_status: 'accepted' };
         if (exchangeRate?.rate && (uzsT > 0 && usdT > 0)) {
           body.exchange_rate = exchangeRate.rate;
         } else if (exchangeRate?.rate && ((sc === 'USD' && uzsT > 0) || (sc === 'UZS' && usdT > 0))) {
           body.exchange_rate = exchangeRate.rate;
+        }
+        const meta = computePaymentDifferenceMeta(line, f, cbuRate);
+        if (isUnderpaidMeta(meta)) {
+          if (f.balance_shortfall_type === 'discount') {
+            body.balance_shortfall_type = 'discount';
+            body.balance_shortfall_amount = parseFloat(f.balance_shortfall_amount) || 0;
+          }
+          if (f.apply_currency_conversion_difference) {
+            body.apply_currency_conversion_difference = true;
+          }
         }
         await api.post(`/sales/${line.id}/delivery_customer_paid/`, body);
         done += 1;
@@ -440,9 +591,42 @@ export default function SaleDeliverySettlementForm({
     }
   };
 
+  /** When nothing is left to pay for the dispatch fee (already paid at assignment, or no
+   * delivery cost recorded), fold Step 3 into Step 2 automatically — there's nothing left for
+   * the shop to enter, so don't make them click through a separate "Complete" screen for it. */
+  const maybeAutoCompleteStep3 = async (line) => {
+    const { needsFeePayment } = step3FeeInfoFor(line);
+    if (!needsFeePayment) {
+      await api.post(`/sales/${line.id}/delivery_pay_dispatch_fee/`, {});
+    }
+  };
+
+  /** True (and shows an error) if the shop's entered amount exceeds what the courier reported
+   * collecting for this line — the shop is only remitting what the courier actually took in. */
+  const exceedsCourierCollection = (line, uzsT, usdT) => {
+    const collectedUzs = parseFloat(line.delivery_customer_collected_uzs) || 0;
+    const collectedUsd = parseFloat(line.delivery_customer_collected_usd) || 0;
+    if (collectedUzs <= 0 && collectedUsd <= 0) return false;
+    if (uzsT > collectedUzs + 1 || usdT > collectedUsd + 0.01) {
+      showNotification?.(
+        t('deliverySettlement.errExceedsCourierCollection', {
+          entered: formatDisplayAmount(uzsT > collectedUzs ? uzsT : usdT, uzsT > collectedUzs ? 'UZS' : 'USD'),
+          collected: formatDisplayAmount(
+            uzsT > collectedUzs ? collectedUzs : collectedUsd,
+            uzsT > collectedUzs ? 'UZS' : 'USD',
+          ),
+        }),
+        'error',
+      );
+      return true;
+    }
+    return false;
+  };
+
   /** POST step 2 for one line. Returns true on success, false/throws on failure. Silent (no
    * notification/reload) so both the per-line and combined-trip submit paths can wrap it. */
   const submitStep2Line = async (line, form, noteOverride) => {
+    if (exceedsCourierCollection(line, parseFloat(form.uzs) || 0, parseFloat(form.usd) || 0)) return false;
     const flow = await runSalePaymentSubmitFlow({
       sale: line,
       paymentFormData: form,
@@ -456,12 +640,13 @@ export default function SaleDeliverySettlementForm({
     const trimmedNote = String(noteOverride ?? step2NoteByLine[line.id] ?? '').trim();
     if (trimmedNote) body.delivery_shop_remittance_note = trimmedNote;
     await api.post(`/sales/${line.id}/delivery_shop_received_payment/`, body);
+    await maybeAutoCompleteStep3(line);
     return true;
   };
 
   const handleStep2Submit = async (line) => {
     try {
-      const form = step2ByLine[line.id] || emptyPaymentFormState();
+      const form = { ...step2DefaultFormFor(line, cbuRate), ...(step2ByLine[line.id] || {}) };
       const ok = await submitStep2Line(line, form);
       if (!ok) return;
       showNotification?.(t('deliverySettlement.step2Success'), 'success');
@@ -474,8 +659,17 @@ export default function SaleDeliverySettlementForm({
     }
   };
 
-  /** Step 2, collapsed: one combined UZS/USD amount split proportionally by each line's own due,
-   * used when every line in the group was accepted at step 1 (no per-item decline to worry about). */
+  /** Combined form's discount/FX fields, with the courier-proposal rollup overlaid unless the
+   * shop has already explicitly touched those controls (see combinedShortfallTouchedRef). */
+  const getCombinedShortfallForm = () =>
+    combinedShortfallTouchedRef.current
+      ? {
+          balance_shortfall_type: step2Combined.balance_shortfall_type,
+          balance_shortfall_amount: step2Combined.balance_shortfall_amount,
+          apply_currency_conversion_difference: step2Combined.apply_currency_conversion_difference,
+        }
+      : combinedShortfallDefault(step2Lines);
+
   /** Step 2, collapsed: resolve the reconciliation ONCE against a synthetic combined sale (clean
    * combined due/paid/excess numbers, one confirm dialog — same pattern SaleCompletePayForm uses
    * for the regular group Complete & Pay), then split the already-resolved flags per line. This
@@ -484,13 +678,38 @@ export default function SaleDeliverySettlementForm({
   const handleStep2CombinedSubmit = async () => {
     const combinedSale = buildCombinedSaleForGroup(step2Lines);
     if (!combinedSale) return;
+    const enteredUzs = parseFloat(step2Combined.uzs) || 0;
+    const enteredUsd = parseFloat(step2Combined.usd) || 0;
+    let collectedUzsTotal = 0;
+    let collectedUsdTotal = 0;
+    for (const line of step2Lines) {
+      collectedUzsTotal += parseFloat(line.delivery_customer_collected_uzs) || 0;
+      collectedUsdTotal += parseFloat(line.delivery_customer_collected_usd) || 0;
+    }
+    if (
+      (collectedUzsTotal > 0 || collectedUsdTotal > 0) &&
+      (enteredUzs > collectedUzsTotal + 1 || enteredUsd > collectedUsdTotal + 0.01)
+    ) {
+      showNotification?.(
+        t('deliverySettlement.errExceedsCourierCollection', {
+          entered: formatDisplayAmount(
+            enteredUzs > collectedUzsTotal ? enteredUzs : enteredUsd,
+            enteredUzs > collectedUzsTotal ? 'UZS' : 'USD',
+          ),
+          collected: formatDisplayAmount(
+            enteredUzs > collectedUzsTotal ? collectedUzsTotal : collectedUsdTotal,
+            enteredUzs > collectedUzsTotal ? 'UZS' : 'USD',
+          ),
+        }),
+        'error',
+      );
+      return;
+    }
     const combinedForm = {
       ...emptyPaymentFormState(),
       uzs: step2Combined.uzs,
       usd: step2Combined.usd,
-      balance_shortfall_type: step2Combined.balance_shortfall_type,
-      balance_shortfall_amount: step2Combined.balance_shortfall_amount,
-      apply_currency_conversion_difference: step2Combined.apply_currency_conversion_difference,
+      ...getCombinedShortfallForm(),
     };
     const flow = await runSalePaymentSubmitFlow({
       sale: combinedSale,
@@ -534,6 +753,7 @@ export default function SaleDeliverySettlementForm({
         const trimmedNote = String(step2CombinedNote || '').trim();
         if (trimmedNote) body.delivery_shop_remittance_note = trimmedNote;
         await api.post(`/sales/${line.id}/delivery_shop_received_payment/`, body);
+        await maybeAutoCompleteStep3(line);
         done += 1;
       }
       showNotification?.(t('deliverySettlement.step2SuccessGroup', { count: done }), 'success');
@@ -862,6 +1082,24 @@ export default function SaleDeliverySettlementForm({
                   </div>
                 </div>
                 {!isDeclined && <PaymentDueNote meta={meta} t={t} />}
+                {!isDeclined && isUnderpaidMeta(meta) && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <p style={{ margin: '0 0 6px', fontSize: '0.88em', color: '#b45309' }}>
+                      {t('deliverySettlement.step1ShortfallRequired')}
+                    </p>
+                    <ShortfallClassificationFields
+                      form={form}
+                      setForm={(fn) =>
+                        setStep1ByLine((prev) => ({
+                          ...prev,
+                          [line.id]: typeof fn === 'function' ? fn(prev[line.id] || {}) : fn,
+                        }))
+                      }
+                      meta={meta}
+                      t={t}
+                    />
+                  </div>
+                )}
               </div>
             );
           })}
@@ -939,6 +1177,55 @@ export default function SaleDeliverySettlementForm({
                   <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: '0.92em' }}>
                     {t('deliverySettlement.step2GroupTotalTitle', { count: step2Lines.length })}
                   </p>
+                  {step2Lines
+                    .filter((line) => line.delivery_step1_price_before_adjustment != null)
+                    .map((line) => (
+                      <p key={line.id} style={{ margin: '0 0 10px', fontSize: '0.85em', color: '#b45309' }}>
+                        {t('deliverySettlement.step1PriceAdjustedNotice', {
+                          product: productLabelFor(line, t),
+                          before: formatDisplayAmount(
+                            parseFloat(line.delivery_step1_price_before_adjustment) * (parseFloat(line.quantity) || 1),
+                            line.sale_currency,
+                          ),
+                          after: formatDisplayAmount(line.total_amount, line.sale_currency),
+                        })}
+                      </p>
+                    ))}
+                  {step2Lines.some((line) => line.delivery_step1_shortfall_type) && (
+                    <div
+                      style={{
+                        marginBottom: 12,
+                        padding: '10px 12px',
+                        background: '#fffbeb',
+                        border: '1px solid #fcd34d',
+                        borderRadius: 6,
+                        fontSize: '0.88em',
+                        color: '#92400e',
+                      }}
+                    >
+                      <p style={{ margin: '0 0 6px', fontWeight: 600 }}>
+                        {t('deliverySettlement.step1ShortfallProposedRollupTitle')}
+                      </p>
+                      {step2Lines
+                        .filter((line) => line.delivery_step1_shortfall_type)
+                        .map((line) => (
+                          <p key={line.id} style={{ margin: '2px 0' }}>
+                            {t(
+                              line.delivery_step1_shortfall_type === 'fx'
+                                ? 'deliverySettlement.step1ShortfallProposedFx'
+                                : 'deliverySettlement.step1ShortfallProposedDiscount',
+                              {
+                                product: productLabelFor(line, t),
+                                amount: formatDisplayAmount(
+                                  parseFloat(line.delivery_step1_shortfall_amount) || 0,
+                                  line.sale_currency,
+                                ),
+                              },
+                            )}
+                          </p>
+                        ))}
+                    </div>
+                  )}
                   <div className="form-grid">
                     <div className="form-group">
                       <label>{t('currency.uzs', { ns: 'common' })}</label>
@@ -959,50 +1246,26 @@ export default function SaleDeliverySettlementForm({
                       />
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                      <p style={{ margin: '0 0 10px', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
-                        {t('completePay.shortfallHint')}
-                      </p>
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={step2Combined.balance_shortfall_type === 'discount'}
-                          onChange={(e) => {
-                            const checked = e.target.checked;
-                            setStep2Combined((prev) => ({
-                              ...prev,
-                              balance_shortfall_type: checked ? 'discount' : '',
-                              balance_shortfall_amount: checked ? prev.balance_shortfall_amount : '',
-                            }));
-                          }}
-                        />
-                        <span>{t('completePay.discountOption')}</span>
-                      </label>
-                      {step2Combined.balance_shortfall_type === 'discount' && (
-                        <div style={{ marginTop: 10, maxWidth: 280 }}>
-                          <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
-                            {t('completePay.discountAmountLabel', { currency: 'UZS/USD' })}
-                          </label>
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            value={step2Combined.balance_shortfall_amount ?? ''}
-                            onChange={(e) =>
-                              setStep2Combined((prev) => ({ ...prev, balance_shortfall_amount: e.target.value }))
-                            }
-                          />
-                        </div>
-                      )}
-                      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 12 }}>
-                        <input
-                          type="checkbox"
-                          checked={!!step2Combined.apply_currency_conversion_difference}
-                          onChange={(e) =>
-                            setStep2Combined((prev) => ({ ...prev, apply_currency_conversion_difference: e.target.checked }))
-                          }
-                        />
-                        <span>{t('completePay.conversionDifferenceOption')}</span>
-                      </label>
+                      <ShortfallClassificationFields
+                        form={{ ...step2Combined, ...getCombinedShortfallForm() }}
+                        setForm={(fn) => {
+                          setStep2Combined((prev) => {
+                            // Seed with the current overlay defaults on first touch so editing
+                            // just the amount (say) doesn't blank out an untouched type/fx choice.
+                            const base = combinedShortfallTouchedRef.current
+                              ? prev
+                              : { ...prev, ...combinedShortfallDefault(step2Lines) };
+                            combinedShortfallTouchedRef.current = true;
+                            return typeof fn === 'function' ? fn(base) : fn;
+                          });
+                        }}
+                        meta={computePaymentDifferenceMeta(
+                          buildCombinedSaleForGroup(step2Lines),
+                          { ...step2Combined, ...getCombinedShortfallForm() },
+                          cbuRate,
+                        )}
+                        t={t}
+                      />
                     </div>
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label>{t('deliverySettlement.noteOptional')}</label>
@@ -1023,7 +1286,7 @@ export default function SaleDeliverySettlementForm({
                 </form>
               ) : (
                 step2Lines.map((line) => {
-                const form = step2ByLine[line.id] || emptyPaymentFormState();
+                const form = { ...step2DefaultFormFor(line, cbuRate), ...(step2ByLine[line.id] || {}) };
                 const meta = computePaymentDifferenceMeta(line, form, cbuRate);
                 return (
                   <form
@@ -1037,6 +1300,18 @@ export default function SaleDeliverySettlementForm({
                     <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: '0.92em' }}>
                       {t('deliverySettlement.step1ItemHeading', { id: line.id, product: productLabelFor(line, t) })}
                     </p>
+                    {line.delivery_step1_price_before_adjustment != null && (
+                      <p style={{ margin: '0 0 10px', fontSize: '0.85em', color: '#b45309' }}>
+                        {t('deliverySettlement.step1PriceAdjustedNotice', {
+                          product: productLabelFor(line, t),
+                          before: formatDisplayAmount(
+                            parseFloat(line.delivery_step1_price_before_adjustment) * (parseFloat(line.quantity) || 1),
+                            line.sale_currency,
+                          ),
+                          after: formatDisplayAmount(line.total_amount, line.sale_currency),
+                        })}
+                      </p>
+                    )}
                     <div className="form-grid">
                       {form.prepayment_amount && parseFloat(form.prepayment_amount) > 0 ? (
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -1057,67 +1332,18 @@ export default function SaleDeliverySettlementForm({
                       />
                       {meta.needs && (
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <p style={{ margin: '0 0 10px', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
-                            {t('completePay.shortfallHint')}
-                          </p>
-                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-                            <input
-                              type="checkbox"
-                              checked={form.balance_shortfall_type === 'discount'}
-                              onChange={(e) => {
-                                const checked = e.target.checked;
-                                const def =
-                                  meta.short > 0
-                                    ? meta.sc === 'UZS'
-                                      ? String(Math.round(meta.short))
-                                      : meta.short.toFixed(2)
-                                    : '';
-                                setStep2ByLine((prev) => ({
-                                  ...prev,
-                                  [line.id]: {
-                                    ...prev[line.id],
-                                    balance_shortfall_type: checked ? 'discount' : '',
-                                    balance_shortfall_amount: checked
-                                      ? prev[line.id]?.balance_shortfall_amount || def
-                                      : '',
-                                  },
-                                }));
-                              }}
-                            />
-                            <span>{t('completePay.discountOption')}</span>
-                          </label>
-                          {form.balance_shortfall_type === 'discount' && (
-                            <div style={{ marginTop: 10, maxWidth: 280 }}>
-                              <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
-                                {t('completePay.discountAmountLabel', { currency: meta.sc })}
-                              </label>
-                              <input
-                                type="number"
-                                step={meta.sc === 'UZS' ? '1' : '0.01'}
-                                min="0"
-                                value={form.balance_shortfall_amount ?? ''}
-                                onChange={(e) =>
-                                  setStep2ByLine((prev) => ({
-                                    ...prev,
-                                    [line.id]: { ...prev[line.id], balance_shortfall_amount: e.target.value },
-                                  }))
-                                }
-                              />
-                            </div>
-                          )}
-                          <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 12 }}>
-                            <input
-                              type="checkbox"
-                              checked={!!form.apply_currency_conversion_difference}
-                              onChange={(e) =>
-                                setStep2ByLine((prev) => ({
-                                  ...prev,
-                                  [line.id]: { ...prev[line.id], apply_currency_conversion_difference: e.target.checked },
-                                }))
-                              }
-                            />
-                            <span>{t('completePay.conversionDifferenceOption')}</span>
-                          </label>
+                          <CourierShortfallAlert line={line} t={t} />
+                          <ShortfallClassificationFields
+                            form={form}
+                            setForm={(fn) =>
+                              setStep2ByLine((prev) => ({
+                                ...prev,
+                                [line.id]: typeof fn === 'function' ? fn(prev[line.id] || {}) : fn,
+                              }))
+                            }
+                            meta={meta}
+                            t={t}
+                          />
                         </div>
                       )}
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
