@@ -379,6 +379,14 @@
   background-color: #e67e22;
 }
 
+/* Per-line action buttons inside an expanded group row read smaller than the collapsed
+   row's own group-wide action buttons, so the two levels are visually distinguishable. */
+.sale-group-detail-row .btn-status,
+.sale-group-detail-row .btn-edit {
+  padding: 3px 7px;
+  font-size: 11px;
+}
+
 .btn-delete {
   background-color: #e74c3c;
   color: white;
@@ -676,6 +684,29 @@
   }
 }
 
+/* —— Multi-item order: header fields on one row —— */
+/* Own class (not shared with .sales-batch-header-row) since Orders' fields — order type,
+   supplier country/cargo, customer — need different proportions than Sales' header. */
+.orders-batch-header-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr) minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: 15px;
+  margin-bottom: 20px;
+  align-items: flex-end;
+}
+
+@media (max-width: 1099px) {
+  .orders-batch-header-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 599px) {
+  .orders-batch-header-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 .sale-group-row td {
   vertical-align: top;
   background: #eef4ff;
@@ -763,6 +794,26 @@
 }
 .batch-sale-lines col.batch-col-row {
   width: 2.6rem;
+}
+.batch-sale-lines col.batch-col-eshop {
+  width: 16%;
+}
+.batch-sale-lines col.batch-col-advance {
+  width: 9rem;
+}
+/* Orders' own line table needs a narrower product column (scoped override, not shared
+   with Sales' batch table) to leave room for the eShop and on_demand advance columns. */
+.batch-order-lines col.batch-col-product {
+  width: 20%;
+}
+.batch-order-lines-advance-cell {
+  display: flex;
+  gap: 4px;
+  align-items: stretch;
+}
+.batch-order-lines-advance-cell select {
+  flex: 0 0 auto;
+  width: 4.5rem;
 }
 
 .batch-sale-lines thead th {

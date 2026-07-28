@@ -143,6 +143,8 @@
   },
   "completeFromOrder": {
     "title": "Complete sale from order — Sale #{{id}}",
+    "titleGroup": "Complete {{count}} sales in group",
+    "successGroup": "{{count}} sale(s) completed successfully!",
     "saleType": "Sale type",
     "sellingPrice": "Selling price",
     "advanceAuto": "Advance payment received (auto-filled)",

@@ -402,19 +402,28 @@ const DashboardModern = () => {
             />
             {!targetologView ? (
               <KpiCard
-                label={td('salesRevenueToday')}
+                label={td('salesRevenueTodayUsd')}
                 value={`$${(kpis?.net_revenue_usd ?? kpis?.revenue_usd ?? 0).toLocaleString(undefined, {
                   minimumFractionDigits: 0,
                   maximumFractionDigits: 0,
                 })}`}
                 sub={
-                  (kpis?.refunds_usd ?? 0) > 0 || (kpis?.refunds_uzs ?? 0) > 0
-                    ? td('netRevenueSub', {
-                        refunds: formatRefundSummary(kpis?.refunds_usd, kpis?.refunds_uzs),
-                      })
-                    : (kpis?.net_revenue_uzs ?? kpis?.revenue_uzs ?? 0) > 0
-                      ? `${(kpis.net_revenue_uzs ?? kpis.revenue_uzs).toLocaleString(undefined, { maximumFractionDigits: 0 })} UZS`
-                      : null
+                  (kpis?.refunds_usd ?? 0) > 0
+                    ? td('netRevenueSub', { refunds: formatRefundSummary(kpis?.refunds_usd, 0) })
+                    : null
+                }
+              />
+            ) : null}
+            {!targetologView ? (
+              <KpiCard
+                label={td('salesRevenueTodayUzs')}
+                value={`${(kpis?.net_revenue_uzs ?? kpis?.revenue_uzs ?? 0).toLocaleString(undefined, {
+                  maximumFractionDigits: 0,
+                })} UZS`}
+                sub={
+                  (kpis?.refunds_uzs ?? 0) > 0
+                    ? td('netRevenueSub', { refunds: formatRefundSummary(0, kpis?.refunds_uzs) })
+                    : null
                 }
               />
             ) : null}

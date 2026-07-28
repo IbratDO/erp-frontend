@@ -143,6 +143,8 @@
   },
   "completeFromOrder": {
     "title": "Buyurtmadan sotuvni yakunlash — Sotuv #{{id}}",
+    "titleGroup": "Guruhdagi sotuvlarni yakunlash ({{count}} ta)",
+    "successGroup": "{{count}} ta sotuv muvaffaqiyatli yakunlandi!",
     "saleType": "Sotuv turi",
     "sellingPrice": "Sotuv narxi",
     "advanceAuto": "Oldindan to‘lov (avto)",

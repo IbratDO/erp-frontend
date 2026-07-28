@@ -25,6 +25,7 @@ import FormSearchableSelect from '../components/FormSearchableSelect';
 import { matchesProductCatalogFilters, getCascadedFilterOptions, getCascadedDateOptions } from '../utils/productFilterUtils';
 import CustomerSearchableSelect from '../components/CustomerSearchableSelect';
 import { useClientTableSort, compareForSort } from '../utils/tableSort';
+import { buildOrderDisplayRows, aggregateGroupOrders, orderLikeForDisplayRow } from '../utils/orderGroupDisplay';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
@@ -413,29 +414,6 @@ const Orders = () => {
   /** Ledger totals for pay flows and move-to-inventory advance refunds (not bare status updates). */
   const needsLedgerForPayments = canPayOrder || canPayCargo || canMoveInventory;
 
-  const newOrderFormDefaults = useCallback(
-    () => ({
-      order_type: canManageStockOrders ? 'stock' : 'on_demand',
-      product: '',
-      supplier_country: '',
-      supplier_cargo: '',
-      eshop: '',
-      client_eshop_notes: '',
-      ordered_quantity: '',
-      selling_usd_per_unit: '',
-      cost_usd_per_unit: '',
-      order_is_paid: false,
-      order_payment_currency: 'USD',
-      order_payment_type: 'card',
-      customer: '',
-      advance_payment_amount: '',
-      advance_payment_currency: 'USD',
-      advance_payment_type: 'cash',
-      status: 'order_created',
-    }),
-    [canManageStockOrders],
-  );
-
   useEffect(() => {
     if (user && (!Array.isArray(user.permissions) || user.permissions.length === 0)) {
       refreshUser();
@@ -447,7 +425,6 @@ const Orders = () => {
   const [balancesLoaded, setBalancesLoaded] = useState(false);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
   const [filters, setFilters] = useState({
     category_type: '',
     category: [],
@@ -461,7 +438,28 @@ const Orders = () => {
     year: '',
     month: '',
   });
-  const [formData, setFormData] = useState(newOrderFormDefaults);
+  const newBatchLine = useCallback(() => ({
+    key: `${Date.now()}-${Math.random()}`,
+    category_type: '',
+    category: '',
+    product: '',
+    ordered_quantity: '1',
+    cost_usd_per_unit: '',
+    selling_usd_per_unit: '',
+    eshop: '',
+    client_eshop_notes: '',
+    advance_payment_amount: '',
+    advance_payment_currency: 'USD',
+  }), []);
+  const [showBatchForm, setShowBatchForm] = useState(false);
+  const [batchCreating, setBatchCreating] = useState(false);
+  const [batchShared, setBatchShared] = useState({
+    order_type: 'stock',
+    supplier_country: '',
+    supplier_cargo: '',
+    customer: '',
+  });
+  const [batchLines, setBatchLines] = useState([]);
 
   const [paymentFormData, setPaymentFormData] = useState({
     orderId: null,
@@ -489,21 +487,27 @@ const Orders = () => {
   const editCargoFormRef = useRef(null);
   const [markOrderedFormData, setMarkOrderedFormData] = useState({
     orderId: null,
-    uzs: '',
-    usd: '',
     notes: '',
   });
   const [showMarkOrderedForm, setShowMarkOrderedForm] = useState(false);
   const markOrderedFormRef = useRef(null);
-  
+
+  const [showMarkOrderedGroupForm, setShowMarkOrderedGroupForm] = useState(false);
+  const [markOrderedGroupData, setMarkOrderedGroupData] = useState({
+    groupId: null,
+    notes: '',
+  });
+  const markOrderedGroupFormRef = useRef(null);
+
+  const [showCargoGroupForm, setShowCargoGroupForm] = useState(false);
+  const [cargoGroupData, setCargoGroupData] = useState({ groupId: null, uzs: '', usd: '', lines: [] });
+  const cargoGroupFormRef = useRef(null);
+
+  const [showPayOrderGroupForm, setShowPayOrderGroupForm] = useState(false);
+  const [payOrderGroupData, setPayOrderGroupData] = useState({ groupId: null, lines: [] });
+  const payOrderGroupFormRef = useRef(null);
+
   const [showMoveToInventoryForm, setShowMoveToInventoryForm] = useState(false);
-  const [formCategoryType, setFormCategoryType] = useState('');
-  const [formCategory, setFormCategory] = useState('');
-  const [productSearch, setProductSearch] = useState('');
-  const [productDropdownOpen, setProductDropdownOpen] = useState(false);
-  const productDropdownRef = useRef(null);
-  const orderCreateInFlight = useRef(false);
-  const [orderCreating, setOrderCreating] = useState(false);
   const paymentFormRef = useRef(null);
   const cargoFormRef = useRef(null);
   const moveToInventoryFormRef = useRef(null);
@@ -562,15 +566,6 @@ const Orders = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useEffect(() => {
-    const handleClickOutside = (e) => {
-      if (productDropdownRef.current && !productDropdownRef.current.contains(e.target)) {
-        setProductDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const fetchBalances = async () => {
     try {
@@ -610,7 +605,7 @@ const Orders = () => {
     try {
       const response = await api.post('/customers/', { ...newCustomerData });
       await fetchCustomers();
-      setFormData({ ...formData, customer: response.data.id });
+      setBatchShared((prev) => ({ ...prev, customer: response.data.id }));
       setShowCustomerForm(false);
       setNewCustomerData({ name: '', telephone: '+998', instagram: '', region: 'tashkent_city', notes: '' });
     } catch (error) {
@@ -633,6 +628,22 @@ const Orders = () => {
   };
 
 
+
+  const eshopOptions = useMemo(() => [
+    { value: 'zalando', label: t('eshops.zalando', { ns: 'orders' }) },
+    { value: 'best_secret', label: t('eshops.best_secret', { ns: 'orders' }) },
+    { value: 'adidas', label: t('eshops.adidas', { ns: 'orders' }) },
+    { value: 'unidays', label: t('eshops.unidays', { ns: 'orders' }) },
+    { value: 'nike', label: t('eshops.nike', { ns: 'orders' }) },
+    { value: 'asos', label: t('eshops.asos', { ns: 'orders' }) },
+    ...[...new Set(
+      orders
+        .map((o) => o.eshop)
+        .filter((e) => e && !BUILTIN_ESHOP_SLUGS.has(String(e).toLowerCase()))
+    )].sort().map((eshop) => ({ value: eshop, label: eshop })),
+    { value: 'client', label: t('eshops.client', { ns: 'orders' }) },
+    { value: 'other', label: t('eshops.other', { ns: 'orders' }) },
+  ], [orders, t]);
 
   const customerFilterOptions = useMemo(() => {
     const map = new Map();
@@ -711,26 +722,45 @@ const Orders = () => {
 
   const orderSort = useClientTableSort(ORDER_SORT_ACCESSORS);
 
+  const [expandedOrderGroups, setExpandedOrderGroups] = useState(() => new Set());
+  const toggleOrderGroup = (groupId) => {
+    setExpandedOrderGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(groupId)) next.delete(groupId);
+      else next.add(groupId);
+      return next;
+    });
+  };
+
+  const orderDisplayRows = useMemo(
+    () => buildOrderDisplayRows(filteredOrders, orders),
+    [filteredOrders, orders],
+  );
+
   const sortedFilteredOrders = useMemo(() => {
-    const rows = filteredOrders;
+    const rows = orderDisplayRows;
     if (!rows?.length) return rows;
     if (orderSort.sortCol && ORDER_SORT_ACCESSORS[orderSort.sortCol]) {
       const get = ORDER_SORT_ACCESSORS[orderSort.sortCol];
       const sign = orderSort.sortDir === 'desc' ? -1 : 1;
       return [...rows].sort((a, b) => {
-        const active = compareActiveOrdersFirst(a, b);
+        const oa = orderLikeForDisplayRow(a);
+        const ob = orderLikeForDisplayRow(b);
+        const active = compareActiveOrdersFirst(oa, ob);
         if (active !== 0) return active;
-        return compareForSort(get(a), get(b)) * sign;
+        return compareForSort(get(oa), get(ob)) * sign;
       });
     }
     return [...rows].sort((a, b) => {
-      const active = compareActiveOrdersFirst(a, b);
+      const oa = orderLikeForDisplayRow(a);
+      const ob = orderLikeForDisplayRow(b);
+      const active = compareActiveOrdersFirst(oa, ob);
       if (active !== 0) return active;
-      const ta = new Date(a.order_date || a.created_at).getTime() || 0;
-      const tb = new Date(b.order_date || b.created_at).getTime() || 0;
+      const ta = new Date(oa.order_date || oa.created_at).getTime() || 0;
+      const tb = new Date(ob.order_date || ob.created_at).getTime() || 0;
       return tb - ta;
     });
-  }, [filteredOrders, orderSort]);
+  }, [orderDisplayRows, orderSort]);
 
   const orderColumnTotals = useMemo(() => {
     const list = filteredOrders;
@@ -819,157 +849,148 @@ const Orders = () => {
     }
   };
 
-  const handleSubmit = async (e) => {
+  const addBatchLine = () => setBatchLines((lines) => [...lines, newBatchLine()]);
+
+  const removeBatchLine = (key) => {
+    setBatchLines((lines) => (lines.length <= 1 ? lines : lines.filter((l) => l.key !== key)));
+  };
+
+  const updateBatchLine = (key, field, value) => {
+    setBatchLines((lines) =>
+      lines.map((l) => {
+        if (l.key !== key) return l;
+        if (field === 'category_type') {
+          return { ...l, category_type: value, category: '', product: '' };
+        }
+        if (field === 'category') {
+          return { ...l, category: value, product: '' };
+        }
+        if (field === 'product') {
+          const product = products.find((p) => String(p.id) === String(value));
+          const psp = product ? parseFloat(product.selling_price) : NaN;
+          return {
+            ...l,
+            product: value,
+            selling_usd_per_unit: psp > 0 && !Number.isNaN(psp) ? psp.toFixed(2) : l.selling_usd_per_unit,
+          };
+        }
+        return { ...l, [field]: value };
+      })
+    );
+  };
+
+  const handleBatchSubmit = async (e) => {
     e.preventDefault();
-    if (orderCreateInFlight.current) return;
-    if (!e.target.reportValidity()) return;
-    try {
-      const qty = parseInt(formData.ordered_quantity, 10) || 0;
-      if (!formData.product || qty < 1) {
+    if (batchCreating) return;
+    const withProduct = batchLines.filter((l) => l.product);
+    if (withProduct.length === 0) {
+      showNotification(t('notifications.selectProductQty'), 'error');
+      return;
+    }
+    const isOnDemand = batchShared.order_type === 'on_demand';
+    if (isOnDemand) {
+      const cId = parseInt(batchShared.customer, 10);
+      if (!batchShared.customer || Number.isNaN(cId)) {
+        showNotification(t('notifications.selectCustomerOnDemand'), 'error');
+        return;
+      }
+    }
+    for (const l of withProduct) {
+      const qty = parseInt(l.ordered_quantity, 10) || 0;
+      if (qty < 1) {
         showNotification(t('notifications.selectProductQty'), 'error');
         return;
       }
-      if (!String(formCategory || '').trim()) {
-        showNotification(t('notifications.selectCategory'), 'error');
-        return;
-      }
-      if (!String(formData.eshop || '').trim()) {
-        showNotification(t('notifications.selectEshop'), 'error');
-        return;
-      }
-      if (!formData.supplier_country.trim()) {
-        showNotification(t('notifications.selectCountry'), 'error');
-        return;
-      }
-
-      if (isClientEshopSlug(formData.eshop) && !String(formData.client_eshop_notes || '').trim()) {
-        showNotification(t('notifications.clientNotesRequired'), 'error');
-        return;
-      }
-
-      if (formData.order_type === 'on_demand') {
-        const cId = parseInt(formData.customer, 10);
-        if (!formData.customer || Number.isNaN(cId)) {
-          showNotification(t('notifications.selectCustomerOnDemand'), 'error');
-          return;
-        }
-      }
-
-      const usdS = numOrZero(formData.selling_usd_per_unit);
-      if (!(usdS > 0)) {
+      const sellingUsd = parseFloat(l.selling_usd_per_unit) || 0;
+      if (!(sellingUsd > 0)) {
         showNotification(t('notifications.sellingPriceRequired'), 'error');
         return;
       }
-
-      const usdSup = numOrZero(formData.cost_usd_per_unit);
-
-      if (formData.order_is_paid && !(usdSup > 0) && !isClientEshopSlug(formData.eshop)) {
-        showNotification(t('notifications.paidNeedCost'), 'error');
+      if (!String(l.eshop || '').trim()) {
+        showNotification(t('notifications.selectEshop'), 'error');
         return;
       }
-
-      if (formData.order_is_paid) {
-        if (formData.order_payment_currency !== 'USD') {
-          showNotification(t('notifications.paidUsdOnly'), 'error');
-          return;
-        }
-        const required = usdSup * qty;
-        if (!ledgerHasFunds('USD', required)) {
-          showNotification(
-            formatInsufficientLedgerMessage('USD', getAvailableBalance('USD'), required, {
-              context: 'order_paid_on_create',
-            }),
-            'error',
-          );
-          return;
-        }
+      if (isClientEshopSlug(l.eshop) && !String(l.client_eshop_notes || '').trim()) {
+        showNotification(t('notifications.clientNotesRequired'), 'error');
+        return;
       }
-
-      const toNum = (v) => parseFloat(v) || 0;
-      const advanceAmt = toNum(formData.advance_payment_amount);
-      const advanceCcy = formData.advance_payment_currency === 'UZS' ? 'UZS' : 'USD';
-
-      if (formData.order_type === 'on_demand' && advanceAmt > 0) {
-        if (advanceCcy === 'USD') {
-          const usdSellingTotal = usdS * qty;
-          if (advanceAmt > usdSellingTotal + 0.01) {
-            showNotification(
-              t('notifications.advanceExceedsSelling', {
-                total: formatDisplayAmount(usdSellingTotal, 'USD'),
+      if (isOnDemand) {
+        const advanceAmt = parseFloat(l.advance_payment_amount) || 0;
+        const advanceCcy = l.advance_payment_currency === 'UZS' ? 'UZS' : 'USD';
+        const sellingTotal = sellingUsd * qty;
+        if (advanceAmt > 0) {
+          if (advanceCcy === 'USD') {
+            if (advanceAmt > sellingTotal + 0.01) {
+              showNotification(
+                t('notifications.advanceExceedsSelling', {
+                  total: formatDisplayAmount(sellingTotal, 'USD'),
+                }),
+                'error',
+              );
+              return;
+            }
+          } else {
+            const ok = window.confirm(
+              t('confirm.advanceUzs', {
+                amount: formatDisplayAmount(advanceAmt, 'UZS'),
+                selling: formatDisplayAmount(sellingTotal, 'USD'),
               }),
-              'error',
             );
-            return;
+            if (!ok) return;
           }
-        } else {
-          const usdSellingTotal = usdS * qty;
-          const ok = window.confirm(
-            t('confirm.advanceUzs', {
-              amount: formatDisplayAmount(advanceAmt, 'UZS'),
-              selling: formatDisplayAmount(usdSellingTotal, 'USD'),
-            }),
-          );
-          if (!ok) return;
         }
       }
+    }
+    if (!batchShared.supplier_country.trim()) {
+      showNotification(t('notifications.selectCountry'), 'error');
+      return;
+    }
 
-      const customerRaw = formData.customer;
-      const customerParsed = parseInt(customerRaw, 10);
-      const customer =
-        customerRaw === '' || customerRaw == null || Number.isNaN(customerParsed)
-          ? null
-          : customerParsed;
-      const orderData = {
-        order_type: formData.order_type,
-        product: parseInt(formData.product, 10),
-        supplier_country: formData.supplier_country || null,
-        supplier_cargo: formData.supplier_cargo?.trim() || null,
-        eshop: formData.eshop || '',
-        client_eshop_notes: String(formData.client_eshop_notes || '').trim(),
+    const items = withProduct.map((l) => {
+      const qty = parseInt(l.ordered_quantity, 10) || 0;
+      const sellingUsd = parseFloat(l.selling_usd_per_unit) || 0;
+      const costUsd = parseFloat(l.cost_usd_per_unit) || 0;
+      return {
+        product: parseInt(l.product, 10),
         ordered_quantity: qty,
+        eshop: l.eshop || '',
+        client_eshop_notes: isClientEshopSlug(l.eshop) ? String(l.client_eshop_notes || '').trim() : '',
         selling_uzs_cash: 0,
         selling_uzs_card: 0,
-        selling_usd_cash: toNum(formData.selling_usd_per_unit) * qty,
+        selling_usd_cash: sellingUsd * qty,
         selling_usd_card: 0,
         supplier_cost_uzs_cash: 0,
         supplier_cost_uzs_card: 0,
-        supplier_cost_usd_cash: toNum(formData.cost_usd_per_unit) * qty,
+        supplier_cost_usd_cash: costUsd * qty,
         supplier_cost_usd_card: 0,
-        order_is_paid: Boolean(formData.order_is_paid),
-        order_payment_currency: formData.order_payment_currency || 'USD',
-        order_payment_type: formData.order_payment_type || 'cash',
-        customer,
-        advance_payment_amount: advanceAmt,
-        advance_payment_currency: advanceCcy,
-        advance_payment_type: formData.advance_payment_type,
-        status: formData.status,
+        ...(isOnDemand ? {
+          advance_payment_amount: parseFloat(l.advance_payment_amount) || 0,
+          advance_payment_currency: l.advance_payment_currency || 'USD',
+          advance_payment_type: 'cash',
+        } : {}),
       };
+    });
 
-      if (orderCreateInFlight.current) return;
-      orderCreateInFlight.current = true;
-      setOrderCreating(true);
-
-      await api.post('/orders/', orderData);
-      setShowForm(false);
-      setFormCategoryType('');
-      setFormCategory('');
-      setProductSearch('');
-      setProductDropdownOpen(false);
-      setFormData(newOrderFormDefaults());
+    try {
+      setBatchCreating(true);
+      const { data } = await api.post('/orders/batch_create/', {
+        order_type: batchShared.order_type,
+        supplier_country: batchShared.supplier_country || null,
+        supplier_cargo: batchShared.supplier_cargo?.trim() || null,
+        ...(isOnDemand ? { customer: parseInt(batchShared.customer, 10) } : {}),
+        items,
+      });
+      showNotification(data.message || t('batch.created', { ns: 'orders', count: data.count }), 'success');
+      setShowBatchForm(false);
+      setBatchShared({ order_type: canManageStockOrders ? 'stock' : 'on_demand', supplier_country: '', supplier_cargo: '', customer: '' });
+      setBatchLines([newBatchLine()]);
       fetchOrders();
-      showNotification(t('notifications.createSuccess'), 'success');
     } catch (error) {
-      console.error('Error creating order:', error);
+      console.error('Error batch-creating orders:', error);
       const d = error.response?.data;
-      const advErr = d?.advance_payment_amount;
-      const advMsg = Array.isArray(advErr) ? advErr[0] : typeof advErr === 'string' ? advErr : null;
-      showNotification(
-        advMsg || d?.error || d?.detail || (typeof d === 'string' ? d : null) || t('notifications.createError'),
-        'error'
-      );
+      showNotification(d?.error || t('notifications.createError'), 'error');
     } finally {
-      orderCreateInFlight.current = false;
-      setOrderCreating(false);
+      setBatchCreating(false);
     }
   };
 
@@ -1003,8 +1024,6 @@ const Orders = () => {
     }
     setMarkOrderedFormData({
       orderId,
-      uzs: order.cargo_cost_uzs != null && Number(order.cargo_cost_uzs) > 0 ? String(order.cargo_cost_uzs) : '',
-      usd: order.cargo_cost_usd != null && Number(order.cargo_cost_usd) > 0 ? String(order.cargo_cost_usd) : '',
       notes: order.ordered_note || '',
     });
     setShowMarkOrderedForm(true);
@@ -1015,7 +1034,9 @@ const Orders = () => {
   const handleMarkAsOrderedSubmit = async (e) => {
     e.preventDefault();
     const notes = String(markOrderedFormData.notes || '').trim();
-    if (!notes) {
+    const order = orders.find((o) => o.id === markOrderedFormData.orderId);
+    const notesRequired = order?.supplier_country === PURCHASING_AGENT_SUPPLIER_COUNTRY;
+    if (notesRequired && !notes) {
       showNotification(t('notifications.orderedNoteRequired'), 'error');
       return;
     }
@@ -1026,11 +1047,9 @@ const Orders = () => {
       }
       await api.post(`/orders/${markOrderedFormData.orderId}/mark_as_ordered/`, {
         notes,
-        cargo_cost_uzs: markOrderedFormData.uzs === '' ? 0 : Number(markOrderedFormData.uzs) || 0,
-        cargo_cost_usd: markOrderedFormData.usd === '' ? 0 : Number(markOrderedFormData.usd) || 0,
       });
       setShowMarkOrderedForm(false);
-      setMarkOrderedFormData({ orderId: null, uzs: '', usd: '', notes: '' });
+      setMarkOrderedFormData({ orderId: null, notes: '' });
       await fetchOrders();
       showNotification(t('notifications.statusUpdated'), 'success');
     } catch (error) {
@@ -1136,6 +1155,203 @@ const Orders = () => {
       console.error('Error updating cargo cost:', error);
       showNotification(
         error.response?.data?.error || error.response?.data?.detail || t('notifications.cargoCostUpdateError'),
+        'error',
+      );
+    }
+  };
+
+  const handleMarkAsOrderedGroup = (groupOrders) => {
+    if (!canMarkAsOrdered) {
+      showNotification(t('notifications.noStatusPermission'), 'error');
+      return;
+    }
+    setMarkOrderedGroupData({ groupId: groupOrders[0].order_group, notes: '' });
+    setShowMarkOrderedGroupForm(true);
+    setTimeout(() => markOrderedGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  const handleMarkAsOrderedGroupSubmit = async (e) => {
+    e.preventDefault();
+    const notes = String(markOrderedGroupData.notes || '').trim();
+    const groupOrder = orders.find((o) => o.order_group === markOrderedGroupData.groupId);
+    const notesRequired = groupOrder?.supplier_country === PURCHASING_AGENT_SUPPLIER_COUNTRY;
+    if (notesRequired && !notes) {
+      showNotification(t('notifications.orderedNoteRequired'), 'error');
+      return;
+    }
+    try {
+      await api.post('/orders/mark_as_ordered_group/', {
+        order_group: markOrderedGroupData.groupId,
+        notes,
+      });
+      setShowMarkOrderedGroupForm(false);
+      setMarkOrderedGroupData({ groupId: null, notes: '' });
+      await fetchOrders();
+      showNotification(t('notifications.statusUpdated'), 'success');
+    } catch (error) {
+      console.error('Error marking group as ordered:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        'error',
+      );
+    }
+  };
+
+  const handleMarkReceivedGroup = async (groupId) => {
+    try {
+      await api.post('/orders/update_status_group/', { order_group: groupId, status: 'received' });
+      await fetchOrders();
+      showNotification(t('notifications.statusUpdated'), 'success');
+    } catch (error) {
+      console.error('Error marking group as received:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        'error',
+      );
+    }
+  };
+
+  const handleMoveToInventoryGroup = async (groupId) => {
+    try {
+      await api.post('/orders/update_status_group/', { order_group: groupId, status: 'in_inventory' });
+      await fetchOrders();
+      showNotification(t('notifications.statusUpdated'), 'success');
+    } catch (error) {
+      console.error('Error moving group to inventory:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        'error',
+      );
+    }
+  };
+
+  const handlePayCargoGroup = (groupOrders) => {
+    const groupId = groupOrders[0].order_group;
+    const uzsNum = groupOrders.reduce((sum, o) => sum + (Number(o.cargo_cost_uzs) || 0), 0);
+    const usdNum = groupOrders.reduce((sum, o) => sum + (Number(o.cargo_cost_usd) || 0), 0);
+    const lines = groupOrders.map((o) => ({
+      orderId: o.id,
+      product_detail: o.product_detail,
+      ordered_quantity: o.ordered_quantity,
+      weight: o.weight != null ? String(o.weight) : '',
+    }));
+    setCargoGroupData({
+      groupId,
+      uzs: uzsNum > 0 ? String(uzsNum) : '',
+      usd: usdNum > 0 ? String(usdNum) : '',
+      lines,
+    });
+    setShowCargoGroupForm(true);
+    setTimeout(() => cargoGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  const updateCargoGroupLineWeight = (orderId, value) => {
+    setCargoGroupData((prev) => ({
+      ...prev,
+      lines: prev.lines.map((l) => (l.orderId === orderId ? { ...l, weight: value } : l)),
+    }));
+  };
+
+  const handlePayCargoGroupSubmit = async (e) => {
+    e.preventDefault();
+    const missingWeight = cargoGroupData.lines.some(
+      (l) => !(l.weight !== '' && l.weight != null && Number(l.weight) > 0),
+    );
+    if (missingWeight) {
+      showNotification(t('batch.errWeightRequiredForCargo', { ns: 'orders' }), 'error');
+      return;
+    }
+    try {
+      const weights = {};
+      for (const l of cargoGroupData.lines) {
+        weights[l.orderId] = Number(l.weight);
+      }
+      await api.post('/orders/pay_cargo_group/', {
+        order_group: cargoGroupData.groupId,
+        uzs: cargoGroupData.uzs === '' ? 0 : Number(cargoGroupData.uzs) || 0,
+        usd: cargoGroupData.usd === '' ? 0 : Number(cargoGroupData.usd) || 0,
+        weights,
+      });
+      setShowCargoGroupForm(false);
+      setCargoGroupData({ groupId: null, uzs: '', usd: '', lines: [] });
+      await fetchOrders();
+      showNotification(t('notifications.statusUpdated'), 'success');
+    } catch (error) {
+      console.error('Error paying group cargo:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        'error',
+      );
+    }
+  };
+
+  const handlePayOrderGroup = async (groupOrders) => {
+    const groupId = groupOrders[0].order_group;
+    const lines = await Promise.all(
+      groupOrders.map(async (o) => {
+        let order = o;
+        try {
+          const res = await api.get(`/orders/${o.id}/`);
+          if (res?.data) order = res.data;
+        } catch (err) {
+          console.warn('Pay order group: could not refresh order detail, using list row', err);
+        }
+        const pref = prefillPayOrderSimpleTotals(order);
+        return {
+          orderId: order.id,
+          product_detail: order.product_detail,
+          ordered_quantity: order.ordered_quantity,
+          uzs: pref.uzs,
+          usd: pref.usd,
+        };
+      }),
+    );
+    setPayOrderGroupData({ groupId, lines });
+    setShowPayOrderGroupForm(true);
+    setTimeout(() => payOrderGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+  };
+
+  const updatePayOrderGroupLine = (orderId, field, value) => {
+    setPayOrderGroupData((prev) => ({
+      ...prev,
+      lines: prev.lines.map((l) => (l.orderId === orderId ? { ...l, [field]: value } : l)),
+    }));
+  };
+
+  const handlePayOrderGroupSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await fetchBalances();
+      let totalUzs = 0;
+      let totalUsd = 0;
+      for (const l of payOrderGroupData.lines) {
+        totalUzs += parseFloat(l.uzs) || 0;
+        totalUsd += parseFloat(l.usd) || 0;
+      }
+      if (totalUzs > 0 && !ledgerHasFunds('UZS', totalUzs)) {
+        showNotification(formatInsufficientLedgerMessage('UZS', getAvailableBalance('UZS'), totalUzs), 'error');
+        return;
+      }
+      if (totalUsd > 0 && !ledgerHasFunds('USD', totalUsd)) {
+        showNotification(formatInsufficientLedgerMessage('USD', getAvailableBalance('USD'), totalUsd), 'error');
+        return;
+      }
+      await api.post('/orders/pay_order_group/', {
+        order_group: payOrderGroupData.groupId,
+        lines: payOrderGroupData.lines.map((l) => ({
+          order_id: l.orderId,
+          uzs: parseFloat(l.uzs) || 0,
+          usd: parseFloat(l.usd) || 0,
+        })),
+      });
+      setShowPayOrderGroupForm(false);
+      setPayOrderGroupData({ groupId: null, lines: [] });
+      await fetchOrders();
+      showNotification(t('notifications.statusUpdated'), 'success');
+    } catch (error) {
+      console.error('Error paying group order cost:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
         'error',
       );
     }
@@ -1460,6 +1676,243 @@ const Orders = () => {
     });
   };
 
+  const renderOrderRow = (order, rowKey, extraClassName, isGroupMember = false) => {
+    const plannedSellingLabel = plannedSellingSummary(order);
+    const plannedSupplierTotalLabel = plannedSupplierTotal(order);
+    const eshopLabel = formatEshopDisplay(order.eshop, t);
+    return (
+      <tr key={rowKey ?? order.id} className={extraClassName}>
+        <td>#{order.id}</td>
+        <td>
+          {/* Show status update buttons based on current status */}
+          {!isGroupMember && showMarkAsOrderedAction(order) && canMarkAsOrdered && (
+            <button
+              className="btn-status"
+              onClick={() => handleMarkAsOrdered(order.id)}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.markAsOrdered', { ns: 'orders' })}
+            </button>
+          )}
+          {!isGroupMember && showMarkAsReceivedAction(order) && canUpdateStatus && (
+            <button
+              className="btn-status"
+              onClick={() => handleStatusUpdate(order.id, 'received')}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.markReceived', { ns: 'orders' })}
+            </button>
+          )}
+          {!isGroupMember &&
+            !order.order_is_paid &&
+            canPayOrder &&
+            order.status !== 'order_created' &&
+            !ORDER_TERMINAL_STATUSES.has(order.status) && (
+            <button
+              className="btn-status"
+              onClick={() => handlePayOrder(order)}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.payOrder', { ns: 'orders' })}
+            </button>
+          )}
+          {!isGroupMember &&
+            !order.cargo_is_paid &&
+            canPayCargo &&
+            order.status !== 'order_created' &&
+            !ORDER_TERMINAL_STATUSES.has(order.status) && (
+            <button
+              className="btn-status"
+              onClick={() => handlePayCargo(order.id)}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.payCargo', { ns: 'orders' })}
+            </button>
+          )}
+          {!isGroupMember &&
+            canEditCargoCost &&
+            order.status !== 'order_created' &&
+            !ORDER_TERMINAL_STATUSES.has(order.status) &&
+            !order.cargo_is_paid && (
+            <button
+              className="btn-status"
+              onClick={() => handleEditCargoCost(order.id)}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.editCargoCost', { ns: 'orders' })}
+            </button>
+          )}
+          {canCancelOrder && !ORDER_TERMINAL_STATUSES.has(order.status) && (
+            <button
+              className="btn-edit"
+              onClick={() => handleCancelOrder(order.id)}
+              style={{ marginRight: '5px', backgroundColor: '#f44336', color: 'white' }}
+            >
+              {t('actions.cancelOrder', { ns: 'orders' })}
+            </button>
+          )}
+          {!isGroupMember &&
+            orderReadyForInventoryActions(order) &&
+            order.order_type === 'stock' &&
+            canMoveInventory && (
+            <button
+              className="btn-status"
+              onClick={() => handleStatusUpdate(order.id, 'in_inventory')}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.moveToInventory', { ns: 'orders' })}
+            </button>
+          )}
+          {/* Per-line even inside a group: a customer can buy some items from a
+              multi-item on_demand order and decline others, so this stays a per-line
+              choice rather than becoming a single group-wide action. */}
+          {order.order_type === 'on_demand' &&
+            orderReadyForInventoryActions(order) &&
+            !order.has_sale && (
+            <>
+              {canSellProduct && (
+              <button
+                className="btn-status"
+                onClick={() => handleSellProduct(order.id)}
+                style={{ marginRight: '5px', backgroundColor: '#4caf50', color: 'white' }}
+              >
+                {t('actions.sellProduct', { ns: 'orders' })}
+              </button>
+              )}
+              {canMoveInventory && (
+              <button
+                className="btn-status"
+                onClick={() => handleMoveToInventoryFromOrder(order.id)}
+                style={{ backgroundColor: '#2196f3', color: 'white' }}
+              >
+                {t('actions.moveToInventory', { ns: 'orders' })}
+              </button>
+              )}
+            </>
+          )}
+        </td>
+        <td>
+          <span className={`status-badge ${order.status}`}>
+            {formatOrderStatus(order.status, tStatus)}
+          </span>
+        </td>
+        <td>
+          {categoryTypeLabel(order.product_detail?.category_type, t) || (
+            <span style={{ color: '#999' }}>—</span>
+          )}
+        </td>
+        <td>{order.product_detail?.category || <span style={{ color: '#999' }}>—</span>}</td>
+        <td>{order.product_detail?.brand || '-'}</td>
+        <td>{order.product_detail?.model || '-'}</td>
+        <td><strong>{order.product_detail?.size || '-'}</strong></td>
+        <td><strong>{order.product_detail?.color || '-'}</strong></td>
+        <td>{order.supplier_country || <span style={{ color: '#999' }}>—</span>}</td>
+        <td>{order.supplier_cargo || <span style={{ color: '#999' }}>—</span>}</td>
+        <td title={order.client_eshop_notes ? String(order.client_eshop_notes) : eshopLabel || ''}>
+          {eshopLabel ? (
+            <span>{eshopLabel}</span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
+        {canSeeStockOrders && (
+        <td>
+          <span className={`status-badge ${order.order_type === 'stock' ? 'confirmed' : 'pending'}`}>
+            {orderTypeShortLabel(order.order_type, t)}
+          </span>
+        </td>
+        )}
+        <td>
+          {order.order_type === 'on_demand' ? (
+            order.customer_detail ? (
+              <div>
+                <strong>{order.customer_detail.name}</strong>
+                {order.customer_detail.telephone && (
+                  <div style={{ fontSize: '0.82em', color: '#666' }}>{order.customer_detail.telephone}</div>
+                )}
+                {order.advance_payment_amount > 0 && (
+                  <div style={{ fontSize: '0.82em', color: '#4caf50' }}>
+                    {t('table.advance', { ns: 'orders' })}{' '}
+                    {formatDisplayAmount(
+                      order.advance_payment_amount,
+                      order.advance_payment_currency || 'USD',
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <span style={{ color: '#f44336', fontSize: '0.85em' }}>{t('table.noCustomer', { ns: 'orders' })}</span>
+            )
+          ) : (
+            <span style={{ color: '#aaa' }}>—</span>
+          )}
+        </td>
+        <td>{order.ordered_quantity}</td>
+        <td title={plannedSellingLabel || ''}>
+          {plannedSellingLabel ? (
+            <span>{plannedSellingLabel}</span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
+        <td>{plannedSupplierPerUnit(order)}</td>
+        <td title={plannedSupplierTotalLabel || ''}>
+          {plannedSupplierTotalLabel ? (
+            <span>{plannedSupplierTotalLabel}</span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
+        <td>
+          {(() => {
+            const v = (parseFloat(order.order_payment_uzs_cash) || 0) + (parseFloat(order.order_payment_uzs_card) || 0);
+            return v > 0 ? <span style={{ color: order.order_is_paid ? '#4caf50' : 'inherit' }}>{formatAppNumber(v)} {uzsLabel}</span> : <span style={{ color: '#bbb' }}>—</span>;
+          })()}
+        </td>
+        <td>
+          {(() => {
+            const v = (parseFloat(order.order_payment_usd_cash) || 0) + (parseFloat(order.order_payment_usd_card) || 0);
+            return v > 0 ? <span style={{ color: order.order_is_paid ? '#4caf50' : 'inherit' }}>${v.toFixed(2)}</span> : <span style={{ color: '#bbb' }}>—</span>;
+          })()}
+        </td>
+        <td>
+          {(() => {
+            const v = (parseFloat(order.cargo_payment_uzs_cash) || 0) + (parseFloat(order.cargo_payment_uzs_card) || 0);
+            const w = parseFloat(order.weight) || 0;
+            if (v <= 0) return <span style={{ color: '#bbb' }}>—</span>;
+            const color = order.cargo_is_paid ? '#4caf50' : 'inherit';
+            return w > 0
+              ? <span style={{ color }}>{formatAppNumber(v / w)} {uzsLabel}/kg</span>
+              : <span style={{ color }}>{formatAppNumber(v)} {uzsLabel}</span>;
+          })()}
+        </td>
+        <td>
+          {(() => {
+            const v = (parseFloat(order.cargo_payment_usd_cash) || 0) + (parseFloat(order.cargo_payment_usd_card) || 0);
+            const w = parseFloat(order.weight) || 0;
+            if (v <= 0) return <span style={{ color: '#bbb' }}>—</span>;
+            const color = order.cargo_is_paid ? '#4caf50' : 'inherit';
+            return w > 0
+              ? <span style={{ color }}>${(v / w).toFixed(2)}/kg</span>
+              : <span style={{ color }}>${v.toFixed(2)}</span>;
+          })()}
+        </td>
+        <td>{order.created_by_detail?.username || '-'}</td>
+        <td>
+          {(() => {
+            const label = formatOrderedNoteDisplay(order);
+            return label ? (
+              <span title={label}>{label}</span>
+            ) : (
+              <span style={{ color: '#bbb' }}>—</span>
+            );
+          })()}
+        </td>
+        <td>{formatAppDateTime(order.order_date || order.created_at)}</td>
+      </tr>
+    );
+  };
+
   if (loading) {
     return <div className="page-container">{t('actions.loading', { ns: 'common' })}</div>;
   }
@@ -1468,9 +1921,22 @@ const Orders = () => {
     <div className="page-container">
       <div className="page-header">
         <PageTitle ns="orders" />
-        {canCreateOrder && (
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? t('actions.cancel', { ns: 'common' }) : t('newOrder', { ns: 'orders' })}
+        {(canManageStockOrders || canCreateOrder) && (
+          <button
+            className="btn-primary"
+            onClick={() => {
+              const next = !showBatchForm;
+              setShowBatchForm(next);
+              if (next) {
+                setBatchShared({
+                  order_type: canManageStockOrders ? 'stock' : 'on_demand',
+                  supplier_country: '', supplier_cargo: '', customer: '',
+                });
+                setBatchLines([newBatchLine()]);
+              }
+            }}
+          >
+            {showBatchForm ? t('actions.cancel', { ns: 'common' }) : t('batch.newButton', { ns: 'orders' })}
           </button>
         )}
       </div>
@@ -1733,7 +2199,10 @@ const Orders = () => {
         </div>
       )}
 
-      {showMarkOrderedForm && canMarkAsOrdered && (
+      {showMarkOrderedForm && canMarkAsOrdered && (() => {
+        const markOrderedOrder = orders.find((o) => o.id === markOrderedFormData.orderId);
+        const markOrderedNotesRequired = markOrderedOrder?.supplier_country === PURCHASING_AGENT_SUPPLIER_COUNTRY;
+        return (
         <div className="form-card" style={{ marginBottom: '20px' }} ref={markOrderedFormRef}>
           <h2>{t('markOrderedForm.title', { id: markOrderedFormData.orderId })}</h2>
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
@@ -1741,33 +2210,11 @@ const Orders = () => {
           </p>
           <form onSubmit={handleMarkAsOrderedSubmit}>
             <div className="form-grid">
-              <div className="form-group">
-                <label>{uzsLabel}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0"
-                  value={markOrderedFormData.uzs}
-                  onChange={(e) => setMarkOrderedFormData({ ...markOrderedFormData, uzs: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label>{t('currency.usd', { ns: 'common' })}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0"
-                  value={markOrderedFormData.usd}
-                  onChange={(e) => setMarkOrderedFormData({ ...markOrderedFormData, usd: e.target.value })}
-                />
-              </div>
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label>{t('markOrderedForm.notes')} *</label>
+                <label>{t('markOrderedForm.notes')}{markOrderedNotesRequired ? ' *' : ''}</label>
                 <textarea
                   rows={3}
-                  required
+                  required={markOrderedNotesRequired}
                   value={markOrderedFormData.notes}
                   onChange={(e) => setMarkOrderedFormData({ ...markOrderedFormData, notes: e.target.value })}
                   placeholder={t('markOrderedForm.notesPlaceholder')}
@@ -1783,7 +2230,7 @@ const Orders = () => {
                 className="btn-edit"
                 onClick={() => {
                   setShowMarkOrderedForm(false);
-                  setMarkOrderedFormData({ orderId: null, uzs: '', usd: '', notes: '' });
+                  setMarkOrderedFormData({ orderId: null, notes: '' });
                 }}
               >
                 {t('actions.cancel', { ns: 'common' })}
@@ -1791,7 +2238,8 @@ const Orders = () => {
             </div>
           </form>
         </div>
-      )}
+        );
+      })()}
 
       {showEditCargoForm && (
         <div className="form-card" style={{ marginBottom: '20px' }} ref={editCargoFormRef}>
@@ -1853,19 +2301,222 @@ const Orders = () => {
         </div>
       )}
 
-      {showForm && canCreateOrder && (
-        <div className="form-card">
-          <h2>{t('form.newTitle')}</h2>
-          <form onSubmit={handleSubmit}>
-            <div className="orders-new-order-form">
-              <div className="orders-new-order-row orders-new-order-row--6">
+      {showMarkOrderedGroupForm && canMarkAsOrdered && (() => {
+        const markOrderedGroupOrder = orders.find((o) => o.order_group === markOrderedGroupData.groupId);
+        const markOrderedGroupNotesRequired = markOrderedGroupOrder?.supplier_country === PURCHASING_AGENT_SUPPLIER_COUNTRY;
+        return (
+        <div className="form-card" style={{ marginBottom: '20px' }} ref={markOrderedGroupFormRef}>
+          <h2>{t('batch.markOrderedGroupTitle', { ns: 'orders' })}</h2>
+          <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
+            {t('markOrderedForm.intro')}
+          </p>
+          <form onSubmit={handleMarkAsOrderedGroupSubmit}>
+            <div className="form-grid">
+              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                <label>{t('markOrderedForm.notes')}{markOrderedGroupNotesRequired ? ' *' : ''}</label>
+                <textarea
+                  rows={3}
+                  required={markOrderedGroupNotesRequired}
+                  value={markOrderedGroupData.notes}
+                  onChange={(e) => setMarkOrderedGroupData({ ...markOrderedGroupData, notes: e.target.value })}
+                  placeholder={t('markOrderedForm.notesPlaceholder')}
+                />
+              </div>
+            </div>
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                {t('actions.markAsOrdered', { ns: 'orders' })}
+              </button>
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() => {
+                  setShowMarkOrderedGroupForm(false);
+                  setMarkOrderedGroupData({ groupId: null, notes: '' });
+                }}
+              >
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
+            </div>
+          </form>
+        </div>
+        );
+      })()}
+
+      {showCargoGroupForm && (
+        <div className="form-card" style={{ marginBottom: '20px' }} ref={cargoGroupFormRef}>
+          <h2>{t('batch.payCargoGroupTitle', { ns: 'orders' })}</h2>
+          <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
+            {t('batch.payCargoGroupIntro', { ns: 'orders' })}
+          </p>
+          <form onSubmit={handlePayCargoGroupSubmit}>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>{uzsLabel}</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  value={cargoGroupData.uzs}
+                  onChange={(e) => setCargoGroupData({ ...cargoGroupData, uzs: e.target.value })}
+                />
+              </div>
+              <div className="form-group">
+                <label>{t('currency.usd', { ns: 'common' })}</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0"
+                  value={cargoGroupData.usd}
+                  onChange={(e) => setCargoGroupData({ ...cargoGroupData, usd: e.target.value })}
+                />
+              </div>
+            </div>
+            <p style={{ color: '#666', margin: '4px 0 8px', fontSize: '0.9em' }}>
+              {t('batch.cargoWeightIntro', { ns: 'orders' })}
+            </p>
+            <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
+              <table className="batch-sale-lines" role="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('batch.product', { ns: 'orders' })}</th>
+                    <th scope="col">{t('form.category')}</th>
+                    <th className="batch-sale-lines__th--num">{t('batch.qty', { ns: 'orders' })}</th>
+                    <th className="batch-sale-lines__th--num">
+                      {t('batch.weightKgTotal', { ns: 'orders' })} <span style={{ color: '#e53e3e' }}>*</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cargoGroupData.lines.map((line) => (
+                    <tr key={line.orderId}>
+                      <td>
+                        #{line.orderId} — {productOrderPickerLabel(line.product_detail, t)}
+                      </td>
+                      <td>{line.product_detail?.category || <span style={{ color: '#999' }}>—</span>}</td>
+                      <td className="batch-sale-lines__td--num">{line.ordered_quantity}</td>
+                      <td className="batch-sale-lines__td--num">
+                        <input
+                          className="batch-sale-lines__control"
+                          type="number"
+                          step="0.01"
+                          min="0.01"
+                          required
+                          placeholder="0.00"
+                          value={line.weight ?? ''}
+                          onChange={(e) => updateCargoGroupLineWeight(line.orderId, e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                {t('actions.payCargo', { ns: 'orders' })}
+              </button>
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() => {
+                  setShowCargoGroupForm(false);
+                  setCargoGroupData({ groupId: null, uzs: '', usd: '', lines: [] });
+                }}
+              >
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showPayOrderGroupForm && (
+        <div className="form-card" style={{ marginBottom: '20px' }} ref={payOrderGroupFormRef}>
+          <h2>{t('batch.payOrderGroupTitle', { ns: 'orders' })}</h2>
+          <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
+            {t('batch.payOrderGroupIntro', { ns: 'orders' })}
+          </p>
+          <form onSubmit={handlePayOrderGroupSubmit}>
+            <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
+              <table className="batch-sale-lines" role="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('batch.product', { ns: 'orders' })}</th>
+                    <th scope="col">{t('form.category')}</th>
+                    <th className="batch-sale-lines__th--num">{t('batch.qty', { ns: 'orders' })}</th>
+                    <th className="batch-sale-lines__th--num">{uzsLabel}</th>
+                    <th className="batch-sale-lines__th--num">{t('currency.usd', { ns: 'common' })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {payOrderGroupData.lines.map((line) => (
+                    <tr key={line.orderId}>
+                      <td>
+                        #{line.orderId} — {productOrderPickerLabel(line.product_detail, t)}
+                      </td>
+                      <td>{line.product_detail?.category || <span style={{ color: '#999' }}>—</span>}</td>
+                      <td className="batch-sale-lines__td--num">{line.ordered_quantity}</td>
+                      <td className="batch-sale-lines__td--num">
+                        <input
+                          className="batch-sale-lines__control"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={line.uzs ?? ''}
+                          onChange={(e) => updatePayOrderGroupLine(line.orderId, 'uzs', e.target.value)}
+                        />
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        <input
+                          className="batch-sale-lines__control"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={line.usd ?? ''}
+                          onChange={(e) => updatePayOrderGroupLine(line.orderId, 'usd', e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                {t('actions.payOrder', { ns: 'orders' })}
+              </button>
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() => {
+                  setShowPayOrderGroupForm(false);
+                  setPayOrderGroupData({ groupId: null, lines: [] });
+                }}
+              >
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showBatchForm && (canManageStockOrders || canCreateOrder) && (
+        <div className="form-card" style={{ marginBottom: 20 }}>
+          <h2>{t('batch.title', { ns: 'orders' })}</h2>
+          <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
+            {t('batch.intro', { ns: 'orders' })}
+          </p>
+          <form onSubmit={handleBatchSubmit}>
+            <div className="orders-batch-header-row">
               {canManageStockOrders && (
               <div className="form-group">
                 <label>{t('form.orderType')}</label>
                 <select
-                  value={formData.order_type}
-                  onChange={(e) => setFormData({ ...formData, order_type: e.target.value })}
-                  required
+                  value={batchShared.order_type}
+                  onChange={(e) => setBatchShared({ ...batchShared, order_type: e.target.value })}
                 >
                   <option value="stock">{t('types.stock', { ns: 'orders' })}</option>
                   <option value="on_demand">{t('types.on_demand', { ns: 'orders' })}</option>
@@ -1873,167 +2524,10 @@ const Orders = () => {
               </div>
               )}
               <div className="form-group">
-                <label>{t('filters.categoryType')} <span style={{ color: '#888', fontWeight: 400, fontSize: '0.85em' }}>({t('form.categoryTypeFilter')})</span></label>
-                <select
-                  value={formCategoryType}
-                  onChange={(e) => {
-                    setFormCategoryType(e.target.value);
-                    setFormCategory('');
-                    setProductSearch('');
-                    setProductDropdownOpen(false);
-                    setFormData({
-                      ...formData,
-                      product: '',
-                      supplier_country: '',
-                      selling_usd_per_unit: '',
-                      selling_uzs_per_unit: '',
-                      cost_usd_per_unit: '',
-                      cost_uzs_per_unit: '',
-                    });
-                  }}
-                >
-                  <option value="">{t('form.none')}</option>
-                  {productCategoryTypes.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>{t('form.category')} <span style={{ color: '#e53e3e' }}>*</span> <span style={{ color: '#888', fontWeight: 400, fontSize: '0.85em' }}>({t('form.categoryFilter')})</span></label>
-                <FormSearchableSelect
-                  value={formCategory}
-                  onChange={(v) => { setFormCategory(v); setProductSearch(''); setProductDropdownOpen(false); setFormData({ ...formData, product: '', supplier_country: '', selling_usd_per_unit: '', selling_uzs_per_unit: '', cost_usd_per_unit: '', cost_uzs_per_unit: '' }); }}
-                  options={[...new Set(
-                    products
-                      .filter((p) => !formCategoryType || p.category_type === formCategoryType)
-                      .map((p) => p.category)
-                      .filter(Boolean),
-                  )].sort()}
-                  emptyLabel={t('form.selectCategory')}
-                  placeholder={t('form.selectCategory')}
-                  aria-label={t('form.category')}
-                />
-              </div>
-              <div className="form-group" ref={productDropdownRef} style={{ position: 'relative' }}>
-                <label>{t('form.product')}</label>
-                {(() => {
-                  const selectedProduct = products.find(p => p.id === parseInt(formData.product));
-                  const filteredByCategory = products.filter(
-                    (p) =>
-                      (!formCategoryType || p.category_type === formCategoryType) &&
-                      (!formCategory || p.category === formCategory),
-                  );
-                  const searchLower = productSearch.toLowerCase();
-                  const filteredProducts = filteredByCategory.filter(p =>
-                    !productSearch ||
-                    `${p.id} ${p.brand} ${p.model} ${p.size} ${p.color}`.toLowerCase().includes(searchLower)
-                  );
-                  return (
-                    <>
-                      <div
-                        onClick={() => { setProductDropdownOpen(o => !o); setProductSearch(''); }}
-                        style={{
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          padding: '8px 12px',
-                          cursor: 'pointer',
-                          background: 'white',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          minHeight: '38px',
-                          userSelect: 'none',
-                        }}
-                      >
-                        <span style={{ color: selectedProduct ? '#333' : '#999' }}>
-                          {selectedProduct
-                            ? productOrderPickerLabel(selectedProduct, t)
-                            : t('form.selectProduct')}
-                        </span>
-                        <span style={{ color: '#666', fontSize: '0.8em' }}>{productDropdownOpen ? '▲' : '▼'}</span>
-                      </div>
-                      {productDropdownOpen && (
-                        <div style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          background: 'white',
-                          border: '1px solid #ddd',
-                          borderRadius: '4px',
-                          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-                          zIndex: 100,
-                          maxHeight: '280px',
-                          display: 'flex',
-                          flexDirection: 'column',
-                        }}>
-                          <div style={{ padding: '8px', borderBottom: '1px solid #eee' }}>
-                            <input
-                              type="text"
-                              autoFocus
-                              placeholder={t('form.searchProduct')}
-                              value={productSearch}
-                              onChange={(e) => setProductSearch(e.target.value)}
-                              onClick={(e) => e.stopPropagation()}
-                              style={{
-                                width: '100%',
-                                padding: '6px 10px',
-                                border: '1px solid #ccc',
-                                borderRadius: '4px',
-                                fontSize: '14px',
-                                boxSizing: 'border-box',
-                              }}
-                            />
-                          </div>
-                          <div style={{ overflowY: 'auto', flex: 1 }}>
-                            {filteredProducts.length === 0 ? (
-                              <div style={{ padding: '12px', color: '#999', textAlign: 'center', fontSize: '14px' }}>{t('form.noProducts')}</div>
-                            ) : (
-                              filteredProducts.map(product => (
-                                <div
-                                  key={product.id}
-                                  onClick={() => {
-                                    const psp = parseFloat(product.selling_price);
-                                    const sellingUsd = psp > 0 && !Number.isNaN(psp) ? psp.toFixed(2) : '';
-                                    setFormData({
-                                      ...formData,
-                                      product: String(product.id),
-                                      supplier_country: product.supplier_country || '',
-                                      selling_usd_per_unit: sellingUsd,
-                                      cost_usd_per_unit: '',
-                                    });
-                                    setProductDropdownOpen(false);
-                                    setProductSearch('');
-                                  }}
-                                  style={{
-                                    padding: '9px 12px',
-                                    cursor: 'pointer',
-                                    fontSize: '14px',
-                                    borderBottom: '1px solid #f0f0f0',
-                                    background: formData.product === String(product.id) ? '#e8f4fd' : 'white',
-                                    fontWeight: formData.product === String(product.id) ? 600 : 400,
-                                  }}
-                                  onMouseEnter={(e) => { if (formData.product !== String(product.id)) e.currentTarget.style.background = '#f5f5f5'; }}
-                                  onMouseLeave={(e) => { if (formData.product !== String(product.id)) e.currentTarget.style.background = 'white'; }}
-                                >
-                                  {productOrderPickerLabel(product, t)}
-                                </div>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </>
-                  );
-                })()}
-              </div>
-              <div className="form-group">
                 <label>{t('form.supplierCountry')} <span style={{ color: '#e53e3e' }}>*</span></label>
                 <FormSearchableSelect
-                  value={formData.supplier_country}
-                  onChange={(v) => setFormData({ ...formData, supplier_country: v })}
+                  value={batchShared.supplier_country}
+                  onChange={(v) => setBatchShared({ ...batchShared, supplier_country: v })}
                   options={uniqueSupplierCountriesFromOrdersAndProducts(orders, products).map((country) => ({
                     value: country,
                     label: country.charAt(0).toUpperCase() + country.slice(1),
@@ -2048,8 +2542,8 @@ const Orders = () => {
               <div className="form-group">
                 <label>{t('form.supplierCargo')} <span style={{ color: '#888', fontWeight: 400, fontSize: '0.85em' }}>({t('form.optional')})</span></label>
                 <FormSearchableSelect
-                  value={formData.supplier_cargo}
-                  onChange={(v) => setFormData({ ...formData, supplier_cargo: v })}
+                  value={batchShared.supplier_cargo}
+                  onChange={(v) => setBatchShared({ ...batchShared, supplier_cargo: v })}
                   options={uniqueSupplierCargosFromOrders(orders).map((cargo) => ({
                     value: cargo,
                     label: cargo.charAt(0).toUpperCase() + cargo.slice(1),
@@ -2061,229 +2555,224 @@ const Orders = () => {
                   aria-label={t('form.supplierCargo')}
                 />
               </div>
-              </div>
-
-              <div className="orders-new-order-row orders-new-order-row--eshop-prices">
+              {batchShared.order_type === 'on_demand' && (
               <div className="form-group">
-                <label>{t('form.eshop')} <span style={{ color: '#e53e3e' }}>*</span></label>
-                <FormSearchableSelect
-                  value={formData.eshop}
-                  onChange={(v) => {
-                    setFormData({
-                      ...formData,
-                      eshop: v,
-                      ...(!isClientEshopSlug(v) ? { client_eshop_notes: '' } : {}),
-                    });
-                  }}
-                  options={[
-                    { value: 'zalando', label: t('eshops.zalando', { ns: 'orders' }) },
-                    { value: 'best_secret', label: t('eshops.best_secret', { ns: 'orders' }) },
-                    { value: 'adidas', label: t('eshops.adidas', { ns: 'orders' }) },
-                    { value: 'unidays', label: t('eshops.unidays', { ns: 'orders' }) },
-                    { value: 'nike', label: t('eshops.nike', { ns: 'orders' }) },
-                    { value: 'asos', label: t('eshops.asos', { ns: 'orders' }) },
-                    ...[...new Set(
-                      orders
-                        .map(o => o.eshop)
-                        .filter((e) => e && !BUILTIN_ESHOP_SLUGS.has(String(e).toLowerCase()))
-                    )].sort().map(eshop => ({ value: eshop, label: eshop })),
-                    { value: 'client', label: t('eshops.client', { ns: 'orders' }) },
-                    { value: 'other', label: t('eshops.other', { ns: 'orders' }) },
-                  ]}
-                  emptyLabel={t('form.selectEshop')}
-                  placeholder={t('form.enterEshop')}
-                  allowFreeText
-                  freeTextApplyLabel={t('form.addEshop') + ': "{{query}}"'}
-                  aria-label={t('form.eshop')}
-                />
-              </div>
-              <div className="form-group orders-new-order-field--qty">
-                <label>{t('form.orderedQuantity')}</label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.ordered_quantity}
-                  onChange={(e) => setFormData({ ...formData, ordered_quantity: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label>
-                  {t('form.sellingPriceUsd')}{' '}
-                  <span style={{ color: '#e53e3e', fontWeight: 400 }}>*</span>
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder={t('form.usdPerUnitPlaceholder')}
-                  value={formData.selling_usd_per_unit}
-                  onChange={(e) => setFormData({ ...formData, selling_usd_per_unit: e.target.value })}
-                />
-                {numOrZero(formData.selling_usd_per_unit) > 0 && parseInt(formData.ordered_quantity, 10) > 0 && (
-                  <span className="orders-field-hint">
-                    = {t('form.lineTotal', {
-                      total: (parseFloat(formData.selling_usd_per_unit) * parseInt(formData.ordered_quantity, 10)).toFixed(2),
-                    })}
-                  </span>
-                )}
-              </div>
-              <div className="form-group">
-                <label>{t('form.costUsd')}</label>
-                {!isClientEshopSlug(formData.eshop) && (
-                  <span className="orders-field-hint">
-                    {formData.order_type === 'on_demand'
-                      ? t('form.costHintOnDemand')
-                      : t('form.costHintStock')}
-                  </span>
-                )}
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder={t('form.usdPerUnitPlaceholder')}
-                  value={formData.cost_usd_per_unit}
-                  onChange={(e) => {
-                    const v = e.target.value;
-                    setFormData((prev) => ({
-                      ...prev,
-                      cost_usd_per_unit: v,
-                      ...(numOrZero(v) <= 0 && prev.order_is_paid ? { order_is_paid: false } : {}),
-                    }));
-                  }}
-                />
-                {numOrZero(formData.cost_usd_per_unit) > 0 && parseInt(formData.ordered_quantity, 10) > 0 && (
-                  <span className="orders-field-hint">
-                    = {t('form.lineTotal', {
-                      total: (parseFloat(formData.cost_usd_per_unit) * parseInt(formData.ordered_quantity, 10)).toFixed(2),
-                    })}
-                  </span>
-                )}
-              </div>
-              </div>
-
-              {isClientEshopSlug(formData.eshop) && (
-                <div className="orders-new-order-row orders-new-order-row--notes">
-                  <div className="form-group">
-                    <label>
-                      {t('form.clientNotes')} <span style={{ color: '#e53e3e' }}>*</span>
-                    </label>
-                    <textarea
-                      className="orders-client-notes-field"
-                      value={formData.client_eshop_notes}
-                      onChange={(e) =>
-                        setFormData({ ...formData, client_eshop_notes: e.target.value })
-                      }
-                      required
-                      rows={2}
-                      placeholder={t('form.clientNotesPlaceholder')}
+                <label>{t('form.customer')} <span style={{ color: '#e53e3e' }}>*</span></label>
+                <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <CustomerSearchableSelect
+                      customers={customers}
+                      value={batchShared.customer}
+                      onChange={(customerId) => setBatchShared({ ...batchShared, customer: customerId })}
+                      placeholder={t('form.selectCustomer')}
+                      aria-label={t('form.customer')}
                     />
                   </div>
-                </div>
-              )}
-
-              {canPayOrder && (
-              <div className="orders-new-order-row orders-new-order-row--payment-flags">
-              <div className="form-group orders-new-order-checkbox-row">
-                <label
-                  title={
-                    isClientEshopSlug(formData.eshop)
-                      ? t('form.alreadyPaidTitleClient')
-                      : numOrZero(formData.cost_usd_per_unit)
-                        ? undefined
-                        : t('form.alreadyPaidTitleNeedCost')
-                  }
-                >
-                  <input
-                    type="checkbox"
-                    checked={formData.order_is_paid}
-                    disabled={!numOrZero(formData.cost_usd_per_unit)}
-                    onChange={(e) => setFormData({ ...formData, order_is_paid: e.target.checked })}
-                  />
-                  {t('form.alreadyPaid')} <span style={{ color: '#666', fontWeight: 400 }}>{t('form.usdOnly')}</span>
-                </label>
-              </div>
-              {formData.order_is_paid && (
-                <div className="form-group">
-                  <label>{t('form.paymentCurrency')}</label>
-                  <select
-                    value={formData.order_payment_currency}
-                    onChange={(e) => setFormData({ ...formData, order_payment_currency: e.target.value })}
-                    required
+                  <button
+                    type="button"
+                    className="btn-edit"
+                    onClick={() => setShowCustomerForm(true)}
+                    style={{ whiteSpace: 'nowrap', alignSelf: 'center' }}
                   >
-                    <option value="USD">USD</option>
-                  </select>
+                    {t('form.newCustomer')}
+                  </button>
                 </div>
-              )}
-              </div>
-              )}
-
-              {formData.order_type === 'on_demand' && (
-              <div className="orders-new-order-row orders-new-order-row--on-demand">
-                  <div className="form-group">
-                    <label>{t('form.customer')} *</label>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'stretch' }}>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <CustomerSearchableSelect
-                          customers={customers}
-                          value={formData.customer}
-                          onChange={(customerId) => setFormData({ ...formData, customer: customerId })}
-                          placeholder={t('form.selectCustomer')}
-                          aria-label={t('form.customer')}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        className="btn-edit"
-                        onClick={() => setShowCustomerForm(true)}
-                        style={{ whiteSpace: 'nowrap', alignSelf: 'center' }}
-                      >
-                        {t('form.newCustomer')}
-                      </button>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>{t('form.advanceAmount')}</label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.advance_payment_amount}
-                      onChange={(e) => setFormData({ ...formData, advance_payment_amount: e.target.value })}
-                      placeholder={t('form.advanceNone')}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label>{t('form.advanceCurrency')}</label>
-                    <select
-                      value={formData.advance_payment_currency}
-                      onChange={(e) => setFormData({ ...formData, advance_payment_currency: e.target.value })}
-                    >
-                      <option value="USD">USD</option>
-                      <option value="UZS">UZS</option>
-                    </select>
-                  </div>
               </div>
               )}
             </div>
-            <div className="form-actions">
-              <button type="submit" className="btn-primary" disabled={orderCreating}>
-                {orderCreating ? t('creating', { ns: 'orders' }) : t('createOrder', { ns: 'orders' })}
+            <div className="batch-sale-lines-block">
+              <div className="batch-sale-lines-block__label" id="batch-order-lines-label">
+                {t('batch.lineItems', { ns: 'orders' })}
+              </div>
+              <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll">
+                <table
+                  className="batch-sale-lines batch-order-lines"
+                  role="table"
+                  aria-labelledby="batch-order-lines-label"
+                >
+                  <colgroup>
+                    <col className="batch-col-category" />
+                    <col className="batch-col-category" />
+                    <col className="batch-col-product" />
+                    <col className="batch-col-qty" />
+                    <col className="batch-col-price" />
+                    <col className="batch-col-price" />
+                    <col className="batch-col-eshop" />
+                    {batchShared.order_type === 'on_demand' && <col className="batch-col-advance" />}
+                    <col className="batch-col-row" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th scope="col">{t('filters.categoryType')}</th>
+                      <th scope="col">{t('form.category')}</th>
+                      <th scope="col">{t('batch.product', { ns: 'orders' })}</th>
+                      <th className="batch-sale-lines__th--num">{t('batch.qty', { ns: 'orders' })}</th>
+                      <th className="batch-sale-lines__th--num">{t('batch.costUsd', { ns: 'orders' })}</th>
+                      <th className="batch-sale-lines__th--num">{t('batch.sellingUsd', { ns: 'orders' })}</th>
+                      <th scope="col">{t('form.eshop')} <span style={{ color: '#e53e3e' }}>*</span></th>
+                      {batchShared.order_type === 'on_demand' && (
+                        <th className="batch-sale-lines__th--num">{t('form.advanceAmount')}</th>
+                      )}
+                      <th className="batch-sale-lines__th--action" aria-label={t('actions.delete', { ns: 'common' })} />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {batchLines.map((line) => {
+                      const lineProducts = products.filter(
+                        (p) =>
+                          (!line.category_type || p.category_type === line.category_type) &&
+                          (!line.category || p.category === line.category),
+                      );
+                      return (
+                        <tr key={line.key}>
+                          <td>
+                            <FormSearchableSelect
+                              value={line.category_type || ''}
+                              onChange={(v) => updateBatchLine(line.key, 'category_type', v)}
+                              options={productCategoryTypes}
+                              emptyLabel={t('form.none')}
+                              placeholder={t('form.none')}
+                              aria-label={t('filters.categoryType')}
+                              triggerClassName="batch-sale-lines__control"
+                            />
+                          </td>
+                          <td>
+                            <FormSearchableSelect
+                              value={line.category || ''}
+                              onChange={(v) => updateBatchLine(line.key, 'category', v)}
+                              options={[...new Set(
+                                products
+                                  .filter((p) => !line.category_type || p.category_type === line.category_type)
+                                  .map((p) => p.category)
+                                  .filter(Boolean),
+                              )].sort()}
+                              emptyLabel={t('form.selectCategory')}
+                              placeholder={t('form.selectCategory')}
+                              aria-label={t('form.category')}
+                              triggerClassName="batch-sale-lines__control"
+                            />
+                          </td>
+                          <td>
+                            <FormSearchableSelect
+                              value={line.product || ''}
+                              onChange={(v) => updateBatchLine(line.key, 'product', v)}
+                              options={lineProducts.map((p) => ({ value: String(p.id), label: productOrderPickerLabel(p, t) }))}
+                              emptyLabel={t('form.selectProduct')}
+                              placeholder={t('form.selectProduct')}
+                              aria-label={t('batch.product', { ns: 'orders' })}
+                              triggerClassName="batch-sale-lines__control"
+                            />
+                          </td>
+                          <td className="batch-sale-lines__td--num">
+                            <input
+                              className="batch-sale-lines__control"
+                              type="number"
+                              min="1"
+                              value={line.ordered_quantity ?? ''}
+                              onChange={(e) => updateBatchLine(line.key, 'ordered_quantity', e.target.value)}
+                              aria-label={t('batch.qty', { ns: 'orders' })}
+                            />
+                          </td>
+                          <td className="batch-sale-lines__td--num">
+                            <input
+                              className="batch-sale-lines__control"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={line.cost_usd_per_unit ?? ''}
+                              onChange={(e) => updateBatchLine(line.key, 'cost_usd_per_unit', e.target.value)}
+                              placeholder="0.00"
+                              aria-label={t('batch.costUsd', { ns: 'orders' })}
+                            />
+                          </td>
+                          <td className="batch-sale-lines__td--num">
+                            <input
+                              className="batch-sale-lines__control"
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={line.selling_usd_per_unit ?? ''}
+                              onChange={(e) => updateBatchLine(line.key, 'selling_usd_per_unit', e.target.value)}
+                              placeholder="0.00"
+                              aria-label={t('batch.sellingUsd', { ns: 'orders' })}
+                            />
+                          </td>
+                          <td>
+                            <FormSearchableSelect
+                              value={line.eshop || ''}
+                              onChange={(v) => updateBatchLine(line.key, 'eshop', v)}
+                              options={eshopOptions}
+                              emptyLabel={t('form.selectEshop')}
+                              placeholder={t('form.enterEshop')}
+                              allowFreeText
+                              freeTextApplyLabel={t('form.addEshop') + ': "{{query}}"'}
+                              aria-label={t('form.eshop')}
+                              triggerClassName="batch-sale-lines__control"
+                            />
+                            {isClientEshopSlug(line.eshop) && (
+                              <input
+                                className="batch-sale-lines__control"
+                                style={{ marginTop: 4 }}
+                                type="text"
+                                value={line.client_eshop_notes ?? ''}
+                                onChange={(e) => updateBatchLine(line.key, 'client_eshop_notes', e.target.value)}
+                                placeholder={t('form.clientNotesPlaceholder')}
+                                aria-label={t('form.clientNotes')}
+                              />
+                            )}
+                          </td>
+                          {batchShared.order_type === 'on_demand' && (
+                          <td className="batch-sale-lines__td--num">
+                            <div className="batch-order-lines-advance-cell">
+                              <input
+                                className="batch-sale-lines__control"
+                                type="number"
+                                step="0.01"
+                                min="0"
+                                value={line.advance_payment_amount ?? ''}
+                                onChange={(e) => updateBatchLine(line.key, 'advance_payment_amount', e.target.value)}
+                                placeholder={t('form.advanceNone')}
+                                aria-label={t('form.advanceAmount')}
+                              />
+                              <select
+                                value={line.advance_payment_currency || 'USD'}
+                                onChange={(e) => updateBatchLine(line.key, 'advance_payment_currency', e.target.value)}
+                                aria-label={t('form.advanceCurrency')}
+                              >
+                                <option value="USD">USD</option>
+                                <option value="UZS">UZS</option>
+                              </select>
+                            </div>
+                          </td>
+                          )}
+                          <td className="batch-sale-lines__td--action">
+                            {batchLines.length > 1 ? (
+                              <button
+                                type="button"
+                                className="batch-sale-lines__remove"
+                                onClick={() => removeBatchLine(line.key)}
+                                title={t('actions.delete', { ns: 'common' })}
+                                aria-label={t('actions.delete', { ns: 'common' })}
+                              >
+                                ×
+                              </button>
+                            ) : null}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+            <div className="form-actions batch-sale-lines-actions">
+              <button type="button" className="btn-edit" onClick={addBatchLine}>
+                + {t('batch.addLine', { ns: 'orders' })}
               </button>
-              <button
-                type="button"
-                className="btn-edit"
-                disabled={orderCreating}
-                onClick={() => {
-                  setShowForm(false);
-                  setFormCategoryType('');
-                  setFormCategory('');
-                  setProductSearch('');
-                  setProductDropdownOpen(false);
-                  setFormData(newOrderFormDefaults());
-                }}
-              >
-                {t('actions.cancel', { ns: 'common' })}
+              <button type="submit" className="btn-primary" disabled={batchCreating}>
+                {batchCreating
+                  ? t('creating', { ns: 'orders' })
+                  : t('batch.createCount', { ns: 'orders', count: batchLines.filter((l) => l.product).length })}
               </button>
             </div>
           </form>
@@ -2355,7 +2844,7 @@ const Orders = () => {
       )}
 
       {/* Filters */}
-      {!showForm && !showPaymentForm && !showCargoForm && !showMoveToInventoryForm && !showCustomerForm && (
+      {!showPaymentForm && !showCargoForm && !showMoveToInventoryForm && !showCustomerForm && (
         <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
           <h3 className="filter-card__title">{t('filters.title', { ns: 'orders' })}</h3>
         <div className="filter-toolbar">
@@ -2547,221 +3036,192 @@ const Orders = () => {
                 </td>
               </tr>
             ) : (
-              sortedFilteredOrders.map((order) => {
-                const plannedSellingLabel = plannedSellingSummary(order);
-                const plannedSupplierTotalLabel = plannedSupplierTotal(order);
-                const eshopLabel = formatEshopDisplay(order.eshop, t);
+              sortedFilteredOrders.map((row) => {
+                if (row.type === 'single') {
+                  return renderOrderRow(row.order);
+                }
+
+                const agg = aggregateGroupOrders(row.orders);
+                const first = agg.first;
+                const expanded = expandedOrderGroups.has(row.groupId);
+                const groupEshopLabel = formatEshopDisplay(first?.eshop, t);
+                const openLine = row.orders.find((o) => !ORDER_TERMINAL_STATUSES.has(o.status));
+
                 return (
-                <tr key={order.id}>
-                  <td>#{order.id}</td>
-                  <td>
-                    {/* Show status update buttons based on current status */}
-                    {showMarkAsOrderedAction(order) && canMarkAsOrdered && (
-                      <button
-                        className="btn-status"
-                        onClick={() => handleMarkAsOrdered(order.id)}
-                        style={{ marginRight: '5px' }}
-                      >
-                        {t('actions.markAsOrdered', { ns: 'orders' })}
-                      </button>
-                    )}
-                    {showMarkAsReceivedAction(order) && canUpdateStatus && (
-                      <button
-                        className="btn-status"
-                        onClick={() => handleStatusUpdate(order.id, 'received')}
-                        style={{ marginRight: '5px' }}
-                      >
-                        {t('actions.markReceived', { ns: 'orders' })}
-                      </button>
-                    )}
-                    {!order.order_is_paid &&
-                      canPayOrder &&
-                      order.status !== 'order_created' &&
-                      !ORDER_TERMINAL_STATUSES.has(order.status) && (
-                      <button
-                        className="btn-status"
-                        onClick={() => handlePayOrder(order)}
-                        style={{ marginRight: '5px' }}
-                      >
-                        {t('actions.payOrder', { ns: 'orders' })}
-                      </button>
-                    )}
-                    {!order.cargo_is_paid &&
-                      canPayCargo &&
-                      order.status !== 'order_created' &&
-                      !ORDER_TERMINAL_STATUSES.has(order.status) && (
-                      <button
-                        className="btn-status"
-                        onClick={() => handlePayCargo(order.id)}
-                        style={{ marginRight: '5px' }}
-                      >
-                        {t('actions.payCargo', { ns: 'orders' })}
-                      </button>
-                    )}
-                    {canEditCargoCost &&
-                      order.status !== 'order_created' &&
-                      !ORDER_TERMINAL_STATUSES.has(order.status) &&
-                      !order.cargo_is_paid && (
-                      <button
-                        className="btn-status"
-                        onClick={() => handleEditCargoCost(order.id)}
-                        style={{ marginRight: '5px' }}
-                      >
-                        {t('actions.editCargoCost', { ns: 'orders' })}
-                      </button>
-                    )}
-                    {canCancelOrder && !ORDER_TERMINAL_STATUSES.has(order.status) && (
-                      <button
-                        className="btn-edit"
-                        onClick={() => handleCancelOrder(order.id)}
-                        style={{ marginRight: '5px', backgroundColor: '#f44336', color: 'white' }}
-                      >
-                        {t('actions.cancelOrder', { ns: 'orders' })}
-                      </button>
-                    )}
-                    {orderReadyForInventoryActions(order) && order.order_type === 'stock' && canMoveInventory && (
-                      <button
-                        className="btn-status"
-                        onClick={() => handleStatusUpdate(order.id, 'in_inventory')}
-                        style={{ marginRight: '5px' }}
-                      >
-                        {t('actions.moveToInventory', { ns: 'orders' })}
-                      </button>
-                    )}
-                    {order.order_type === 'on_demand' &&
-                      orderReadyForInventoryActions(order) &&
-                      !order.has_sale && (
-                      <>
-                        {canSellProduct && (
-                        <button
-                          className="btn-status"
-                          onClick={() => handleSellProduct(order.id)}
-                          style={{ marginRight: '5px', backgroundColor: '#4caf50', color: 'white' }}
-                        >
-                          {t('actions.sellProduct', { ns: 'orders' })}
-                        </button>
+                  <React.Fragment key={row.key}>
+                    <tr
+                      className="sale-group-row"
+                      style={{ cursor: 'pointer' }}
+                      onClick={(e) => {
+                        if (e.target.closest('button')) return;
+                        toggleOrderGroup(row.groupId);
+                      }}
+                    >
+                      <td>{agg.idsLabel}</td>
+                      <td onClick={(e) => e.stopPropagation()}>
+                        {canMarkAsOrdered && row.orders.some((o) => showMarkAsOrderedAction(o)) && (
+                          <button
+                            className="btn-status"
+                            onClick={() => handleMarkAsOrderedGroup(row.orders)}
+                            style={{ marginRight: '5px' }}
+                          >
+                            {t('actions.markAsOrdered', { ns: 'orders' })}
+                          </button>
                         )}
-                        {canMoveInventory && (
-                        <button
-                          className="btn-status"
-                          onClick={() => handleMoveToInventoryFromOrder(order.id)}
-                          style={{ backgroundColor: '#2196f3', color: 'white' }}
-                        >
-                          {t('actions.moveToInventory', { ns: 'orders' })}
-                        </button>
+                        {canUpdateStatus && row.orders.some((o) => showMarkAsReceivedAction(o)) && (
+                          <button
+                            className="btn-status"
+                            onClick={() => handleMarkReceivedGroup(row.groupId)}
+                            style={{ marginRight: '5px' }}
+                          >
+                            {t('actions.markReceived', { ns: 'orders' })}
+                          </button>
                         )}
-                      </>
-                    )}
-                  </td>
-                  <td>
-                    <span className={`status-badge ${order.status}`}>
-                      {formatOrderStatus(order.status, tStatus)}
-                    </span>
-                  </td>
-                  <td>
-                    {categoryTypeLabel(order.product_detail?.category_type, t) || (
-                      <span style={{ color: '#999' }}>—</span>
-                    )}
-                  </td>
-                  <td>{order.product_detail?.category || <span style={{ color: '#999' }}>—</span>}</td>
-                  <td>{order.product_detail?.brand || '-'}</td>
-                  <td>{order.product_detail?.model || '-'}</td>
-                  <td><strong>{order.product_detail?.size || '-'}</strong></td>
-                  <td><strong>{order.product_detail?.color || '-'}</strong></td>
-                  <td>{order.supplier_country || <span style={{ color: '#999' }}>—</span>}</td>
-                  <td>{order.supplier_cargo || <span style={{ color: '#999' }}>—</span>}</td>
-                  <td title={order.client_eshop_notes ? String(order.client_eshop_notes) : eshopLabel || ''}>
-                    {eshopLabel ? (
-                      <span>{eshopLabel}</span>
-                    ) : (
-                      <span style={{ color: '#bbb' }}>—</span>
-                    )}
-                  </td>
-                  {canSeeStockOrders && (
-                  <td>
-                    <span className={`status-badge ${order.order_type === 'stock' ? 'confirmed' : 'pending'}`}>
-                      {orderTypeShortLabel(order.order_type, t)}
-                    </span>
-                  </td>
-                  )}
-                  <td>
-                    {order.order_type === 'on_demand' ? (
-                      order.customer_detail ? (
-                        <div>
-                          <strong>{order.customer_detail.name}</strong>
-                          {order.customer_detail.telephone && (
-                            <div style={{ fontSize: '0.82em', color: '#666' }}>{order.customer_detail.telephone}</div>
-                          )}
-                          {order.advance_payment_amount > 0 && (
-                            <div style={{ fontSize: '0.82em', color: '#4caf50' }}>
-                              {t('table.advance', { ns: 'orders' })}{' '}
-                              {formatDisplayAmount(
-                                order.advance_payment_amount,
-                                order.advance_payment_currency || 'USD',
+                        {canPayOrder && row.orders.some(
+                          (o) => !o.order_is_paid && o.status !== 'order_created' && !ORDER_TERMINAL_STATUSES.has(o.status),
+                        ) && (
+                          <button
+                            className="btn-status"
+                            onClick={() => handlePayOrderGroup(row.orders.filter(
+                              (o) => !o.order_is_paid && o.status !== 'order_created' && !ORDER_TERMINAL_STATUSES.has(o.status),
+                            ))}
+                            style={{ marginRight: '5px' }}
+                          >
+                            {t('actions.payOrder', { ns: 'orders' })}
+                          </button>
+                        )}
+                        {canPayCargo && row.orders.some(
+                          (o) => !o.cargo_is_paid && o.status !== 'order_created' && !ORDER_TERMINAL_STATUSES.has(o.status),
+                        ) && (
+                          <button
+                            className="btn-status"
+                            onClick={() => handlePayCargoGroup(row.orders)}
+                            style={{ marginRight: '5px' }}
+                          >
+                            {t('actions.payCargo', { ns: 'orders' })}
+                          </button>
+                        )}
+                        {canMoveInventory && row.orders.some(
+                          (o) => orderReadyForInventoryActions(o) && o.order_type === 'stock',
+                        ) && (
+                          <button
+                            className="btn-status"
+                            onClick={() => handleMoveToInventoryGroup(row.groupId)}
+                            style={{ marginRight: '5px' }}
+                          >
+                            {t('actions.moveToInventory', { ns: 'orders' })}
+                          </button>
+                        )}
+                        {canCancelOrder && openLine && (
+                          <button
+                            className="btn-edit"
+                            onClick={() => handleCancelOrder(openLine.id)}
+                            style={{ backgroundColor: '#f44336', color: 'white' }}
+                          >
+                            {t('actions.cancelOrder', { ns: 'orders' })}
+                          </button>
+                        )}
+                      </td>
+                      <td>
+                        <span className={`status-badge ${agg.hasMixedStatus ? 'ordered' : (agg.activeStatuses[0] || agg.statuses[0])}`}>
+                          {agg.hasMixedStatus
+                            ? t('batch.mixedStatus', { ns: 'orders' })
+                            : formatOrderStatus(agg.activeStatuses[0] || agg.statuses[0], tStatus)}
+                        </span>
+                      </td>
+                      <td><span style={{ color: '#999' }}>—</span></td>
+                      <td><span style={{ color: '#999' }}>—</span></td>
+                      <td>
+                        <strong>{t('batch.multipleItems', { ns: 'orders' })}</strong>
+                        <span style={{ color: '#666', fontSize: '0.85em' }}> ({row.orders.length})</span>
+                      </td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>{first?.supplier_country || <span style={{ color: '#999' }}>—</span>}</td>
+                      <td>{first?.supplier_cargo || <span style={{ color: '#999' }}>—</span>}</td>
+                      <td title={groupEshopLabel || ''}>
+                        {groupEshopLabel ? <span>{groupEshopLabel}</span> : <span style={{ color: '#bbb' }}>—</span>}
+                      </td>
+                      {canSeeStockOrders && (
+                        <td>
+                          <span className={`status-badge ${first?.order_type === 'stock' ? 'confirmed' : 'pending'}`}>
+                            {orderTypeShortLabel(first?.order_type, t)}
+                          </span>
+                        </td>
+                      )}
+                      <td>
+                        {first?.order_type === 'on_demand' ? (
+                          first?.customer_detail ? (
+                            <div>
+                              <strong>{first.customer_detail.name}</strong>
+                              {first.customer_detail.telephone && (
+                                <div style={{ fontSize: '0.82em', color: '#666' }}>{first.customer_detail.telephone}</div>
+                              )}
+                              {(agg.advanceUsd > 0 || agg.advanceUzs > 0) && (
+                                <div style={{ fontSize: '0.82em', color: '#4caf50' }}>
+                                  {t('table.advance', { ns: 'orders' })}{' '}
+                                  {[
+                                    agg.advanceUsd > 0 ? formatDisplayAmount(agg.advanceUsd, 'USD') : null,
+                                    agg.advanceUzs > 0 ? formatDisplayAmount(agg.advanceUzs, 'UZS') : null,
+                                  ].filter(Boolean).join(' + ')}
+                                </div>
                               )}
                             </div>
-                          )}
-                        </div>
-                      ) : (
-                        <span style={{ color: '#f44336', fontSize: '0.85em' }}>{t('table.noCustomer', { ns: 'orders' })}</span>
-                      )
-                    ) : (
-                      <span style={{ color: '#aaa' }}>—</span>
-                    )}
-                  </td>
-                  <td>{order.ordered_quantity}</td>
-                  <td title={plannedSellingLabel || ''}>
-                    {plannedSellingLabel ? (
-                      <span>{plannedSellingLabel}</span>
-                    ) : (
-                      <span style={{ color: '#bbb' }}>—</span>
-                    )}
-                  </td>
-                  <td>{plannedSupplierPerUnit(order)}</td>
-                  <td title={plannedSupplierTotalLabel || ''}>
-                    {plannedSupplierTotalLabel ? (
-                      <span>{plannedSupplierTotalLabel}</span>
-                    ) : (
-                      <span style={{ color: '#bbb' }}>—</span>
-                    )}
-                  </td>
-                  <td>
-                    {(() => {
-                      const v = (parseFloat(order.order_payment_uzs_cash) || 0) + (parseFloat(order.order_payment_uzs_card) || 0);
-                      return v > 0 ? <span style={{ color: order.order_is_paid ? '#4caf50' : 'inherit' }}>{formatAppNumber(v)} {uzsLabel}</span> : <span style={{ color: '#bbb' }}>—</span>;
-                    })()}
-                  </td>
-                  <td>
-                    {(() => {
-                      const v = (parseFloat(order.order_payment_usd_cash) || 0) + (parseFloat(order.order_payment_usd_card) || 0);
-                      return v > 0 ? <span style={{ color: order.order_is_paid ? '#4caf50' : 'inherit' }}>${v.toFixed(2)}</span> : <span style={{ color: '#bbb' }}>—</span>;
-                    })()}
-                  </td>
-                  <td>
-                    {(() => {
-                      const v = (parseFloat(order.cargo_payment_uzs_cash) || 0) + (parseFloat(order.cargo_payment_uzs_card) || 0);
-                      return v > 0 ? <span style={{ color: order.cargo_is_paid ? '#4caf50' : 'inherit' }}>{formatAppNumber(v)} {uzsLabel}</span> : <span style={{ color: '#bbb' }}>—</span>;
-                    })()}
-                  </td>
-                  <td>
-                    {(() => {
-                      const v = (parseFloat(order.cargo_payment_usd_cash) || 0) + (parseFloat(order.cargo_payment_usd_card) || 0);
-                      return v > 0 ? <span style={{ color: order.cargo_is_paid ? '#4caf50' : 'inherit' }}>${v.toFixed(2)}</span> : <span style={{ color: '#bbb' }}>—</span>;
-                    })()}
-                  </td>
-                  <td>{order.created_by_detail?.username || '-'}</td>
-                  <td>
-                    {(() => {
-                      const label = formatOrderedNoteDisplay(order);
-                      return label ? (
-                        <span title={label}>{label}</span>
-                      ) : (
-                        <span style={{ color: '#bbb' }}>—</span>
-                      );
-                    })()}
-                  </td>
-                  <td>{formatAppDateTime(order.order_date || order.created_at)}</td>
-                </tr>
+                          ) : (
+                            <span style={{ color: '#f44336', fontSize: '0.85em' }}>{t('table.noCustomer', { ns: 'orders' })}</span>
+                          )
+                        ) : (
+                          <span style={{ color: '#aaa' }}>—</span>
+                        )}
+                      </td>
+                      <td>{agg.quantity}</td>
+                      <td>—</td>
+                      <td>—</td>
+                      <td>{agg.costTotal > 0 ? `$${agg.costTotal.toFixed(2)}` : '—'}</td>
+                      <td>
+                        {agg.orderUzs > 0 ? (
+                          <span style={{ color: agg.allOrderPaid ? '#4caf50' : 'inherit' }}>{formatAppNumber(agg.orderUzs)} {uzsLabel}</span>
+                        ) : (
+                          <span style={{ color: '#bbb' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {agg.orderUsd > 0 ? (
+                          <span style={{ color: agg.allOrderPaid ? '#4caf50' : 'inherit' }}>${agg.orderUsd.toFixed(2)}</span>
+                        ) : (
+                          <span style={{ color: '#bbb' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {agg.cargoUzs > 0 ? (
+                          <span style={{ color: agg.allCargoPaid ? '#4caf50' : 'inherit' }}>
+                            {agg.weightTotal > 0
+                              ? `${formatAppNumber(agg.cargoUzs / agg.weightTotal)} ${uzsLabel}/kg`
+                              : `${formatAppNumber(agg.cargoUzs)} ${uzsLabel}`}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#bbb' }}>—</span>
+                        )}
+                      </td>
+                      <td>
+                        {agg.cargoUsd > 0 ? (
+                          <span style={{ color: agg.allCargoPaid ? '#4caf50' : 'inherit' }}>
+                            {agg.weightTotal > 0
+                              ? `$${(agg.cargoUsd / agg.weightTotal).toFixed(2)}/kg`
+                              : `$${agg.cargoUsd.toFixed(2)}`}
+                          </span>
+                        ) : (
+                          <span style={{ color: '#bbb' }}>—</span>
+                        )}
+                      </td>
+                      <td>{first?.created_by_detail?.username || '-'}</td>
+                      <td>—</td>
+                      <td>{formatAppDateTime(first?.order_date || first?.created_at)}</td>
+                    </tr>
+                    {expanded &&
+                      row.orders.map((o) => renderOrderRow(o, `${row.key}-item-${o.id}`, 'sale-group-detail-row', true))}
+                  </React.Fragment>
                 );
               })
             )}

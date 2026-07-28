@@ -17,6 +17,8 @@
   "salesAnalyticsTitle": "Sales analytics",
   "soldUnitsToday": "Units sold (today)",
   "salesRevenueToday": "Sales revenue (today)",
+  "salesRevenueTodayUsd": "Sales revenue USD (today)",
+  "salesRevenueTodayUzs": "Sales revenue UZS (today)",
   "scopeOwn": "Your sales only",
   "scopeAll": "All users",
   "clearChartFilters": "Clear chart filters",

@@ -17,6 +17,8 @@
   "salesAnalyticsTitle": "Sotuv analitikasi",
   "soldUnitsToday": "Sotilgan dona (bugun)",
   "salesRevenueToday": "Sotuv tushumi (bugun)",
+  "salesRevenueTodayUsd": "Sotuv tushumi USD (bugun)",
+  "salesRevenueTodayUzs": "Sotuv tushumi UZS (bugun)",
   "scopeOwn": "Faqat sizning sotuvlaringiz",
   "scopeAll": "Barcha foydalanuvchilar",
   "clearChartFilters": "Grafik filtrlarini tozalash",

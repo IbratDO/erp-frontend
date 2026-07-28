@@ -589,14 +589,14 @@ const Sales = () => {
     return [...rows].sort((a, b) => {
       const aSale = saleLikeForDisplayRow(a);
       const bSale = saleLikeForDisplayRow(b);
-      const aDone = aSale.status === 'completed' || aSale.status === 'returned' ? 1 : 0;
-      const bDone = bSale.status === 'completed' || bSale.status === 'returned' ? 1 : 0;
+      const aDone = SALE_TERMINAL_STATUSES.has(aSale.status) ? 1 : 0;
+      const bDone = SALE_TERMINAL_STATUSES.has(bSale.status) ? 1 : 0;
       if (aDone !== bDone) return aDone - bDone;
-      const ta = new Date(aSale.sale_date).getTime() || 0;
-      const tb = new Date(bSale.sale_date).getTime() || 0;
+      const ta = new Date(aSale.display_date || aSale.sale_date).getTime() || 0;
+      const tb = new Date(bSale.display_date || bSale.sale_date).getTime() || 0;
       return tb - ta;
     });
-  }, [salesDisplayRows, saleSort]);
+  }, [salesDisplayRows, saleSort, SALE_TERMINAL_STATUSES]);
 
   const salesColumnTotals = useMemo(() => {
     const list = filteredSales;
@@ -985,6 +985,44 @@ const Sales = () => {
     deposit_currency: 'USD',
   });
 
+  /** Completing a whole SaleGroup at once (e.g. several items sold individually from the
+      same multi-item on_demand order) — sale_type/deposit shared, price/payment per line. */
+  const [showCompleteFromOrderGroupForm, setShowCompleteFromOrderGroupForm] = useState(false);
+  const { exchangeRate: cfoGroupExchangeRate, exchangeRateError: cfoGroupExchangeRateError } =
+    useCbuExchangeRate(showCompleteFromOrderGroupForm);
+  const [completeFromOrderGroupData, setCompleteFromOrderGroupData] = useState({
+    saleGroupId: null,
+    sale_type: 'bought_from_shop',
+    deposit_received: false,
+    deposit_amount: '',
+    deposit_currency: 'USD',
+    lines: [],
+  });
+
+  // Re-prefill each line's remaining-due-after-advance once the CBU rate loads.
+  useEffect(() => {
+    if (!showCompleteFromOrderGroupForm) return;
+    const rate = cfoGroupExchangeRate?.rate ?? null;
+    setCompleteFromOrderGroupData((prev) => {
+      if (!prev.lines.length) return prev;
+      let changed = false;
+      const nextLines = prev.lines.map((line) => {
+        const saleRow = sales.find((s) => s.id === line.saleId);
+        if (!saleRow || !saleHasOrderAdvance(saleRow)) return line;
+        const remaining = computeAdvanceRemainingDue(saleRow, line.selling_price, rate);
+        if (remaining == null) return line;
+        const sc = (saleRow.sale_currency || 'USD').toUpperCase();
+        const nextUzs = sc === 'UZS' ? String(Math.round(remaining)) : line.uzs;
+        const nextUsd = sc === 'USD' ? remaining.toFixed(2) : line.usd;
+        if (nextUzs === line.uzs && nextUsd === line.usd) return line;
+        changed = true;
+        return { ...line, uzs: nextUzs, usd: nextUsd };
+      });
+      return changed ? { ...prev, lines: nextLines } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cfoGroupExchangeRate, showCompleteFromOrderGroupForm]);
+
   // Prefill remaining payment after advance (CBU-convert when advance currency ≠ sale currency).
   useEffect(() => {
     if (!showCompleteFromOrderForm || !completeFromOrderData.saleId) return;
@@ -1236,6 +1274,122 @@ const Sales = () => {
         deposit_currency: 'USD',
       });
       setShowCompleteFromOrderForm(true);
+    }
+  };
+
+  const handleCompleteFromOrderGroup = (groupSales) => {
+    if (!groupSales?.length) return;
+    const lines = groupSales.map((s) => {
+      // computeAdvanceRemainingDue safely returns the full price when there's no advance
+      // (no CBU rate needed for that case) — always prefill it, not just when there's an
+      // advance, otherwise a no-advance line silently defaults to $0 due.
+      const remaining = computeAdvanceRemainingDue(s, s.selling_price, null);
+      const sc = (s.sale_currency || 'USD').toUpperCase();
+      return {
+        saleId: s.id,
+        product_detail: s.product_detail,
+        selling_price: s.selling_price != null && s.selling_price !== '' ? String(s.selling_price) : '',
+        uzs: sc === 'UZS' && remaining != null ? String(Math.round(remaining)) : '',
+        usd: sc === 'USD' && remaining != null ? remaining.toFixed(2) : '',
+        advanceDisplay:
+          s.advance_payment_received != null && parseFloat(s.advance_payment_received) > 0
+            ? formatDisplayAmount(s.advance_payment_received, getAdvanceCurrency(s))
+            : null,
+        packageLines: EMPTY_PKG_LINES(),
+      };
+    });
+    setCompleteFromOrderGroupData({
+      saleGroupId: groupSales[0].sale_group_id,
+      sale_type: 'bought_from_shop',
+      deposit_received: false,
+      deposit_amount: '',
+      deposit_currency: 'USD',
+      lines,
+    });
+    setShowCompleteFromOrderGroupForm(true);
+  };
+
+  const updateCompleteFromOrderGroupLine = (saleId, field, value) => {
+    setCompleteFromOrderGroupData((prev) => ({
+      ...prev,
+      lines: prev.lines.map((l) => (l.saleId === saleId ? { ...l, [field]: value } : l)),
+    }));
+  };
+
+  const handleCompleteFromOrderGroupSubmit = async (e) => {
+    e.preventDefault();
+    for (const line of completeFromOrderGroupData.lines) {
+      if (!(parseFloat(line.selling_price) > 0)) {
+        showNotification(t('completeFromOrder.errPrice'), 'error');
+        return;
+      }
+    }
+    // Any line with an order advance needs the CBU rate to classify its payment — wait for
+    // it rather than letting the backend fetch it live in the middle of the group transaction.
+    const anyLineHasAdvance = completeFromOrderGroupData.lines.some((l) => {
+      const saleRow = sales.find((s) => s.id === l.saleId);
+      return saleHasOrderAdvance(saleRow);
+    });
+    if (anyLineHasAdvance && !cfoGroupExchangeRate?.rate) {
+      showNotification(cfoGroupExchangeRateError || t('completePay.errCbuRate'), 'error');
+      return;
+    }
+
+    // Package stock is a shared pool across every line — validate combined usage.
+    const activeLinesByPkg = completeFromOrderGroupData.lines.map((l) => ({
+      saleId: l.saleId,
+      active: (l.packageLines || []).filter((pl) => pl.package_type && pl.quantity > 0),
+    }));
+    const allActive = activeLinesByPkg.flatMap((l) => l.active);
+    const neededByType = {};
+    for (const pl of allActive) {
+      if (!packages.find((p) => p.package_type === pl.package_type)) {
+        showNotification(t('notifications.errPkgNotExist', { type: pl.package_type }), 'error');
+        return;
+      }
+      neededByType[pl.package_type] = (neededByType[pl.package_type] || 0) + pl.quantity;
+    }
+    for (const [pt, needed] of Object.entries(neededByType)) {
+      const pkg = packages.find((p) => p.package_type === pt);
+      if (pkg && pkg.quantity < needed) {
+        showNotification(t('notifications.errPkgInsufficient', { type: pt, need: needed, have: pkg.quantity }), 'error');
+        return;
+      }
+    }
+
+    try {
+      const payload = {
+        sale_group: completeFromOrderGroupData.saleGroupId,
+        sale_type: completeFromOrderGroupData.sale_type,
+        lines: completeFromOrderGroupData.lines.map((l) => {
+          const active = (l.packageLines || []).filter((pl) => pl.package_type && pl.quantity > 0);
+          return {
+            sale_id: l.saleId,
+            selling_price: parseFloat(l.selling_price) || 0,
+            uzs: parseFloat(l.uzs) || 0,
+            usd: parseFloat(l.usd) || 0,
+            ...(active.length > 0
+              ? { package_lines: active.map(({ package_type, quantity }) => ({ package_type, quantity })) }
+              : {}),
+          };
+        }),
+      };
+      if (completeFromOrderGroupData.sale_type === 'reserved') {
+        payload.deposit_received = completeFromOrderGroupData.deposit_received;
+        if (completeFromOrderGroupData.deposit_received) {
+          payload.deposit_amount = parseFloat(completeFromOrderGroupData.deposit_amount) || 0;
+          payload.deposit_currency = completeFromOrderGroupData.deposit_currency;
+        }
+      }
+      if (cfoGroupExchangeRate?.rate) payload.exchange_rate = cfoGroupExchangeRate.rate;
+      await api.post('/sales/complete_from_order_group/', payload);
+      setShowCompleteFromOrderGroupForm(false);
+      fetchSales();
+      showNotification(t('completeFromOrder.successGroup', { count: completeFromOrderGroupData.lines.length }), 'success');
+    } catch (error) {
+      console.error('Error completing sale group:', error);
+      const d = error.response?.data;
+      showNotification(d?.error || d?.detail || t('completeFromOrder.errComplete'), 'error');
     }
   };
 
@@ -1589,11 +1743,22 @@ const Sales = () => {
             {t('rowActions.completePay', { ns: 'sales' })}
           </button>
         )}
-        {sale.status === 'pending' && sale.sale_type === 'from_order' && canCompleteFromOrder && (
+        {(groupSales?.length
+          ? groupSales.some((s) => s.status === 'pending' && s.sale_type === 'from_order')
+          : sale.status === 'pending' && sale.sale_type === 'from_order') &&
+          canCompleteFromOrder && (
           <button
             type="button"
             className="btn-status"
-            onClick={() => handleCompleteFromOrder(sale.id)}
+            onClick={() => {
+              if (groupSales?.length) {
+                handleCompleteFromOrderGroup(
+                  groupSales.filter((s) => s.status === 'pending' && s.sale_type === 'from_order'),
+                );
+              } else {
+                handleCompleteFromOrder(sale.id);
+              }
+            }}
             style={{ backgroundColor: '#4caf50', color: 'white' }}
           >
             {t('rowActions.completeSale', { ns: 'sales' })}
@@ -2125,6 +2290,180 @@ const Sales = () => {
         </div>
       )}
 
+      {showCompleteFromOrderGroupForm && (
+        <div className="form-card" style={{ marginBottom: '20px' }}>
+          <h2>{t('completeFromOrder.titleGroup', { count: completeFromOrderGroupData.lines.length })}</h2>
+          <form onSubmit={handleCompleteFromOrderGroupSubmit}>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>{t('completeFromOrder.saleType')}</label>
+                <select
+                  value={completeFromOrderGroupData.sale_type}
+                  onChange={(e) => {
+                    const newSaleType = e.target.value;
+                    setCompleteFromOrderGroupData((prev) => ({
+                      ...prev,
+                      sale_type: newSaleType,
+                      deposit_received: newSaleType === 'reserved' ? prev.deposit_received : false,
+                      deposit_amount: newSaleType === 'reserved' ? prev.deposit_amount : '',
+                    }));
+                  }}
+                  required
+                >
+                  <option value="bought_from_shop">{t('saleTypes.bought_from_shop')}</option>
+                  <option value="delivery">{t('saleTypes.delivery')}</option>
+                  <option value="reserved">{t('saleTypes.reserved')}</option>
+                </select>
+              </div>
+              {completeFromOrderGroupData.sale_type === 'reserved' && (
+                <>
+                  <div className="form-group">
+                    <label>
+                      <input
+                        type="checkbox"
+                        checked={completeFromOrderGroupData.deposit_received}
+                        onChange={(e) => setCompleteFromOrderGroupData((prev) => ({
+                          ...prev, deposit_received: e.target.checked,
+                        }))}
+                      />
+                      {' '}{t('completeFromOrder.customerDeposited')}
+                    </label>
+                  </div>
+                  {completeFromOrderGroupData.deposit_received && (
+                    <>
+                      <div className="form-group">
+                        <label>{t('completeFromOrder.depositAmount')}</label>
+                        <input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={completeFromOrderGroupData.deposit_amount ?? ''}
+                          onChange={(e) => setCompleteFromOrderGroupData((prev) => ({
+                            ...prev, deposit_amount: e.target.value,
+                          }))}
+                          required
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label>{t('completeFromOrder.depositCurrency')}</label>
+                        <select
+                          value={completeFromOrderGroupData.deposit_currency}
+                          onChange={(e) => setCompleteFromOrderGroupData((prev) => ({
+                            ...prev, deposit_currency: e.target.value,
+                          }))}
+                          required
+                        >
+                          <option value="USD">{t('currency.usd', { ns: 'common' })}</option>
+                          <option value="UZS">{t('currency.uzs', { ns: 'common' })}</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+            <p style={{ margin: '4px 0 8px', color: '#555', fontSize: '0.9em', fontWeight: 600 }}>
+              {t('completeFromOrder.paymentHint')}
+            </p>
+            {cfoGroupExchangeRate?.label && (
+              <p style={{ margin: '0 0 8px', color: '#4a5568', fontSize: '0.85em' }}>{cfoGroupExchangeRate.label}</p>
+            )}
+            {cfoGroupExchangeRateError && (
+              <p style={{ margin: '0 0 8px', color: '#b45309', fontSize: '0.85em' }}>{cfoGroupExchangeRateError}</p>
+            )}
+            <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
+              <table className="batch-sale-lines" role="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('batch.product', { ns: 'sales' })}</th>
+                    <th className="batch-sale-lines__th--num">{t('completeFromOrder.sellingPrice')}</th>
+                    <th className="batch-sale-lines__th--num">{t('completeFromOrder.advanceAuto')}</th>
+                    <th scope="col">{t('completeFromOrder.packagesOptional')}</th>
+                    <th className="batch-sale-lines__th--num">{t('currency.uzs', { ns: 'common' })}</th>
+                    <th className="batch-sale-lines__th--num">{t('currency.usd', { ns: 'common' })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {completeFromOrderGroupData.lines.map((line) => (
+                    <tr key={line.saleId}>
+                      <td>
+                        #{line.saleId} — {line.product_detail?.brand} {line.product_detail?.model}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        <input
+                          className="batch-sale-lines__control"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={line.selling_price ?? ''}
+                          onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'selling_price', e.target.value)}
+                        />
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        <input
+                          className="batch-sale-lines__control"
+                          type="text"
+                          value={line.advanceDisplay ?? ''}
+                          readOnly
+                          style={{ backgroundColor: '#f5f5f5', cursor: 'not-allowed' }}
+                        />
+                      </td>
+                      <td style={{ minWidth: '220px' }}>
+                        <PackageLinesSelector
+                          lines={line.packageLines || EMPTY_PKG_LINES()}
+                          onChange={(newLines) => updateCompleteFromOrderGroupLine(line.saleId, 'packageLines', newLines)}
+                          packages={packages}
+                        />
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        <input
+                          className="batch-sale-lines__control"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0"
+                          value={line.uzs ?? ''}
+                          onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'uzs', e.target.value)}
+                        />
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        <input
+                          className="batch-sale-lines__control"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          placeholder="0"
+                          value={line.usd ?? ''}
+                          onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'usd', e.target.value)}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                {t('completeSale')}
+              </button>
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() => {
+                  setShowCompleteFromOrderGroupForm(false);
+                  setCompleteFromOrderGroupData({
+                    saleGroupId: null, sale_type: 'bought_from_shop',
+                    deposit_received: false, deposit_amount: '', deposit_currency: 'USD', lines: [],
+                  });
+                }}
+              >
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
       {completePaySale && shopDeliverySettlementRequiredForGroup(completePaySale) && (
         <SaleDeliverySettlementForm
           sale={completePaySale}
@@ -2576,7 +2915,7 @@ const Sales = () => {
       )}
 
       {/* Filters */}
-      {!showBatchForm && !showCustomerForm && !showDispatchForm && !completePaySale && !showCompleteFromOrderForm && !showSellReservedForm && (
+      {!showBatchForm && !showCustomerForm && !showDispatchForm && !completePaySale && !showCompleteFromOrderForm && !showCompleteFromOrderGroupForm && !showSellReservedForm && (
         <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
           <h3 className="filter-card__title">{t('filters.title', { ns: 'common' })}</h3>
         <div className="filter-toolbar">
