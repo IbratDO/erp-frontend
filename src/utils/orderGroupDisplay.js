@@ -1,5 +1,42 @@
 /** Build grouped display rows for the Orders table (multi-item order = one row). */
 
+/** Total cargo cost for the whole shipment (cargo pool) this order belongs to —
+ * same value for every line sharing that pool. Falls back to this line's own
+ * allocated cost when it isn't pooled with any sibling. */
+export function cargoPoolTotals(order, allOrders) {
+  const poolId = order.cargo_pool_id;
+  if (!poolId) {
+    return {
+      uzs: parseFloat(order.allocated_cargo_cost_uzs) || 0,
+      usd: parseFloat(order.allocated_cargo_cost_usd) || 0,
+      lineCount: 1,
+    };
+  }
+  const members = (allOrders || []).filter(
+    (o) => o.cargo_pool_id === poolId && o.status !== 'cancelled',
+  );
+  return {
+    uzs: members.reduce((sum, o) => sum + (parseFloat(o.allocated_cargo_cost_uzs) || 0), 0),
+    usd: members.reduce((sum, o) => sum + (parseFloat(o.allocated_cargo_cost_usd) || 0), 0),
+    lineCount: members.length || 1,
+  };
+}
+
+/** This line's own cargo cost per unit and per kg, from its allocated share
+ * (already split by weight — or per-unit as a fallback — across the pool). */
+export function cargoUnitCosts(order) {
+  const qty = parseFloat(order.ordered_quantity) || 0;
+  const weight = parseFloat(order.weight) || 0;
+  const uzsTotal = parseFloat(order.allocated_cargo_cost_uzs) || 0;
+  const usdTotal = parseFloat(order.allocated_cargo_cost_usd) || 0;
+  return {
+    unitUzs: qty > 0 ? uzsTotal / qty : 0,
+    unitUsd: qty > 0 ? usdTotal / qty : 0,
+    kgUzs: weight > 0 ? uzsTotal / weight : 0,
+    kgUsd: weight > 0 ? usdTotal / weight : 0,
+  };
+}
+
 export function buildOrderDisplayRows(filteredOrders, allOrders) {
   const seenGroupIds = new Set();
   const rows = [];

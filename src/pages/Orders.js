@@ -25,7 +25,7 @@ import FormSearchableSelect from '../components/FormSearchableSelect';
 import { matchesProductCatalogFilters, getCascadedFilterOptions, getCascadedDateOptions } from '../utils/productFilterUtils';
 import CustomerSearchableSelect from '../components/CustomerSearchableSelect';
 import { useClientTableSort, compareForSort } from '../utils/tableSort';
-import { buildOrderDisplayRows, aggregateGroupOrders, orderLikeForDisplayRow } from '../utils/orderGroupDisplay';
+import { buildOrderDisplayRows, aggregateGroupOrders, orderLikeForDisplayRow, cargoPoolTotals, cargoUnitCosts } from '../utils/orderGroupDisplay';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
@@ -409,7 +409,7 @@ const Orders = () => {
   // Sales managers without stock workflow still see on-demand only.
   const canSeeStockOrders =
     canManageStockOrders || canMarkAsOrdered || canEditCargoCost;
-  const orderTableColumnCount = canSeeStockOrders ? 25 : 24;
+  const orderTableColumnCount = canSeeStockOrders ? 27 : 26;
   const orderFooterLabelColSpan = canSeeStockOrders ? 14 : 13;
   /** Ledger totals for pay flows and move-to-inventory advance refunds (not bare status updates). */
   const needsLedgerForPayments = canPayOrder || canPayCargo || canMoveInventory;
@@ -475,6 +475,7 @@ const Orders = () => {
     orderId: null,
     uzs: '',
     usd: '',
+    weight: '',
   });
   const [showCargoForm, setShowCargoForm] = useState(false);
   const [editCargoFormData, setEditCargoFormData] = useState({
@@ -1100,10 +1101,12 @@ const Orders = () => {
     // Do not gate on cargo_payment_currency — that is only set after a successful pay.
     const uzsNum = Number(order?.cargo_cost_uzs);
     const usdNum = Number(order?.cargo_cost_usd);
+    const weightNum = Number(order?.weight);
     setCargoFormData({
       orderId: orderId,
       uzs: Number.isFinite(uzsNum) && uzsNum > 0 ? String(uzsNum) : '',
       usd: Number.isFinite(usdNum) && usdNum > 0 ? String(usdNum) : '',
+      weight: Number.isFinite(weightNum) && weightNum > 0 ? String(weightNum) : '',
     });
     setShowCargoForm(true);
     setTimeout(() => cargoFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -1496,6 +1499,11 @@ const Orders = () => {
     try {
       const uzs = parseFloat(cargoFormData.uzs) || 0;
       const usd = parseFloat(cargoFormData.usd) || 0;
+      const weight = parseFloat(cargoFormData.weight) || 0;
+      if (weight <= 0) {
+        showNotification(t('notifications.cargoWeightRequired'), 'error');
+        return;
+      }
 
       await fetchBalances();
       if (uzs > 0 && !ledgerHasFunds('UZS', uzs)) {
@@ -1518,9 +1526,9 @@ const Orders = () => {
         return;
       }
 
-      const res = await api.post(`/orders/${cargoFormData.orderId}/pay_cargo/`, { uzs, usd });
+      const res = await api.post(`/orders/${cargoFormData.orderId}/pay_cargo/`, { uzs, usd, weight });
       setShowCargoForm(false);
-      setCargoFormData({ orderId: null, uzs: '', usd: '' });
+      setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '' });
       await fetchOrders();
       showNotification(res.data?.message || t('notifications.cargoPaidSuccess'), 'success');
     } catch (error) {
@@ -1680,6 +1688,10 @@ const Orders = () => {
     const plannedSellingLabel = plannedSellingSummary(order);
     const plannedSupplierTotalLabel = plannedSupplierTotal(order);
     const eshopLabel = formatEshopDisplay(order.eshop, t);
+    const cargoPool = cargoPoolTotals(order, orders);
+    const cargoUnits = cargoUnitCosts(order);
+    const lineCargoUzs = parseFloat(order.allocated_cargo_cost_uzs) || 0;
+    const lineCargoUsd = parseFloat(order.allocated_cargo_cost_usd) || 0;
     return (
       <tr key={rowKey ?? order.id} className={extraClassName}>
         <td>#{order.id}</td>
@@ -1876,26 +1888,60 @@ const Orders = () => {
           })()}
         </td>
         <td>
-          {(() => {
-            const v = (parseFloat(order.cargo_payment_uzs_cash) || 0) + (parseFloat(order.cargo_payment_uzs_card) || 0);
-            const w = parseFloat(order.weight) || 0;
-            if (v <= 0) return <span style={{ color: '#bbb' }}>—</span>;
-            const color = order.cargo_is_paid ? '#4caf50' : 'inherit';
-            return w > 0
-              ? <span style={{ color }}>{formatAppNumber(v / w)} {uzsLabel}/kg</span>
-              : <span style={{ color }}>{formatAppNumber(v)} {uzsLabel}</span>;
-          })()}
+          {lineCargoUzs > 0 ? (
+            <span style={{ color: order.cargo_is_paid ? '#4caf50' : 'inherit' }}>
+              {formatAppNumber(lineCargoUzs)} {uzsLabel}
+              {cargoPool.lineCount > 1 && (
+                <div style={{ fontSize: '0.78em', color: '#888', fontWeight: 400 }}>
+                  {t('table.cargoPoolTotalLabel', { ns: 'orders' })}: {formatAppNumber(cargoPool.uzs)} {uzsLabel}
+                </div>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
         </td>
         <td>
-          {(() => {
-            const v = (parseFloat(order.cargo_payment_usd_cash) || 0) + (parseFloat(order.cargo_payment_usd_card) || 0);
-            const w = parseFloat(order.weight) || 0;
-            if (v <= 0) return <span style={{ color: '#bbb' }}>—</span>;
-            const color = order.cargo_is_paid ? '#4caf50' : 'inherit';
-            return w > 0
-              ? <span style={{ color }}>${(v / w).toFixed(2)}/kg</span>
-              : <span style={{ color }}>${v.toFixed(2)}</span>;
-          })()}
+          {lineCargoUsd > 0 ? (
+            <span style={{ color: order.cargo_is_paid ? '#4caf50' : 'inherit' }}>
+              ${lineCargoUsd.toFixed(2)}
+              {cargoPool.lineCount > 1 && (
+                <div style={{ fontSize: '0.78em', color: '#888', fontWeight: 400 }}>
+                  {t('table.cargoPoolTotalLabel', { ns: 'orders' })}: ${cargoPool.usd.toFixed(2)}
+                </div>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
+        <td>
+          {lineCargoUzs > 0 ? (
+            <span>
+              {formatAppNumber(cargoUnits.unitUzs)} {uzsLabel}/{t('table.perUnitSuffix', { ns: 'orders' })}
+              {cargoUnits.kgUzs > 0 && (
+                <div style={{ color: '#888' }}>
+                  {formatAppNumber(cargoUnits.kgUzs)} {uzsLabel}/kg
+                </div>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
+        <td>
+          {lineCargoUsd > 0 ? (
+            <span>
+              ${cargoUnits.unitUsd.toFixed(2)}/{t('table.perUnitSuffix', { ns: 'orders' })}
+              {cargoUnits.kgUsd > 0 && (
+                <div style={{ color: '#888' }}>
+                  ${cargoUnits.kgUsd.toFixed(2)}/kg
+                </div>
+              )}
+            </span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
         </td>
         <td>{order.created_by_detail?.username || '-'}</td>
         <td>
@@ -2179,6 +2225,20 @@ const Orders = () => {
                   onChange={(e) => setCargoFormData({ ...cargoFormData, usd: e.target.value })}
                 />
               </div>
+              <div className="form-group">
+                <label>
+                  {t('batch.weightKgTotal', { ns: 'orders' })} <span style={{ color: '#e53e3e' }}>*</span>
+                </label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  required
+                  placeholder="0.00"
+                  value={cargoFormData.weight}
+                  onChange={(e) => setCargoFormData({ ...cargoFormData, weight: e.target.value })}
+                />
+              </div>
             </div>
             <div className="form-actions">
               <button type="submit" className="btn-primary">
@@ -2189,7 +2249,7 @@ const Orders = () => {
                 className="btn-edit"
                 onClick={() => {
                   setShowCargoForm(false);
-                  setCargoFormData({ orderId: null, uzs: '', usd: '' });
+                  setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '' });
                 }}
               >
                 {t('actions.cancel', { ns: 'common' })}
@@ -3023,6 +3083,8 @@ const Orders = () => {
               <SortableTh columnId="order_usd" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderUsd', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="cargo_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.cargoUzs', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="cargo_usd" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.cargoUsd', { ns: 'orders' })}</SortableTh>
+              <th>{t('table.cargoUnitUzs', { ns: 'orders' })}</th>
+              <th>{t('table.cargoUnitUsd', { ns: 'orders' })}</th>
               <SortableTh columnId="created_by" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.createdBy', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="ordered_note" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderedNote', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="order_date" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.date', { ns: 'orders' })}</SortableTh>
@@ -3196,9 +3258,7 @@ const Orders = () => {
                       <td>
                         {agg.cargoUzs > 0 ? (
                           <span style={{ color: agg.allCargoPaid ? '#4caf50' : 'inherit' }}>
-                            {agg.weightTotal > 0
-                              ? `${formatAppNumber(agg.cargoUzs / agg.weightTotal)} ${uzsLabel}/kg`
-                              : `${formatAppNumber(agg.cargoUzs)} ${uzsLabel}`}
+                            {formatAppNumber(agg.cargoUzs)} {uzsLabel}
                           </span>
                         ) : (
                           <span style={{ color: '#bbb' }}>—</span>
@@ -3207,13 +3267,17 @@ const Orders = () => {
                       <td>
                         {agg.cargoUsd > 0 ? (
                           <span style={{ color: agg.allCargoPaid ? '#4caf50' : 'inherit' }}>
-                            {agg.weightTotal > 0
-                              ? `$${(agg.cargoUsd / agg.weightTotal).toFixed(2)}/kg`
-                              : `$${agg.cargoUsd.toFixed(2)}`}
+                            ${agg.cargoUsd.toFixed(2)}
                           </span>
                         ) : (
                           <span style={{ color: '#bbb' }}>—</span>
                         )}
+                      </td>
+                      <td title={t('table.cargoUnitVariesHint', { ns: 'orders' })}>
+                        <span style={{ color: '#999' }}>—</span>
+                      </td>
+                      <td title={t('table.cargoUnitVariesHint', { ns: 'orders' })}>
+                        <span style={{ color: '#999' }}>—</span>
                       </td>
                       <td>{first?.created_by_detail?.username || '-'}</td>
                       <td>—</td>
@@ -3262,7 +3326,7 @@ const Orders = () => {
               <td style={{ fontWeight: 600 }}>
                 {orderColumnTotals.cargoUsd > 0 ? `$${orderColumnTotals.cargoUsd.toFixed(2)}` : '—'}
               </td>
-              <td colSpan="3">—</td>
+              <td colSpan="5">—</td>
             </tr>
           </tfoot>
         </table>
