@@ -12,6 +12,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import FilterSearchableSelect from '../components/FilterSearchableSelect';
+import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 
 const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
@@ -680,7 +681,7 @@ const Inventory = () => {
                     </span>
                   </td>
                   <td>{item.location || '-'}</td>
-                  <td>{new Date(item.updated_at).toLocaleString()}</td>
+                  <td>{formatAppDateTime(item.updated_at)}</td>
                 </tr>
                 );
               })

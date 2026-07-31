@@ -19,13 +19,40 @@
     "addLine": "Qator qo‘shish",
     "createCount": "{{count}} ta buyurtma yaratish",
     "created": "{{count}} ta buyurtma yaratildi",
+    "errWeightTotalMismatch": "Jami og‘irlik mahsulotlar og‘irliklari yig‘indisiga ({{sum}} kg) teng bo‘lishi kerak.",
+    "weightTotalHint": "Og‘irlikni mahsulotlarga taqsimlash uchun jami maydonga yozing yoki har bir mahsulotni kiriting — jami o‘zi hisoblanadi.",
     "errWeightRequiredForCargo": "Kargo to‘lashdan oldin har bir mahsulot uchun og‘irlik kiritilishi shart.",
     "markOrderedGroupTitle": "Butun buyurtmani \"Buyurtma berildi\" deb belgilash",
     "payCargoGroupTitle": "Butun yuk uchun kargo to‘lash",
     "payCargoGroupIntro": "Shu yuk jo‘natmasi uchun umumiy kargo narxini bir marta kiriting — u har bir mahsulotga og‘irligi bo‘yicha taqsimlanadi.",
+    "cargoAlreadyPaid": "to‘langan",
+    "cargoAlreadyPaidHint": "Bu mahsulot uchun kargo alohida to‘langan. Uning og‘irligi taqsimot uchun saqlanadi va bu yerda o‘zgartirilmaydi.",
+    "cargoAlreadyPaidNote": "Bu jo‘natmadagi ba’zi mahsulotlar uchun kargo alohida to‘langan. Quyidagi jami butun jo‘natmani qamrab oladi — siz kiritgan summa va allaqachon to‘langan summa — chunki kargo barcha mahsulotlarga og‘irlik bo‘yicha qayta taqsimlanadi.",
+    "cargoShareUzs": "Kargo ulushi (UZS)",
+    "cargoShareUsd": "Kargo ulushi (USD)",
+    "cargoSplitHint": "Ikkita ulush ustuni yuqoridagi jami summa og‘irlik bo‘yicha qanday taqsimlanayotganini jonli ko‘rsatadi. Jami qatori har doim siz kiritgan summaga aniq teng bo‘ladi.",
     "cargoWeightIntro": "Har bir mahsulotning JAMI og‘irligini (kg) quyida kiriting — ko‘rsatilgan butun miqdor uchun, dona boshiga emas (masalan, 10 ta futbolka jami 20 kg bo‘lsa — 2 emas, 20 kiriting). Bu yuqoridagi kargo narxini har bir mahsulotga ($/kg) qanday taqsimlashni belgilaydi.",
     "payOrderGroupTitle": "Butun buyurtmani to‘lash",
-    "payOrderGroupIntro": "Har bir mahsulotning o‘z tannarxi bor — quyidagi har bir qator uchun summani kiriting va tasdiqlang."
+    "payOrderGroupIntro": "Har bir mahsulotning o‘z tannarxi bor — quyidagi har bir qator uchun summani kiriting va tasdiqlang.",
+    "receiveTitle": "Qabul qilindi deb belgilash",
+    "receiveIntro": "Nechta dona haqiqatda yetib kelganini kiriting. Agar buyurtmadan kam kelgan bo‘lsa, yetib kelmaganlari yetib kelguncha, yetkazib beruvchi pulni qaytarguncha yoki zarar deb hisobdan chiqarilguncha kuzatilib turadi.",
+    "receivedQty": "Qabul qilindi",
+    "orderedQty": "Buyurtma qilindi",
+    "refundedCheckbox": "Pul qaytarildi",
+    "refundedHint": "Faqat yetkazib beruvchi yetib kelmagan mahsulotlar uchun pulni allaqachon qaytargan bo‘lsa belgilang.",
+    "refundUzs": "Qaytarilgan UZS",
+    "refundUsd": "Qaytarilgan USD",
+    "refundPaymentType": "Qayerga tushdi",
+    "refundCash": "Naqd",
+    "refundCard": "Karta",
+    "shortfallNote": "Izoh (ixtiyoriy)",
+    "confirmReceive": "Qabulni tasdiqlash",
+    "errReceivedQty": "Qabul qilingan miqdor 0 bilan buyurtma miqdori orasida bo‘lishi kerak.",
+    "errRefundAmount": "Qaytarilgan summani UZS yoki USD da kiriting.",
+    "shortfallBadge": "Kam: {{count}}",
+    "shortfallPending": "{{count}} ta mahsulot hali yetib kelmagan",
+    "shortfallRefunded": "Yetib kelmagan mahsulot uchun pul qaytarildi",
+    "shortfallWrittenOff": "Yetib kelmagan mahsulot zarar deb hisobdan chiqarildi"
   },
   "categoryTypes": {
     "sports": "Sport",
@@ -70,7 +97,10 @@
     "allColors": "Barcha ranglar",
     "allStatuses": "Barcha holatlar",
     "allCustomers": "Barcha mijozlar",
-    "noCustomer": "Mijoz yo‘q"
+    "noCustomer": "Mijoz yo‘q",
+    "shortfall": "Yetkazib berish",
+    "allDeliveries": "Barcha mahsulotlar",
+    "shortfallPending": "To‘liq yetib kelmagan"
   },
   "actions": {
     "payOrder": "Buyurtmani to‘lash",
@@ -83,7 +113,11 @@
     "moveToInventory": "Omborga o‘tkazish",
     "sellProduct": "Mahsulotni sotish",
     "markReceivedAndPay": "Qabul qilindi va to‘lash",
-    "confirmMoveToInventory": "Tasdiqlash va omborga o‘tkazish"
+    "confirmMoveToInventory": "Tasdiqlash va omborga o‘tkazish",
+    "cancelGroup": "Butun buyurtmani bekor qilish",
+    "receiveRemaining": "Qolganini qabul qilish",
+    "markRefunded": "Pul qaytarildi deb belgilash",
+    "writeOff": "Zarar deb hisobdan chiqarish"
   },
   "form": {
     "newTitle": "Yangi buyurtma",
@@ -130,6 +164,14 @@
     "alreadyPaidTitleClient": "Yaratishda to‘langan deb belgilash uchun USD xarajat kiriting yoki bo‘sh qoldirib keyin to‘lang.",
     "alreadyPaidTitleNeedCost": "Yuqorida USD xarajat kiriting yoki belgilamasdan «Buyurtmani to‘lash» dan foydalaning.",
     "sizeLabel": "o‘lcham {{size}}"
+  },
+  "context": {
+    "plannedCost": "Rejalashtirilgan xarajat",
+    "plannedCargo": "Rejalashtirilgan kargo",
+    "orderPaid": "buyurtma to‘langan",
+    "orderUnpaid": "buyurtma to‘lanmagan",
+    "cargoPaid": "kargo to‘langan",
+    "cargoUnpaid": "kargo to‘lanmagan"
   },
   "paymentForm": {
     "payOrderTitle": "Buyurtmani to‘lash",
@@ -182,6 +224,7 @@
     "orderType": "Buyurtma turi",
     "customer": "Mijoz",
     "qty": "Miqd.",
+    "weight": "Og‘irlik",
     "sellingPerUnit": "Sotuv/dona",
     "costPerUnit": "Xarajat/dona",
     "totalCost": "Jami xarajat",
@@ -220,6 +263,11 @@
     "createError": "Buyurtma yaratishda xatolik",
     "noStatusPermission": "Buyurtma holatini yangilash huquqi yo‘q.",
     "statusUpdated": "Buyurtma holati muvaffaqiyatli yangilandi!",
+    "receivedSuccess": "Qabul qayd etildi.",
+    "receiveRemainingSuccess": "Yetib kelmagan mahsulotlar omborga qabul qilindi.",
+    "shortfallResolved": "Yetib kelmagan mahsulotlar bo‘yicha masala hal qilindi.",
+    "shortfallError": "Yetib kelmagan mahsulotlarni hal qilishda xatolik",
+    "groupCancelled": "Ko‘p mahsulotli buyurtma bekor qilindi.",
     "statusUpdateError": "Holatni yangilashda xatolik",
     "orderedNoteRequired": "Izoh kiriting.",
     "editCargoAfterOrdered": "Avval «Buyurtma berildi deb belgilash», keyin yuk narxini tahrirlashingiz mumkin.",
@@ -265,7 +313,11 @@
     "unitDetailUzs": "\n({{perUnit}} / dona × {{qty}})",
     "unitDetailUsd": "\n({{perUnit}} / dona × {{qty}})",
     "productFallback": "Mahsulot #{{id}}",
-    "cancelOrder": "Buyurtma #{{id}} bekor qilinsinmi?\n\nYozuv saqlanadi. To‘langan yetkazib beruvchi/yuk summalari kerak bo‘lsa qaytariladi. Omborga o‘tgan yoki sotilgan buyurtmalar bekor qilinmaydi."
+    "cancelOrder": "Buyurtma #{{id}} bekor qilinsinmi?\n\nYozuv saqlanadi. To‘langan yetkazib beruvchi/yuk summalari kerak bo‘lsa qaytariladi. Omborga o‘tgan yoki sotilgan buyurtmalar bekor qilinmaydi.",
+    "cancelGroup": "Ushbu ko‘p mahsulotli buyurtmaning qolgan barcha mahsulotlari bekor qilinsinmi?\n\nOmborga o‘tgan yoki sotilgan mahsulotlarga tegilmaydi. To‘langan yetkazib beruvchi/yuk summalari kerak bo‘lsa qaytariladi, allaqachon to‘langan kargo esa qolgan mahsulotlarga qayta taqsimlanadi.",
+    "receiveRemaining": "Buyurtma #{{id}} bo‘yicha yetib kelmagan {{count}} ta mahsulot endi yetib keldimi?\n\nUlar omborga qo‘shiladi.",
+    "markRefunded": "Buyurtma #{{id}} bo‘yicha yetib kelmagan mahsulot uchun yetkazib beruvchi pulni qaytardi deb belgilansinmi?\n\n{{amount}} balansingizga qaytariladi.",
+    "writeOff": "Buyurtma #{{id}} bo‘yicha yetib kelmagan mahsulot zarar deb hisobdan chiqarilsinmi?\n\nPul harakatlanmaydi — u to‘lov paytida allaqachon chiqib ketgan. Xarajat Foyda va Zararda zarar sifatida qayd etiladi va buni ortga qaytarib bo‘lmaydi."
   },
   "errors": {
     "loadHistoryFailed": "Buyurtmalar yuklanmadi"

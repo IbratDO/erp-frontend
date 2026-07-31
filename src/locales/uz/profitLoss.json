@@ -12,6 +12,7 @@
     "netRevenue": "Sof daromad",
     "netCogs": "Sof tannarx (COGS)",
     "operatingExpenses": "Operatsion xarajatlar",
+    "conversionDiff": "Konversion tafovutlar",
     "otherIncome": "Boshqa daromad",
     "netProfitLoss": "Sof foyda / zarar"
   },
@@ -51,6 +52,17 @@
     "date": "Sana",
     "noRows": "Bu davrda operatsion xarajatlar yo‘q",
     "totalOperating": "Jami operatsion"
+  },
+  "conversionDiff": {
+    "title": "Konversion tafovutlar",
+    "hint": "Valyuta konversiyasidan foyda va zarar — valyuta ayirboshlash hamda narxi belgilangan valyutadan boshqa valyutada yakunlangan sotuvlar. Quyidagi sof foydaga kiritilgan.",
+    "description": "Manba",
+    "gainUsd": "Foyda (USD)",
+    "lossUsd": "Zarar (USD)",
+    "date": "Sana",
+    "total": "Jami",
+    "net": "Sof",
+    "noRows": "Bu davrda konversion tafovutlar yo‘q"
   },
   "otherIncome": {
     "title": "Boshqa daromad",

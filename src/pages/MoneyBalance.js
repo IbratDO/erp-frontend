@@ -6,6 +6,7 @@ import { useClientTableSort } from '../utils/tableSort';
 import CurrencyConversionForm from '../components/CurrencyConversionForm';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
+import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 
 /** Table columns: one per currency (legacy *_cash and *_card ledger buckets roll up here). */
@@ -601,7 +602,7 @@ const MoneyBalance = () => {
               ) : (
                 displayTransactions.map((transaction) => (
                   <tr key={transaction.id}>
-                    <td>{new Date(transaction.timestamp).toLocaleString()}</td>
+                    <td>{formatAppDateTime(transaction.timestamp)}</td>
                     <td>
                       {tTxType(transaction.transaction_type)}
                     </td>

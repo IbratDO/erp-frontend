@@ -301,6 +301,7 @@
     "step1TotalUzsLabel": "Total (UZS) — all items",
     "step1TotalUsdLabel": "Total (USD) — all items",
     "step1ItemHeading": "Sale #{{id}} — {{product}}",
+    "step1ShortfallIncomplete": "{{product}}: {{amount}} of the shortfall is still unaccounted for. Raise the discount, or also tick Currency Difference to absorb the rest.",
     "step1ShortfallRequired": "The courier collected less than the listed price. Classify the difference as Discount or Currency Difference before continuing.",
     "step1PriceAdjustedNotice": "\"{{product}}\": the courier collected more than the listed price — price adjusted from {{before}} to {{after}}.",
     "step1ShortfallProposedDiscount": "\"{{product}}\": the courier proposed {{amount}} as a discount (under-collected). Confirm using the checkbox below.",

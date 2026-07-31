@@ -33,6 +33,19 @@ const OPERATING_EXPENSE_SORT_ACCESSORS = {
   },
 };
 
+const CONVERSION_DIFF_SORT_ACCESSORS = {
+  description: (item) => String(item.description ?? '').toLowerCase(),
+  gain_usd: (item) => Number(item.gain_usd) || 0,
+  loss_usd: (item) => Number(item.loss_usd) || 0,
+  net_usd: (item) => Number(item.net_usd) || 0,
+  date: (item) => {
+    const s = item.date;
+    if (s == null || s === '') return 0;
+    const t = new Date(`${s}T12:00:00`).getTime();
+    return Number.isFinite(t) ? t : String(s).toLowerCase();
+  },
+};
+
 const OTHER_INCOME_SORT_ACCESSORS = {
   income_type_label: (item) => String(item.type ?? '').toLowerCase(),
   description: (item) => String(item.description ?? '').toLowerCase(),
@@ -107,6 +120,12 @@ const ProfitLoss = () => {
   const sortedOtherIncome = useMemo(
     () => otherIncomeSort.sortRows(profitLoss?.other_income || []),
     [profitLoss?.other_income, otherIncomeSort],
+  );
+
+  const conversionDiffSort = useClientTableSort(CONVERSION_DIFF_SORT_ACCESSORS);
+  const sortedConversionDiffs = useMemo(
+    () => conversionDiffSort.sortRows(profitLoss?.conversion_differences || []),
+    [profitLoss?.conversion_differences, conversionDiffSort],
   );
 
   const fmtUsd = useCallback(
@@ -196,6 +215,24 @@ const ProfitLoss = () => {
               <div className="metric-label">{t('metrics.otherIncome')}</div>
               <div className="metric-value" style={{ color: '#28a745', fontSize: '1.6em' }}>
                 {fmtUsd(profitLoss.totals.total_other_income_usd)}
+              </div>
+            </div>
+            <div
+              className="metric-card"
+              style={{
+                border: `2px solid ${(profitLoss.totals.total_conversion_net_usd || 0) >= 0 ? '#28a745' : '#dc3545'}`,
+              }}
+            >
+              <div className="metric-label">{t('metrics.conversionDiff')}</div>
+              <div
+                className="metric-value"
+                style={{
+                  color:
+                    (profitLoss.totals.total_conversion_net_usd || 0) >= 0 ? '#28a745' : '#dc3545',
+                  fontSize: '1.6em',
+                }}
+              >
+                {fmtUsd(profitLoss.totals.total_conversion_net_usd)}
               </div>
             </div>
             <div
@@ -582,6 +619,97 @@ const ProfitLoss = () => {
                     <td colSpan="2">{t('otherIncome.total')}</td>
                     <td>{fmtUsd(profitLoss.totals.total_other_income_usd)}</td>
                     <td>—</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          <div className="table-card" style={{ marginTop: '20px' }}>
+            <h3>{t('conversionDiff.title')}</h3>
+            <p style={{ color: '#666', fontSize: '0.85em', marginTop: 0 }}>
+              {t('conversionDiff.hint')}
+            </p>
+            <div className="data-table-scroll">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <SortableTh
+                      columnId="description"
+                      sortCol={conversionDiffSort.sortCol}
+                      sortDir={conversionDiffSort.sortDir}
+                      onSort={conversionDiffSort.onHeaderClick}
+                    >
+                      {t('conversionDiff.description')}
+                    </SortableTh>
+                    <SortableTh
+                      columnId="gain_usd"
+                      sortCol={conversionDiffSort.sortCol}
+                      sortDir={conversionDiffSort.sortDir}
+                      onSort={conversionDiffSort.onHeaderClick}
+                    >
+                      {t('conversionDiff.gainUsd')}
+                    </SortableTh>
+                    <SortableTh
+                      columnId="loss_usd"
+                      sortCol={conversionDiffSort.sortCol}
+                      sortDir={conversionDiffSort.sortDir}
+                      onSort={conversionDiffSort.onHeaderClick}
+                    >
+                      {t('conversionDiff.lossUsd')}
+                    </SortableTh>
+                    <SortableTh
+                      columnId="date"
+                      sortCol={conversionDiffSort.sortCol}
+                      sortDir={conversionDiffSort.sortDir}
+                      onSort={conversionDiffSort.onHeaderClick}
+                    >
+                      {t('conversionDiff.date')}
+                    </SortableTh>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedConversionDiffs.length === 0 ? (
+                    <tr>
+                      <td colSpan="4" style={{ textAlign: 'center' }}>
+                        {t('conversionDiff.noRows')}
+                      </td>
+                    </tr>
+                  ) : (
+                    sortedConversionDiffs.map((item, idx) => (
+                      <tr key={item.id ?? idx}>
+                        <td>{item.description}</td>
+                        <td style={{ color: item.gain_usd > 0 ? '#2e7d32' : undefined }}>
+                          {item.gain_usd > 0 ? fmtUsd(item.gain_usd) : '—'}
+                        </td>
+                        <td style={{ color: item.loss_usd > 0 ? '#c62828' : undefined }}>
+                          {item.loss_usd > 0 ? fmtUsd(item.loss_usd) : '—'}
+                        </td>
+                        <td>{item.date}</td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+                <tfoot>
+                  <tr style={{ fontWeight: 'bold', backgroundColor: '#f5f5f5' }}>
+                    <td>{t('conversionDiff.total')}</td>
+                    <td>{fmtUsd(profitLoss.totals.total_conversion_gain_usd)}</td>
+                    <td>{fmtUsd(profitLoss.totals.total_conversion_loss_usd)}</td>
+                    <td>—</td>
+                  </tr>
+                  <tr style={{ fontWeight: 'bold' }}>
+                    <td>{t('conversionDiff.net')}</td>
+                    <td
+                      colSpan="3"
+                      style={{
+                        color:
+                          (profitLoss.totals.total_conversion_net_usd || 0) < 0
+                            ? '#c62828'
+                            : '#2e7d32',
+                      }}
+                    >
+                      {fmtUsd(profitLoss.totals.total_conversion_net_usd)}
+                    </td>
                   </tr>
                 </tfoot>
               </table>

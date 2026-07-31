@@ -34,6 +34,7 @@ import {
 import { runSalePaymentSubmitFlow } from '../utils/salePaymentFlowHelpers';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
 import { usePermissions } from '../hooks/usePermissions';
+import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
@@ -3109,7 +3110,7 @@ const Sales = () => {
                   return (
                     <tr key={row.key} style={{ backgroundColor: saleRowBackground(sale) }}>
                       <td>#{sale.id}</td>
-                      <td>{new Date(sale.display_date || sale.sale_date).toLocaleString()}</td>
+                      <td>{formatAppDateTime(sale.display_date || sale.sale_date)}</td>
                       <td>{renderSaleActionsCell(sale)}</td>
                       {renderSaleProductCells(sale)}
                     </tr>
@@ -3134,7 +3135,7 @@ const Sales = () => {
                       }}
                     >
                       <td>{agg.idsLabel}</td>
-                      <td>{sale ? new Date(sale.sale_date).toLocaleString() : '—'}</td>
+                      <td>{sale ? formatAppDateTime(sale.sale_date) : '—'}</td>
                       <td onClick={(e) => e.stopPropagation()}>{renderSaleActionsCell(sale, row.sales)}</td>
                       <td>
                         <span className={`status-badge ${agg.hasMixedStatus ? 'pending' : agg.statuses[0]}`}>

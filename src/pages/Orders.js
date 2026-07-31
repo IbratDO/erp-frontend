@@ -65,6 +65,51 @@ function orderReadyForInventoryActions(order) {
   );
 }
 
+/** Colour of the "9 / 10" quantity badge, by how the short delivery ended up. */
+const SHORTFALL_BADGE_COLORS = {
+  pending: '#ff9800',
+  refunded: '#4caf50',
+  written_off: '#f44336',
+};
+
+/**
+ * Quantity cell: plain count normally, "received / ordered" plus a badge when a delivery
+ * came up short, so an under-delivered line is obvious without opening anything.
+ */
+function renderQuantityCell(ordered, received, shortfallStatus, t) {
+  const orderedNum = parseInt(ordered, 10) || 0;
+  const receivedNum = received === null || received === undefined ? null : parseInt(received, 10);
+  if (receivedNum === null || receivedNum === orderedNum) {
+    return <>{orderedNum}</>;
+  }
+  const missing = orderedNum - receivedNum;
+  const color = SHORTFALL_BADGE_COLORS[shortfallStatus] || SHORTFALL_BADGE_COLORS.pending;
+  const titleKey = {
+    pending: 'batch.shortfallPending',
+    refunded: 'batch.shortfallRefunded',
+    written_off: 'batch.shortfallWrittenOff',
+  }[shortfallStatus] || 'batch.shortfallPending';
+  return (
+    <span title={t(titleKey, { ns: 'orders', count: missing })}>
+      <strong>{receivedNum}</strong>
+      <span style={{ color: '#999' }}> / {orderedNum}</span>
+      <span
+        style={{
+          marginLeft: '6px',
+          padding: '1px 5px',
+          borderRadius: '8px',
+          backgroundColor: color,
+          color: '#fff',
+          fontSize: '0.75em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {t('batch.shortfallBadge', { ns: 'orders', count: missing })}
+      </span>
+    </span>
+  );
+}
+
 /** Open pipeline first; finished rows (inventory / sold / cancelled) sink to the bottom. */
 const ORDER_TERMINAL_STATUSES = new Set(['in_inventory', 'sold', 'cancelled']);
 
@@ -318,6 +363,7 @@ const ORDER_SORT_ACCESSORS = {
   order_type: (o) => String(o.order_type ?? '').toLowerCase(),
   customer: (o) => String(o.customer_detail?.name ?? '').toLowerCase(),
   qty: (o) => parseInt(o.ordered_quantity, 10) || 0,
+  weight: (o) => parseFloat(o.weight) || 0,
   selling_price_unit: (o) => orderSellingUsdPerUnitForSort(o),
   cost_per_unit: (o) => orderCostPerUnitForSort(o),
   total_cost: (o) => parseFloat(o.cost_total) || 0,
@@ -409,8 +455,8 @@ const Orders = () => {
   // Sales managers without stock workflow still see on-demand only.
   const canSeeStockOrders =
     canManageStockOrders || canMarkAsOrdered || canEditCargoCost;
-  const orderTableColumnCount = canSeeStockOrders ? 27 : 26;
-  const orderFooterLabelColSpan = canSeeStockOrders ? 14 : 13;
+  const orderTableColumnCount = canSeeStockOrders ? 28 : 27;
+  const orderFooterLabelColSpan = canSeeStockOrders ? 15 : 14;
   /** Ledger totals for pay flows and move-to-inventory advance refunds (not bare status updates). */
   const needsLedgerForPayments = canPayOrder || canPayCargo || canMoveInventory;
 
@@ -434,6 +480,7 @@ const Orders = () => {
     color: [],
     order_type: '',
     status: '',
+    shortfall: '',
     customer: '',
     year: '',
     month: '',
@@ -501,12 +548,23 @@ const Orders = () => {
   const markOrderedGroupFormRef = useRef(null);
 
   const [showCargoGroupForm, setShowCargoGroupForm] = useState(false);
-  const [cargoGroupData, setCargoGroupData] = useState({ groupId: null, uzs: '', usd: '', lines: [] });
+  const [cargoGroupData, setCargoGroupData] = useState({ groupId: null, uzs: '', usd: '', weightTotal: '', lines: [] });
   const cargoGroupFormRef = useRef(null);
 
   const [showPayOrderGroupForm, setShowPayOrderGroupForm] = useState(false);
   const [payOrderGroupData, setPayOrderGroupData] = useState({ groupId: null, lines: [] });
   const payOrderGroupFormRef = useRef(null);
+
+  // Mark-as-received: the physical count happens here, so the quantity is captured per line
+  // rather than assumed equal to what was ordered. `groupId` is set for a whole-shipment
+  // receipt, otherwise a single line is counted.
+  const [showReceiveForm, setShowReceiveForm] = useState(false);
+  const [receiveData, setReceiveData] = useState({
+    groupId: null,
+    lines: [],
+    note: '',
+  });
+  const receiveFormRef = useRef(null);
 
   const [showMoveToInventoryForm, setShowMoveToInventoryForm] = useState(false);
   const paymentFormRef = useRef(null);
@@ -686,6 +744,9 @@ const Orders = () => {
     if (filters.status) {
       filtered = filtered.filter(order => order.status === filters.status);
     }
+    if (filters.shortfall === 'pending') {
+      filtered = filtered.filter((order) => order.shortfall_status === 'pending');
+    }
     if (filters.customer) {
       if (filters.customer === '__none__') {
         filtered = filtered.filter((order) => !order.customer && !order.customer_detail?.id);
@@ -768,6 +829,7 @@ const Orders = () => {
     if (!list.length) {
       return {
         quantity: 0,
+        weight: 0,
         costTotal: 0,
         avgCostPerUnit: 0,
         avgSellingPerUnitOrdered: 0,
@@ -786,6 +848,7 @@ const Orders = () => {
       };
     }
     let quantity = 0;
+    let weight = 0;
     let costTotal = 0;
     let orderUzsCash = 0;
     let orderUzsCard = 0;
@@ -800,6 +863,7 @@ const Orders = () => {
     for (const o of list) {
       const qi = parseInt(o.ordered_quantity, 10) || 0;
       quantity += qi;
+      weight += parseFloat(o.weight) || 0;
       costTotal += parseFloat(o.cost_total) || 0;
       const ud = numOrZero(o.selling_usd_cash) + numOrZero(o.selling_usd_card);
       const legacyPu = parseFloat(o.selling_price);
@@ -822,6 +886,7 @@ const Orders = () => {
     }
     return {
       quantity,
+      weight,
       costTotal,
       avgCostPerUnit: quantity > 0 ? costTotal / quantity : 0,
       avgSellingPerUnitOrdered:
@@ -1013,6 +1078,154 @@ const Orders = () => {
     }
   };
 
+  /** One editable row of the receive modal, pre-filled with the full ordered quantity. */
+  const buildReceiveLine = (order) => ({
+    orderId: order.id,
+    label: `#${order.id} ${order.product_detail?.brand || ''} ${order.product_detail?.model || ''}`.trim(),
+    ordered: parseInt(order.ordered_quantity, 10) || 0,
+    received: String(parseInt(order.ordered_quantity, 10) || 0),
+    refunded: false,
+    refundUzs: '',
+    refundUsd: '',
+    refundPaymentType: 'cash',
+  });
+
+  const openReceiveForm = (ordersToReceive, groupId = null) => {
+    if (!canPostOrderStatus) {
+      showNotification(t('notifications.noStatusPermission'), 'error');
+      return;
+    }
+    if (!ordersToReceive.length) {
+      showNotification(t('notifications.statusUpdateError'), 'error');
+      return;
+    }
+    setReceiveData({ groupId, lines: ordersToReceive.map(buildReceiveLine), note: '' });
+    setShowReceiveForm(true);
+    setTimeout(
+      () => receiveFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+      50,
+    );
+  };
+
+  const handleMarkReceived = (orderId) => {
+    const order = orders.find((o) => o.id === orderId);
+    openReceiveForm(order ? [order] : []);
+  };
+
+  const updateReceiveLine = (orderId, patch) => {
+    setReceiveData((prev) => ({
+      ...prev,
+      lines: prev.lines.map((l) => (l.orderId === orderId ? { ...l, ...patch } : l)),
+    }));
+  };
+
+  /** Shortfall fields for one line, or {} when everything arrived. */
+  const receiveLinePayload = (line) => {
+    const received = parseInt(line.received, 10);
+    const payload = { received_quantity: received };
+    if (received < line.ordered && line.refunded) {
+      payload.shortfall_refunded = true;
+      payload.shortfall_refund_uzs = line.refundUzs || 0;
+      payload.shortfall_refund_usd = line.refundUsd || 0;
+      payload.shortfall_refund_payment_type = line.refundPaymentType;
+    }
+    return payload;
+  };
+
+  const handleReceiveSubmit = async (e) => {
+    e.preventDefault();
+    for (const line of receiveData.lines) {
+      const received = parseInt(line.received, 10);
+      if (!Number.isInteger(received) || received < 0 || received > line.ordered) {
+        showNotification(t('batch.errReceivedQty', { ns: 'orders' }), 'error');
+        return;
+      }
+      // A ticked refund box with no amount would silently close the shortfall for nothing.
+      if (received < line.ordered && line.refunded) {
+        const uzs = parseFloat(line.refundUzs) || 0;
+        const usd = parseFloat(line.refundUsd) || 0;
+        if (uzs <= 0 && usd <= 0) {
+          showNotification(t('batch.errRefundAmount', { ns: 'orders' }), 'error');
+          return;
+        }
+      }
+    }
+
+    try {
+      const note = String(receiveData.note || '').trim();
+      if (receiveData.groupId) {
+        const lines = {};
+        receiveData.lines.forEach((line) => {
+          lines[String(line.orderId)] = { ...receiveLinePayload(line), shortfall_note: note };
+        });
+        await api.post('/orders/update_status_group/', {
+          order_group: receiveData.groupId,
+          status: 'received',
+          lines,
+        });
+      } else {
+        const line = receiveData.lines[0];
+        await api.post(`/orders/${line.orderId}/update_status/`, {
+          status: 'received',
+          notes: '',
+          shortfall_note: note,
+          ...receiveLinePayload(line),
+        });
+      }
+      setShowReceiveForm(false);
+      setReceiveData({ groupId: null, lines: [], note: '' });
+      await fetchOrders();
+      showNotification(t('notifications.receivedSuccess'), 'success');
+    } catch (error) {
+      console.error('Error recording receipt:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        'error',
+      );
+    }
+  };
+
+  const handleReceiveRemaining = async (order) => {
+    const outstanding = parseInt(order.shortfall_quantity, 10) || 0;
+    if (!window.confirm(t('confirm.receiveRemaining', { id: order.id, count: outstanding }))) return;
+    try {
+      await api.post(`/orders/${order.id}/receive_remaining/`, { quantity: outstanding });
+      await fetchOrders();
+      showNotification(t('notifications.receiveRemainingSuccess'), 'success');
+    } catch (error) {
+      console.error('Error receiving remaining items:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.shortfallError'),
+        'error',
+      );
+    }
+  };
+
+  const handleResolveShortfall = async (order, resolution) => {
+    const body = { resolution };
+    if (resolution === 'refunded') {
+      // Default to what the missing units cost; the backend recomputes if left blank.
+      const perUnit = parseFloat(order.cost_per_unit) || 0;
+      const amount = (perUnit * (parseInt(order.shortfall_quantity, 10) || 0)).toFixed(2);
+      if (!window.confirm(t('confirm.markRefunded', { id: order.id, amount: `$${amount}` }))) return;
+      body.usd = amount;
+      body.payment_type = 'cash';
+    } else if (!window.confirm(t('confirm.writeOff', { id: order.id }))) {
+      return;
+    }
+    try {
+      await api.post(`/orders/${order.id}/resolve_shortfall/`, body);
+      await fetchOrders();
+      showNotification(t('notifications.shortfallResolved'), 'success');
+    } catch (error) {
+      console.error('Error resolving shortfall:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.shortfallError'),
+        'error',
+      );
+    }
+  };
+
   const handleMarkAsOrdered = (orderId) => {
     if (!canMarkAsOrdered) {
       showNotification(t('notifications.noStatusPermission'), 'error');
@@ -1200,15 +1413,24 @@ const Orders = () => {
     }
   };
 
-  const handleMarkReceivedGroup = async (groupId) => {
+  const handleMarkReceivedGroup = (groupId, groupOrders) => {
+    openReceiveForm(groupOrders.filter((o) => showMarkAsReceivedAction(o)), groupId);
+  };
+
+  const handleCancelGroup = async (groupId) => {
+    if (!canCancelOrder) {
+      showNotification(t('notifications.noStatusPermission'), 'error');
+      return;
+    }
+    if (!window.confirm(t('confirm.cancelGroup'))) return;
     try {
-      await api.post('/orders/update_status_group/', { order_group: groupId, status: 'received' });
+      await api.post('/orders/cancel_group/', { order_group: groupId, notes: '' });
       await fetchOrders();
-      showNotification(t('notifications.statusUpdated'), 'success');
+      showNotification(t('notifications.groupCancelled'), 'success');
     } catch (error) {
-      console.error('Error marking group as received:', error);
+      console.error('Error cancelling group:', error);
       showNotification(
-        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.orderCancelError'),
         'error',
       );
     }
@@ -1229,39 +1451,199 @@ const Orders = () => {
   };
 
   const handlePayCargoGroup = (groupOrders) => {
-    const groupId = groupOrders[0].order_group;
-    const uzsNum = groupOrders.reduce((sum, o) => sum + (Number(o.cargo_cost_uzs) || 0), 0);
-    const usdNum = groupOrders.reduce((sum, o) => sum + (Number(o.cargo_cost_usd) || 0), 0);
-    const lines = groupOrders.map((o) => ({
+    // Cancelled lines never shipped, so they neither need a weight nor take a share of the
+    // freight bill — showing them here only invites entering a weight for a phantom parcel.
+    const shipped = groupOrders.filter((o) => o.status !== 'cancelled');
+    if (!shipped.length) {
+      showNotification(t('notifications.statusUpdateError'), 'error');
+      return;
+    }
+    const groupId = shipped[0].order_group;
+    const uzsNum = shipped.reduce((sum, o) => sum + (Number(o.cargo_cost_uzs) || 0), 0);
+    const usdNum = shipped.reduce((sum, o) => sum + (Number(o.cargo_cost_usd) || 0), 0);
+    const lines = shipped.map((o) => ({
       orderId: o.id,
       product_detail: o.product_detail,
       ordered_quantity: o.ordered_quantity,
+      received_quantity: o.received_quantity,
+      shortfall_status: o.shortfall_status,
+      // Settled lines still belong to the shipment and still count toward the weight split,
+      // but their weight is history now — shown, not editable.
+      cargoIsPaid: Boolean(o.cargo_is_paid),
+      paidUzs:
+        (Number(o.cargo_payment_uzs_cash) || 0) + (Number(o.cargo_payment_uzs_card) || 0),
+      paidUsd:
+        (Number(o.cargo_payment_usd_cash) || 0) + (Number(o.cargo_payment_usd_card) || 0),
       weight: o.weight != null ? String(o.weight) : '',
     }));
     setCargoGroupData({
       groupId,
       uzs: uzsNum > 0 ? String(uzsNum) : '',
       usd: usdNum > 0 ? String(usdNum) : '',
+      weightTotal: weightToInputValue(sumLineWeights(lines)),
       lines,
     });
     setShowCargoGroupForm(true);
     setTimeout(() => cargoGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
+  const sumLineWeights = (lines) =>
+    lines.reduce((sum, l) => sum + (parseFloat(l.weight) || 0), 0);
+
+  /** Trailing zeros in a controlled numeric field are noise; keep it short. */
+  const weightToInputValue = (n) => (n > 0 ? String(Number(n.toFixed(2))) : '');
+
   const updateCargoGroupLineWeight = (orderId, value) => {
-    setCargoGroupData((prev) => ({
-      ...prev,
-      lines: prev.lines.map((l) => (l.orderId === orderId ? { ...l, weight: value } : l)),
-    }));
+    setCargoGroupData((prev) => {
+      const lines = prev.lines.map((l) => (l.orderId === orderId ? { ...l, weight: value } : l));
+      // Editing a line drives the total, so the two can never disagree.
+      return { ...prev, lines, weightTotal: weightToInputValue(sumLineWeights(lines)) };
+    });
   };
+
+  /**
+   * Typing the shipment's total weight spreads it back down over the lines, keeping the
+   * total and the per-line figures in agreement whichever end you type at.
+   *
+   * Lines whose cargo is already settled keep their recorded weight — it is history, and
+   * the backend still counts it in the split — so only the remainder is shared out, in
+   * proportion to whatever the editable lines already hold (evenly when they are blank).
+   * The last editable line absorbs the rounding remainder so the column adds up exactly.
+   */
+  const updateCargoGroupTotalWeight = (value) => {
+    setCargoGroupData((prev) => {
+      const total = parseFloat(value);
+      if (!Number.isFinite(total) || total <= 0) {
+        // Mid-edit (empty or partial input): leave the lines alone rather than wiping
+        // weights the user may have typed by hand.
+        return { ...prev, weightTotal: value };
+      }
+
+      const editable = prev.lines.filter((l) => !cargoGroupLineLocked(l));
+      if (!editable.length) return { ...prev, weightTotal: value };
+
+      const lockedSum = sumLineWeights(prev.lines.filter((l) => cargoGroupLineLocked(l)));
+      const available = total - lockedSum;
+      if (available <= 0) {
+        // Total can't go below what the settled lines already weigh; flag it on submit.
+        return { ...prev, weightTotal: value };
+      }
+
+      const currentSum = sumLineWeights(editable);
+      const round2 = (n) => Math.round(n * 100) / 100;
+      const shares = new Map();
+      let used = 0;
+      editable.forEach((l, i) => {
+        const isLast = i === editable.length - 1;
+        const share = isLast
+          ? round2(available - used)
+          : round2(
+              currentSum > 0
+                ? (available * (parseFloat(l.weight) || 0)) / currentSum
+                : available / editable.length,
+            );
+        shares.set(l.orderId, share);
+        used += share;
+      });
+
+      return {
+        ...prev,
+        weightTotal: value,
+        lines: prev.lines.map((l) =>
+          shares.has(l.orderId) ? { ...l, weight: weightToInputValue(shares.get(l.orderId)) } : l,
+        ),
+      };
+    });
+  };
+
+  /** A settled line's weight is history: shown, not editable (only if it has one to show). */
+  const cargoGroupLineLocked = (line) => line.cargoIsPaid && (parseFloat(line.weight) || 0) > 0;
+
+  /**
+   * Live preview of how cargo will be divided, mirroring the backend's weight split
+   * (cargo_allocation_utils.allocate_cargo_for_pool). Shown before submitting so the
+   * per-line landed cost is never a surprise after the money has moved.
+   *
+   * The divided figure is the whole shipment's freight — what you enter here *plus* what
+   * was already paid on individual lines — because the backend re-splits the entire pool
+   * by weight. That is why an already-paid line's share can still shift here. The last
+   * line absorbs the rounding remainder so the column always adds up to the total exactly.
+   */
+  const cargoGroupSplit = useMemo(() => {
+    const lines = cargoGroupData.lines || [];
+    const enteredUzs = parseFloat(cargoGroupData.uzs) || 0;
+    const enteredUsd = parseFloat(cargoGroupData.usd) || 0;
+    const alreadyPaidUzs = lines.reduce((sum, l) => sum + (l.cargoIsPaid ? l.paidUzs || 0 : 0), 0);
+    const alreadyPaidUsd = lines.reduce((sum, l) => sum + (l.cargoIsPaid ? l.paidUsd || 0 : 0), 0);
+    const totalUzs = enteredUzs + alreadyPaidUzs;
+    const totalUsd = enteredUsd + alreadyPaidUsd;
+
+    const weights = lines.map((l) => parseFloat(l.weight) || 0);
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+
+    const round2 = (n) => Math.round(n * 100) / 100;
+    const perLine = lines.map(() => ({ uzs: 0, usd: 0 }));
+
+    if (totalWeight > 0) {
+      let usedUzs = 0;
+      let usedUsd = 0;
+      lines.forEach((_, i) => {
+        const isLast = i === lines.length - 1;
+        perLine[i] = isLast
+          ? { uzs: round2(totalUzs - usedUzs), usd: round2(totalUsd - usedUsd) }
+          : {
+              uzs: round2((totalUzs * weights[i]) / totalWeight),
+              usd: round2((totalUsd * weights[i]) / totalWeight),
+            };
+        usedUzs += perLine[i].uzs;
+        usedUsd += perLine[i].usd;
+      });
+    }
+
+    return {
+      perLine,
+      totalWeight,
+      totalUzs,
+      totalUsd,
+      hasAlreadyPaid: alreadyPaidUzs > 0 || alreadyPaidUsd > 0,
+    };
+  }, [cargoGroupData]);
+
+  /**
+   * True while the typed total and the per-line weights disagree. Normally impossible —
+   * editing either end syncs the other — but it surfaces the two cases that cannot be
+   * reconciled automatically: a half-typed total, and a total lower than what the
+   * already-settled lines weigh.
+   */
+  const cargoGroupWeightMismatch = useMemo(() => {
+    if (!showCargoGroupForm) return false;
+    const typed = parseFloat(cargoGroupData.weightTotal);
+    if (!Number.isFinite(typed)) {
+      // A blank total on a shipment nobody has weighed yet is just an empty form; the
+      // "weight is required" check covers that. Only complain once weights exist to contradict.
+      return cargoGroupSplit.totalWeight > 0;
+    }
+    return Math.abs(typed - cargoGroupSplit.totalWeight) > 0.005;
+  }, [showCargoGroupForm, cargoGroupData, cargoGroupSplit]);
 
   const handlePayCargoGroupSubmit = async (e) => {
     e.preventDefault();
+    // Locked lines already carry a stored weight, so they can never be the missing one.
     const missingWeight = cargoGroupData.lines.some(
-      (l) => !(l.weight !== '' && l.weight != null && Number(l.weight) > 0),
+      (l) => !cargoGroupLineLocked(l) && !(l.weight !== '' && l.weight != null && Number(l.weight) > 0),
     );
     if (missingWeight) {
       showNotification(t('batch.errWeightRequiredForCargo', { ns: 'orders' }), 'error');
+      return;
+    }
+    if (cargoGroupWeightMismatch) {
+      showNotification(
+        t('batch.errWeightTotalMismatch', {
+          ns: 'orders',
+          sum: formatAppNumber(cargoGroupSplit.totalWeight),
+        }),
+        'error',
+      );
       return;
     }
     try {
@@ -1276,7 +1658,7 @@ const Orders = () => {
         weights,
       });
       setShowCargoGroupForm(false);
-      setCargoGroupData({ groupId: null, uzs: '', usd: '', lines: [] });
+      setCargoGroupData({ groupId: null, uzs: '', usd: '', weightTotal: '', lines: [] });
       await fetchOrders();
       showNotification(t('notifications.statusUpdated'), 'success');
     } catch (error) {
@@ -1304,6 +1686,8 @@ const Orders = () => {
           orderId: order.id,
           product_detail: order.product_detail,
           ordered_quantity: order.ordered_quantity,
+          received_quantity: order.received_quantity,
+          shortfall_status: order.shortfall_status,
           uzs: pref.uzs,
           usd: pref.usd,
         };
@@ -1684,7 +2068,119 @@ const Orders = () => {
     });
   };
 
-  const renderOrderRow = (order, rowKey, extraClassName, isGroupMember = false) => {
+  /**
+   * Context strip for the per-line action forms.
+   *
+   * These forms are opened from a single row, and since every workflow button is now
+   * available per line inside an expanded multi-item order, the form alone gave no clue
+   * which item you were about to spend money on. Shows what you need to sanity-check the
+   * amount before submitting: the item, how much of it actually arrived, what was planned,
+   * and what has already been settled.
+   */
+  const renderOrderContextCard = (orderId, { showCargo = false } = {}) => {
+    const order = orders.find((o) => o.id === orderId);
+    if (!order) return null;
+
+    const plannedSupplier = plannedSupplierTotal(order);
+    const plannedCargoUzs = parseFloat(order.cargo_cost_uzs) || 0;
+    const plannedCargoUsd = parseFloat(order.cargo_cost_usd) || 0;
+    const weight = parseFloat(order.weight) || 0;
+
+    const badge = (label, ok) => (
+      <span
+        style={{
+          padding: '1px 6px',
+          borderRadius: '8px',
+          backgroundColor: ok ? '#4caf50' : '#bdbdbd',
+          color: '#fff',
+          fontSize: '0.78em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {label}
+      </span>
+    );
+
+    const row = (label, value) => (
+      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+        <span style={{ color: '#777' }}>{label}:</span>
+        <span>{value}</span>
+      </div>
+    );
+
+    return (
+      <div
+        style={{
+          border: '1px solid #e0e0e0',
+          borderLeft: '4px solid #1976d2',
+          borderRadius: '4px',
+          padding: '10px 12px',
+          marginBottom: '16px',
+          backgroundColor: '#fafafa',
+          fontSize: '0.9em',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '4px',
+        }}
+      >
+        <div style={{ fontWeight: 'bold' }}>
+          #{order.id} — {productOrderPickerLabel(order.product_detail, t)}
+        </div>
+        {order.product_detail?.category
+          ? row(t('form.category'), order.product_detail.category)
+          : null}
+        {row(
+          t('batch.qty', { ns: 'orders' }),
+          renderQuantityCell(
+            order.ordered_quantity,
+            order.received_quantity,
+            order.shortfall_status,
+            t,
+          ),
+        )}
+        {showCargo
+          ? row(
+              t('context.plannedCargo', { ns: 'orders' }),
+              plannedCargoUzs > 0 || plannedCargoUsd > 0 ? (
+                [
+                  plannedCargoUzs > 0 ? formatDisplayAmount(plannedCargoUzs, 'UZS') : null,
+                  plannedCargoUsd > 0 ? formatDisplayAmount(plannedCargoUsd, 'USD') : null,
+                ]
+                  .filter(Boolean)
+                  .join(' + ')
+              ) : (
+                <span style={{ color: '#999' }}>—</span>
+              ),
+            )
+          : row(
+              t('context.plannedCost', { ns: 'orders' }),
+              plannedSupplier || <span style={{ color: '#999' }}>—</span>,
+            )}
+        {showCargo && weight > 0
+          ? row(t('batch.weightKgTotal', { ns: 'orders' }), `${formatAppNumber(weight)} kg`)
+          : null}
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+          {badge(
+            order.order_is_paid
+              ? t('context.orderPaid', { ns: 'orders' })
+              : t('context.orderUnpaid', { ns: 'orders' }),
+            order.order_is_paid,
+          )}
+          {badge(
+            order.cargo_is_paid
+              ? t('context.cargoPaid', { ns: 'orders' })
+              : t('context.cargoUnpaid', { ns: 'orders' }),
+            order.cargo_is_paid,
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // Every workflow button is per-line, including inside an expanded multi-item order: one
+  // item can be paid, received short, or cancelled without waiting on its siblings. The
+  // group row's buttons are a convenience for doing the same thing to all of them at once.
+  const renderOrderRow = (order, rowKey, extraClassName) => {
     const plannedSellingLabel = plannedSellingSummary(order);
     const plannedSupplierTotalLabel = plannedSupplierTotal(order);
     const eshopLabel = formatEshopDisplay(order.eshop, t);
@@ -1695,9 +2191,10 @@ const Orders = () => {
     return (
       <tr key={rowKey ?? order.id} className={extraClassName}>
         <td>#{order.id}</td>
+        <td>{formatAppDateTime(order.order_date || order.created_at)}</td>
         <td>
           {/* Show status update buttons based on current status */}
-          {!isGroupMember && showMarkAsOrderedAction(order) && canMarkAsOrdered && (
+          {showMarkAsOrderedAction(order) && canMarkAsOrdered && (
             <button
               className="btn-status"
               onClick={() => handleMarkAsOrdered(order.id)}
@@ -1706,17 +2203,43 @@ const Orders = () => {
               {t('actions.markAsOrdered', { ns: 'orders' })}
             </button>
           )}
-          {!isGroupMember && showMarkAsReceivedAction(order) && canUpdateStatus && (
+          {showMarkAsReceivedAction(order) && canUpdateStatus && (
             <button
               className="btn-status"
-              onClick={() => handleStatusUpdate(order.id, 'received')}
+              onClick={() => handleMarkReceived(order.id)}
               style={{ marginRight: '5px' }}
             >
               {t('actions.markReceived', { ns: 'orders' })}
             </button>
           )}
-          {!isGroupMember &&
-            !order.order_is_paid &&
+          {order.shortfall_status === 'pending' && canUpdateStatus && (
+            <button
+              className="btn-status"
+              onClick={() => handleReceiveRemaining(order)}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.receiveRemaining', { ns: 'orders' })}
+            </button>
+          )}
+          {order.shortfall_status === 'pending' && canPayOrder && (
+            <>
+              <button
+                className="btn-status"
+                onClick={() => handleResolveShortfall(order, 'refunded')}
+                style={{ marginRight: '5px' }}
+              >
+                {t('actions.markRefunded', { ns: 'orders' })}
+              </button>
+              <button
+                className="btn-status"
+                onClick={() => handleResolveShortfall(order, 'written_off')}
+                style={{ marginRight: '5px', backgroundColor: '#f44336' }}
+              >
+                {t('actions.writeOff', { ns: 'orders' })}
+              </button>
+            </>
+          )}
+          {!order.order_is_paid &&
             canPayOrder &&
             order.status !== 'order_created' &&
             !ORDER_TERMINAL_STATUSES.has(order.status) && (
@@ -1728,8 +2251,7 @@ const Orders = () => {
               {t('actions.payOrder', { ns: 'orders' })}
             </button>
           )}
-          {!isGroupMember &&
-            !order.cargo_is_paid &&
+          {!order.cargo_is_paid &&
             canPayCargo &&
             order.status !== 'order_created' &&
             !ORDER_TERMINAL_STATUSES.has(order.status) && (
@@ -1741,8 +2263,7 @@ const Orders = () => {
               {t('actions.payCargo', { ns: 'orders' })}
             </button>
           )}
-          {!isGroupMember &&
-            canEditCargoCost &&
+          {canEditCargoCost &&
             order.status !== 'order_created' &&
             !ORDER_TERMINAL_STATUSES.has(order.status) &&
             !order.cargo_is_paid && (
@@ -1763,8 +2284,7 @@ const Orders = () => {
               {t('actions.cancelOrder', { ns: 'orders' })}
             </button>
           )}
-          {!isGroupMember &&
-            orderReadyForInventoryActions(order) &&
+          {orderReadyForInventoryActions(order) &&
             order.order_type === 'stock' &&
             canMoveInventory && (
             <button
@@ -1859,7 +2379,21 @@ const Orders = () => {
             <span style={{ color: '#aaa' }}>—</span>
           )}
         </td>
-        <td>{order.ordered_quantity}</td>
+        <td>
+          {renderQuantityCell(
+            order.ordered_quantity,
+            order.received_quantity,
+            order.shortfall_status,
+            t,
+          )}
+        </td>
+        <td>
+          {parseFloat(order.weight) > 0 ? (
+            `${formatAppNumber(parseFloat(order.weight))} kg`
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
         <td title={plannedSellingLabel || ''}>
           {plannedSellingLabel ? (
             <span>{plannedSellingLabel}</span>
@@ -1954,7 +2488,6 @@ const Orders = () => {
             );
           })()}
         </td>
-        <td>{formatAppDateTime(order.order_date || order.created_at)}</td>
       </tr>
     );
   };
@@ -2045,6 +2578,7 @@ const Orders = () => {
                 ? t('paymentForm.receivedAndPayTitle')
                 : t('paymentForm.moveAndPayTitle')}
           </h2>
+          {renderOrderContextCard(paymentFormData.orderId)}
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('paymentForm.intro')}
           </p>
@@ -2097,6 +2631,7 @@ const Orders = () => {
       {showMoveToInventoryForm && (
         <div className="form-card" style={{ marginBottom: '20px' }} ref={moveToInventoryFormRef}>
           <h2>{t('moveForm.title', { id: moveToInventoryData.orderId })}</h2>
+          {renderOrderContextCard(moveToInventoryData.orderId)}
           <form onSubmit={handleMoveToInventorySubmit}>
             <div className="form-grid">
               {(() => {
@@ -2198,6 +2733,7 @@ const Orders = () => {
       {showCargoForm && (
         <div className="form-card" style={{ marginBottom: '20px' }} ref={cargoFormRef}>
           <h2>{t('cargoForm.title', { id: cargoFormData.orderId })}</h2>
+          {renderOrderContextCard(cargoFormData.orderId, { showCargo: true })}
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('cargoForm.intro')}
           </p>
@@ -2304,6 +2840,7 @@ const Orders = () => {
       {showEditCargoForm && (
         <div className="form-card" style={{ marginBottom: '20px' }} ref={editCargoFormRef}>
           <h2>{t('editCargoForm.title', { id: editCargoFormData.orderId })}</h2>
+          {renderOrderContextCard(editCargoFormData.orderId, { showCargo: true })}
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('editCargoForm.intro')}
           </p>
@@ -2437,6 +2974,17 @@ const Orders = () => {
             <p style={{ color: '#666', margin: '4px 0 8px', fontSize: '0.9em' }}>
               {t('batch.cargoWeightIntro', { ns: 'orders' })}
             </p>
+            <p style={{ color: '#666', margin: '0 0 8px', fontSize: '0.9em' }}>
+              {t('batch.weightTotalHint', { ns: 'orders' })}
+            </p>
+            <p style={{ color: '#666', margin: '0 0 8px', fontSize: '0.9em' }}>
+              {t('batch.cargoSplitHint', { ns: 'orders' })}
+            </p>
+            {cargoGroupSplit.hasAlreadyPaid && (
+              <p style={{ color: '#b26a00', margin: '0 0 8px', fontSize: '0.9em' }}>
+                {t('batch.cargoAlreadyPaidNote', { ns: 'orders' })}
+              </p>
+            )}
             <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
               <table className="batch-sale-lines" role="table">
                 <thead>
@@ -2447,31 +2995,101 @@ const Orders = () => {
                     <th className="batch-sale-lines__th--num">
                       {t('batch.weightKgTotal', { ns: 'orders' })} <span style={{ color: '#e53e3e' }}>*</span>
                     </th>
+                    <th className="batch-sale-lines__th--num">
+                      {t('batch.cargoShareUzs', { ns: 'orders' })}
+                    </th>
+                    <th className="batch-sale-lines__th--num">
+                      {t('batch.cargoShareUsd', { ns: 'orders' })}
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {cargoGroupData.lines.map((line) => (
+                  {cargoGroupData.lines.map((line, index) => (
                     <tr key={line.orderId}>
                       <td>
                         #{line.orderId} — {productOrderPickerLabel(line.product_detail, t)}
                       </td>
                       <td>{line.product_detail?.category || <span style={{ color: '#999' }}>—</span>}</td>
-                      <td className="batch-sale-lines__td--num">{line.ordered_quantity}</td>
                       <td className="batch-sale-lines__td--num">
-                        <input
-                          className="batch-sale-lines__control"
-                          type="number"
-                          step="0.01"
-                          min="0.01"
-                          required
-                          placeholder="0.00"
-                          value={line.weight ?? ''}
-                          onChange={(e) => updateCargoGroupLineWeight(line.orderId, e.target.value)}
-                        />
+                        {renderQuantityCell(
+                          line.ordered_quantity,
+                          line.received_quantity,
+                          line.shortfall_status,
+                          t,
+                        )}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        {cargoGroupLineLocked(line) ? (
+                          <span>
+                            {formatAppNumber(parseFloat(line.weight) || 0)}
+                            <span
+                              style={{
+                                marginLeft: '6px',
+                                padding: '1px 5px',
+                                borderRadius: '8px',
+                                backgroundColor: '#4caf50',
+                                color: '#fff',
+                                fontSize: '0.75em',
+                                whiteSpace: 'nowrap',
+                              }}
+                              title={t('batch.cargoAlreadyPaidHint', { ns: 'orders' })}
+                            >
+                              {t('batch.cargoAlreadyPaid', { ns: 'orders' })}
+                            </span>
+                          </span>
+                        ) : (
+                          <input
+                            className="batch-sale-lines__control"
+                            type="number"
+                            step="0.01"
+                            min="0.01"
+                            required
+                            placeholder="0.00"
+                            value={line.weight ?? ''}
+                            onChange={(e) => updateCargoGroupLineWeight(line.orderId, e.target.value)}
+                          />
+                        )}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        {formatAppNumber(cargoGroupSplit.perLine[index]?.uzs || 0)}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        {formatAppNumber(cargoGroupSplit.perLine[index]?.usd || 0)}
                       </td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr style={{ fontWeight: 'bold', borderTop: '2px solid #ddd' }}>
+                    <td colSpan={3}>{t('table.total', { ns: 'orders' })}</td>
+                    <td className="batch-sale-lines__td--num">
+                      <input
+                        className="batch-sale-lines__control"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={cargoGroupData.weightTotal ?? ''}
+                        onChange={(e) => updateCargoGroupTotalWeight(e.target.value)}
+                        aria-label={t('batch.weightKgTotal', { ns: 'orders' })}
+                      />
+                      {cargoGroupWeightMismatch && (
+                        <div style={{ color: '#e53e3e', fontSize: '0.8em', marginTop: '2px' }}>
+                          {t('batch.errWeightTotalMismatch', {
+                            ns: 'orders',
+                            sum: formatAppNumber(cargoGroupSplit.totalWeight),
+                          })}
+                        </div>
+                      )}
+                    </td>
+                    <td className="batch-sale-lines__td--num">
+                      {formatAppNumber(cargoGroupSplit.totalUzs)}
+                    </td>
+                    <td className="batch-sale-lines__td--num">
+                      {formatAppNumber(cargoGroupSplit.totalUsd)}
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
             <div className="form-actions">
@@ -2483,7 +3101,139 @@ const Orders = () => {
                 className="btn-edit"
                 onClick={() => {
                   setShowCargoGroupForm(false);
-                  setCargoGroupData({ groupId: null, uzs: '', usd: '', lines: [] });
+                  setCargoGroupData({ groupId: null, uzs: '', usd: '', weightTotal: '', lines: [] });
+                }}
+              >
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {showReceiveForm && (
+        <div className="form-card" style={{ marginBottom: '20px' }} ref={receiveFormRef}>
+          <h2>{t('batch.receiveTitle', { ns: 'orders' })}</h2>
+          <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
+            {t('batch.receiveIntro', { ns: 'orders' })}
+          </p>
+          <form onSubmit={handleReceiveSubmit}>
+            <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
+              <table className="batch-sale-lines" role="table">
+                <thead>
+                  <tr>
+                    <th scope="col">{t('batch.product', { ns: 'orders' })}</th>
+                    <th className="batch-sale-lines__th--num">{t('batch.orderedQty', { ns: 'orders' })}</th>
+                    <th className="batch-sale-lines__th--num">
+                      {t('batch.receivedQty', { ns: 'orders' })} <span style={{ color: '#e53e3e' }}>*</span>
+                    </th>
+                    <th scope="col">{t('batch.refundedCheckbox', { ns: 'orders' })}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {receiveData.lines.map((line) => {
+                    const received = parseInt(line.received, 10);
+                    const isShort = Number.isInteger(received) && received < line.ordered;
+                    return (
+                      <tr key={line.orderId}>
+                        <td>{line.label}</td>
+                        <td className="batch-sale-lines__td--num">{line.ordered}</td>
+                        <td className="batch-sale-lines__td--num">
+                          <input
+                            className="batch-sale-lines__control"
+                            type="number"
+                            step="1"
+                            min="0"
+                            max={line.ordered}
+                            required
+                            value={line.received}
+                            onChange={(e) =>
+                              updateReceiveLine(line.orderId, { received: e.target.value })
+                            }
+                          />
+                        </td>
+                        <td>
+                          {isShort ? (
+                            <div>
+                              <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <input
+                                  type="checkbox"
+                                  checked={line.refunded}
+                                  onChange={(e) =>
+                                    updateReceiveLine(line.orderId, { refunded: e.target.checked })
+                                  }
+                                />
+                                <span>{t('batch.refundedCheckbox', { ns: 'orders' })}</span>
+                              </label>
+                              {line.refunded ? (
+                                <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                                  <input
+                                    className="batch-sale-lines__control"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder={t('batch.refundUzs', { ns: 'orders' })}
+                                    value={line.refundUzs}
+                                    onChange={(e) =>
+                                      updateReceiveLine(line.orderId, { refundUzs: e.target.value })
+                                    }
+                                  />
+                                  <input
+                                    className="batch-sale-lines__control"
+                                    type="number"
+                                    step="0.01"
+                                    min="0"
+                                    placeholder={t('batch.refundUsd', { ns: 'orders' })}
+                                    value={line.refundUsd}
+                                    onChange={(e) =>
+                                      updateReceiveLine(line.orderId, { refundUsd: e.target.value })
+                                    }
+                                  />
+                                  <select
+                                    className="batch-sale-lines__control"
+                                    value={line.refundPaymentType}
+                                    onChange={(e) =>
+                                      updateReceiveLine(line.orderId, { refundPaymentType: e.target.value })
+                                    }
+                                  >
+                                    <option value="cash">{t('batch.refundCash', { ns: 'orders' })}</option>
+                                    <option value="card">{t('batch.refundCard', { ns: 'orders' })}</option>
+                                  </select>
+                                </div>
+                              ) : (
+                                <span style={{ color: '#999', fontSize: '0.85em' }}>
+                                  {t('batch.refundedHint', { ns: 'orders' })}
+                                </span>
+                              )}
+                            </div>
+                          ) : (
+                            <span style={{ color: '#bbb' }}>—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="form-group">
+              <label>{t('batch.shortfallNote', { ns: 'orders' })}</label>
+              <textarea
+                rows="2"
+                value={receiveData.note}
+                onChange={(e) => setReceiveData({ ...receiveData, note: e.target.value })}
+              />
+            </div>
+            <div className="form-actions">
+              <button type="submit" className="btn-primary">
+                {t('batch.confirmReceive', { ns: 'orders' })}
+              </button>
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() => {
+                  setShowReceiveForm(false);
+                  setReceiveData({ groupId: null, lines: [], note: '' });
                 }}
               >
                 {t('actions.cancel', { ns: 'common' })}
@@ -2518,7 +3268,14 @@ const Orders = () => {
                         #{line.orderId} — {productOrderPickerLabel(line.product_detail, t)}
                       </td>
                       <td>{line.product_detail?.category || <span style={{ color: '#999' }}>—</span>}</td>
-                      <td className="batch-sale-lines__td--num">{line.ordered_quantity}</td>
+                      <td className="batch-sale-lines__td--num">
+                        {renderQuantityCell(
+                          line.ordered_quantity,
+                          line.received_quantity,
+                          line.shortfall_status,
+                          t,
+                        )}
+                      </td>
                       <td className="batch-sale-lines__td--num">
                         <input
                           className="batch-sale-lines__control"
@@ -2980,6 +3737,16 @@ const Orders = () => {
             </select>
           </div>
           <div className="filter-field">
+            <label>{t('filters.shortfall', { ns: 'orders' })}</label>
+            <select
+              value={filters.shortfall}
+              onChange={(e) => setFilters({ ...filters, shortfall: e.target.value })}
+            >
+              <option value="">{t('filters.allDeliveries', { ns: 'orders' })}</option>
+              <option value="pending">{t('filters.shortfallPending', { ns: 'orders' })}</option>
+            </select>
+          </div>
+          <div className="filter-field">
             <label>{t('filters.customer', { ns: 'orders' })}</label>
             <CustomerSearchableSelect
               variant="filter"
@@ -3041,6 +3808,7 @@ const Orders = () => {
                   color: [],
                   order_type: '',
                   status: '',
+                  shortfall: '',
                   customer: '',
                   year: '',
                   month: '',
@@ -3060,6 +3828,7 @@ const Orders = () => {
           <thead>
             <tr>
               <SortableTh columnId="id" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.id', { ns: 'common' })}</SortableTh>
+              <SortableTh columnId="order_date" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.date', { ns: 'orders' })}</SortableTh>
               <th>{t('table.actions', { ns: 'orders' })}</th>
               <SortableTh columnId="status" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.status', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="category_type" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.categoryType', { ns: 'orders' })}</SortableTh>
@@ -3076,6 +3845,7 @@ const Orders = () => {
               )}
               <SortableTh columnId="customer" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.customer', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="qty" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.qty', { ns: 'orders' })}</SortableTh>
+              <SortableTh columnId="weight" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.weight', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="selling_price_unit" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.sellingPerUnit', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="cost_per_unit" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.costPerUnit', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="total_cost" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.totalCost', { ns: 'orders' })}</SortableTh>
@@ -3087,7 +3857,6 @@ const Orders = () => {
               <th>{t('table.cargoUnitUsd', { ns: 'orders' })}</th>
               <SortableTh columnId="created_by" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.createdBy', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="ordered_note" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderedNote', { ns: 'orders' })}</SortableTh>
-              <SortableTh columnId="order_date" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.date', { ns: 'orders' })}</SortableTh>
             </tr>
           </thead>
           <tbody>
@@ -3120,6 +3889,7 @@ const Orders = () => {
                       }}
                     >
                       <td>{agg.idsLabel}</td>
+                      <td>{formatAppDateTime(first?.order_date || first?.created_at)}</td>
                       <td onClick={(e) => e.stopPropagation()}>
                         {canMarkAsOrdered && row.orders.some((o) => showMarkAsOrderedAction(o)) && (
                           <button
@@ -3133,7 +3903,7 @@ const Orders = () => {
                         {canUpdateStatus && row.orders.some((o) => showMarkAsReceivedAction(o)) && (
                           <button
                             className="btn-status"
-                            onClick={() => handleMarkReceivedGroup(row.groupId)}
+                            onClick={() => handleMarkReceivedGroup(row.groupId, row.orders)}
                             style={{ marginRight: '5px' }}
                           >
                             {t('actions.markReceived', { ns: 'orders' })}
@@ -3174,13 +3944,15 @@ const Orders = () => {
                             {t('actions.moveToInventory', { ns: 'orders' })}
                           </button>
                         )}
+                        {/* Cancels every remaining open line; individual lines have their own
+                            cancel button inside the expanded group. */}
                         {canCancelOrder && openLine && (
                           <button
                             className="btn-edit"
-                            onClick={() => handleCancelOrder(openLine.id)}
+                            onClick={() => handleCancelGroup(row.groupId)}
                             style={{ backgroundColor: '#f44336', color: 'white' }}
                           >
-                            {t('actions.cancelOrder', { ns: 'orders' })}
+                            {t('actions.cancelGroup', { ns: 'orders' })}
                           </button>
                         )}
                       </td>
@@ -3237,7 +4009,22 @@ const Orders = () => {
                           <span style={{ color: '#aaa' }}>—</span>
                         )}
                       </td>
-                      <td>{agg.quantity}</td>
+                      <td>
+                        {renderQuantityCell(
+                          agg.quantity,
+                          agg.hasShortfall ? agg.receivedQuantity : null,
+                          'pending',
+                          t,
+                        )}
+                      </td>
+                      {/* Whole-shipment weight; each line's own weight shows when expanded. */}
+                      <td>
+                        {agg.weightTotal > 0 ? (
+                          `${formatAppNumber(agg.weightTotal)} kg`
+                        ) : (
+                          <span style={{ color: '#bbb' }}>—</span>
+                        )}
+                      </td>
                       <td>—</td>
                       <td>—</td>
                       <td>{agg.costTotal > 0 ? `$${agg.costTotal.toFixed(2)}` : '—'}</td>
@@ -3281,10 +4068,9 @@ const Orders = () => {
                       </td>
                       <td>{first?.created_by_detail?.username || '-'}</td>
                       <td>—</td>
-                      <td>{formatAppDateTime(first?.order_date || first?.created_at)}</td>
                     </tr>
                     {expanded &&
-                      row.orders.map((o) => renderOrderRow(o, `${row.key}-item-${o.id}`, 'sale-group-detail-row', true))}
+                      row.orders.map((o) => renderOrderRow(o, `${row.key}-item-${o.id}`, 'sale-group-detail-row'))}
                   </React.Fragment>
                 );
               })
@@ -3296,6 +4082,9 @@ const Orders = () => {
                 {t('table.total', { ns: 'orders' })}
               </td>
               <td style={{ fontWeight: 600 }}>{formatAppNumber(orderColumnTotals.quantity)}</td>
+              <td style={{ fontWeight: 600 }}>
+                {orderColumnTotals.weight > 0 ? `${formatAppNumber(orderColumnTotals.weight)} kg` : '—'}
+              </td>
               <td
                 style={{ fontWeight: 600 }}
                 title={t('table.avgSellingHint', { ns: 'orders' })}

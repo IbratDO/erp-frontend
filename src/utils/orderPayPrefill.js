@@ -75,26 +75,45 @@ export function prefillPayOrderFromSupplier(order) {
 }
 
 /**
+ * Fraction of the ordered quantity that actually turned up (1 when nothing is missing).
+ * Planned supplier amounts are always for the full order, so a short delivery has to scale
+ * them down before they are offered as a payment default.
+ */
+function receivedRatio(order) {
+  const ordered = parseInt(order?.ordered_quantity, 10) || 0;
+  const received = order?.received_quantity;
+  if (!ordered || received === null || received === undefined) return 1;
+  const receivedNum = parseInt(received, 10);
+  if (!Number.isInteger(receivedNum) || receivedNum >= ordered) return 1;
+  return receivedNum / ordered;
+}
+
+/**
  * Two-field totals for Orders.js payment form (UZS / USD), from planned supplier buckets.
  * Uses the same planned totals as pay-confirm dialogs, then falls back to buckets/product.
+ *
+ * Short deliveries prefill only what arrived — paying for goods that are not in the shop is
+ * the expensive mistake here, and raising the amount by hand is easy if the rest is still
+ * on its way.
  */
 export function prefillPayOrderSimpleTotals(order) {
   if (!order) {
     return { uzs: '', usd: '' };
   }
+  const ratio = receivedRatio(order);
   const planned = plannedSupplierPaymentTotals(order);
   if (planned.uzs > 0 || planned.usd > 0) {
     return {
-      uzs: amountOrEmpty(planned.uzs),
-      usd: amountOrEmpty(planned.usd),
+      uzs: amountOrEmpty(planned.uzs * ratio),
+      usd: amountOrEmpty(planned.usd * ratio),
     };
   }
   const b = prefillPayOrderFromSupplier(order);
   const uzs = numOrZero(b.uzs_cash) + numOrZero(b.uzs_card);
   const usd = numOrZero(b.usd_cash) + numOrZero(b.usd_card);
   return {
-    uzs: amountOrEmpty(uzs),
-    usd: amountOrEmpty(usd),
+    uzs: amountOrEmpty(uzs * ratio),
+    usd: amountOrEmpty(usd * ratio),
   };
 }
 

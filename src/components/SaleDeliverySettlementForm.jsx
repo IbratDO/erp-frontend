@@ -527,6 +527,20 @@ export default function SaleDeliverySettlementForm({
           showNotification?.(t('completePay.errDiscountAmount'), 'error');
           return;
         }
+        // A discount smaller than the gap leaves a remainder nothing accounts for. Letting
+        // it through pushes the unexplained money silently into the shop stage, so hold the
+        // courier here until the whole difference is classified.
+        if (meta.differenceNeedsClassification) {
+          const short = Math.abs(meta.remainingAfterDiscount || 0);
+          showNotification?.(
+            t('deliverySettlement.step1ShortfallIncomplete', {
+              product: productLabelFor(line, t),
+              amount: formatDisplayAmount(short, sc),
+            }),
+            'error',
+          );
+          return;
+        }
       }
     }
 

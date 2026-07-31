@@ -19,13 +19,40 @@
     "addLine": "Add line",
     "createCount": "Create {{count}} order(s)",
     "created": "Created {{count}} order(s)",
+    "errWeightTotalMismatch": "Total weight must equal the sum of the item weights ({{sum}} kg).",
+    "weightTotalHint": "Type into the total to spread the weight across the items, or enter each item and the total follows.",
     "errWeightRequiredForCargo": "Weight is required for every item before paying cargo.",
     "markOrderedGroupTitle": "Mark whole order as Ordered",
     "payCargoGroupTitle": "Pay cargo for whole shipment",
     "payCargoGroupIntro": "Enter the total cargo cost for this shipment once — it will be split across every item by weight.",
+    "cargoAlreadyPaid": "paid",
+    "cargoAlreadyPaidHint": "Cargo for this item was already paid separately. Its weight is kept for the split and cannot be changed here.",
+    "cargoAlreadyPaidNote": "Some items in this shipment already had their cargo paid separately. The totals below cover the whole shipment — what you enter here plus what was already paid — because the freight is re-divided by weight across every item.",
+    "cargoShareUzs": "Cargo share (UZS)",
+    "cargoShareUsd": "Cargo share (USD)",
+    "cargoSplitHint": "The two share columns show live how the total above is divided by weight. The totals row always adds up to exactly the amount you entered.",
     "cargoWeightIntro": "Enter each item's TOTAL weight (kg) below — for the whole quantity shown, not per unit (e.g. 10 t-shirts weighing 20kg altogether → enter 20, not 2). This determines how the cargo cost above is split per item ($/kg).",
     "payOrderGroupTitle": "Pay for whole order",
-    "payOrderGroupIntro": "Each item has its own supplier cost — enter and confirm the amount for every line below."
+    "payOrderGroupIntro": "Each item has its own supplier cost — enter and confirm the amount for every line below.",
+    "receiveTitle": "Mark as Received",
+    "receiveIntro": "Enter how many units actually arrived. If fewer arrived than ordered, the missing ones stay tracked until they turn up, the supplier refunds you, or you write them off.",
+    "receivedQty": "Received",
+    "orderedQty": "Ordered",
+    "refundedCheckbox": "Money refunded by supplier",
+    "refundedHint": "Tick this only if the supplier already gave the money back for the missing items.",
+    "refundUzs": "Refund UZS",
+    "refundUsd": "Refund USD",
+    "refundPaymentType": "Received into",
+    "refundCash": "Cash",
+    "refundCard": "Card",
+    "shortfallNote": "Note (optional)",
+    "confirmReceive": "Confirm Receipt",
+    "errReceivedQty": "Received quantity must be between 0 and the ordered quantity.",
+    "errRefundAmount": "Enter the refunded amount in UZS or USD.",
+    "shortfallBadge": "Short: {{count}}",
+    "shortfallPending": "{{count}} item(s) not delivered yet",
+    "shortfallRefunded": "Supplier refunded the undelivered item(s)",
+    "shortfallWrittenOff": "Undelivered item(s) written off as a loss"
   },
   "categoryTypes": {
     "sports": "Sports",
@@ -70,7 +97,10 @@
     "allColors": "All Colors",
     "allStatuses": "All Statuses",
     "allCustomers": "All Customers",
-    "noCustomer": "No customer"
+    "noCustomer": "No customer",
+    "shortfall": "Delivery",
+    "allDeliveries": "All items",
+    "shortfallPending": "Not fully delivered"
   },
   "actions": {
     "payOrder": "Pay for the Order",
@@ -83,7 +113,11 @@
     "moveToInventory": "Move to Inventory",
     "sellProduct": "Sell the Product",
     "markReceivedAndPay": "Mark as Received and Pay",
-    "confirmMoveToInventory": "Confirm & Move to Inventory"
+    "confirmMoveToInventory": "Confirm & Move to Inventory",
+    "cancelGroup": "Cancel Whole Order",
+    "receiveRemaining": "Receive Remaining",
+    "markRefunded": "Mark as Refunded",
+    "writeOff": "Write Off as Loss"
   },
   "form": {
     "newTitle": "New Order",
@@ -130,6 +164,14 @@
     "alreadyPaidTitleClient": "Enter a USD cost per unit to mark paid at creation, or leave blank and pay later.",
     "alreadyPaidTitleNeedCost": "Enter a USD cost per unit above, or leave this unchecked and use Pay for the Order after you know the price.",
     "sizeLabel": "size {{size}}"
+  },
+  "context": {
+    "plannedCost": "Planned cost",
+    "plannedCargo": "Planned cargo",
+    "orderPaid": "order paid",
+    "orderUnpaid": "order unpaid",
+    "cargoPaid": "cargo paid",
+    "cargoUnpaid": "cargo unpaid"
   },
   "paymentForm": {
     "payOrderTitle": "Pay for the Order",
@@ -182,6 +224,7 @@
     "orderType": "Order Type",
     "customer": "Customer",
     "qty": "Qty",
+    "weight": "Weight",
     "sellingPerUnit": "Selling price/unit",
     "costPerUnit": "Cost Per Unit",
     "totalCost": "Total Cost",
@@ -220,6 +263,11 @@
     "createError": "Error creating order",
     "noStatusPermission": "You do not have permission to update order status.",
     "statusUpdated": "Order status updated successfully!",
+    "receivedSuccess": "Receipt recorded.",
+    "receiveRemainingSuccess": "Outstanding items received into inventory.",
+    "shortfallResolved": "Undelivered items resolved.",
+    "shortfallError": "Error resolving undelivered items",
+    "groupCancelled": "Multi-item order cancelled.",
     "statusUpdateError": "Error updating status",
     "orderedNoteRequired": "Please enter a note.",
     "editCargoAfterOrdered": "Mark as Ordered first, then you can edit cargo cost.",
@@ -265,7 +313,11 @@
     "unitDetailUzs": "\n({{perUnit}} / unit × {{qty}})",
     "unitDetailUsd": "\n({{perUnit}} / unit × {{qty}})",
     "productFallback": "Product #{{id}}",
-    "cancelOrder": "Cancel Order #{{id}}?\n\nThe order record will be kept. Paid supplier/cargo amounts will be reversed when applicable. This cannot undo completed inventory or sold states."
+    "cancelOrder": "Cancel Order #{{id}}?\n\nThe order record will be kept. Paid supplier/cargo amounts will be reversed when applicable. This cannot undo completed inventory or sold states.",
+    "cancelGroup": "Cancel every remaining item in this multi-item order?\n\nItems already in inventory or sold are left untouched. Paid supplier/cargo amounts are reversed where applicable, and any cargo already paid is re-spread over the items that remain.",
+    "receiveRemaining": "Confirm that {{count}} outstanding item(s) for Order #{{id}} have now arrived?\n\nThey will be added to inventory.",
+    "markRefunded": "Mark the undelivered item(s) on Order #{{id}} as refunded by the supplier?\n\n{{amount}} will be added back to your balance.",
+    "writeOff": "Write off the undelivered item(s) on Order #{{id}} as a loss?\n\nNo money moves — it already left when you paid. The cost is recorded as a loss in Profit & Loss and cannot be undone."
   },
   "errors": {
     "loadHistoryFailed": "Could not load orders"

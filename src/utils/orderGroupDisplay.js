@@ -65,6 +65,8 @@ export function aggregateGroupOrders(groupOrders) {
       ids: [],
       idsLabel: '',
       quantity: 0,
+      receivedQuantity: null,
+      hasShortfall: false,
       costTotal: 0,
       orderUzs: 0,
       orderUsd: 0,
@@ -85,6 +87,17 @@ export function aggregateGroupOrders(groupOrders) {
   // Cancelled lines never counted toward quantity/cost rollups — matches Sales' group aggregation.
   const activeOrders = groupOrders.filter((o) => o.status !== 'cancelled');
   const quantity = activeOrders.reduce((sum, o) => sum + (parseInt(o.ordered_quantity, 10) || 0), 0);
+  // Uncounted lines contribute their full ordered quantity, so the collapsed row only shows
+  // "27 / 30" once something has genuinely arrived short.
+  const receivedQuantity = activeOrders.reduce(
+    (sum, o) =>
+      sum +
+      (o.received_quantity === null || o.received_quantity === undefined
+        ? parseInt(o.ordered_quantity, 10) || 0
+        : parseInt(o.received_quantity, 10) || 0),
+    0,
+  );
+  const hasShortfall = activeOrders.some((o) => (parseInt(o.shortfall_quantity, 10) || 0) > 0);
   const costTotal = activeOrders.reduce((sum, o) => sum + (parseFloat(o.cost_total) || 0), 0);
   const orderUzs = activeOrders.reduce(
     (sum, o) => sum + (parseFloat(o.order_payment_uzs_cash) || 0) + (parseFloat(o.order_payment_uzs_card) || 0),
@@ -119,6 +132,8 @@ export function aggregateGroupOrders(groupOrders) {
     ids,
     idsLabel: ids.length > 1 ? `#${ids[0]}–${ids[ids.length - 1]}` : `#${ids[0]}`,
     quantity,
+    receivedQuantity,
+    hasShortfall,
     costTotal,
     orderUzs,
     orderUsd,
@@ -148,6 +163,8 @@ export function orderLikeForDisplayRow(row) {
     id: agg.first?.id ?? 0,
     status: displayStatus,
     ordered_quantity: agg.quantity,
+    // Sorting a collapsed group by weight must use the whole shipment, not the first line.
+    weight: agg.weightTotal,
     cost_total: agg.costTotal,
     order_payment_uzs_cash: agg.orderUzs,
     order_payment_uzs_card: 0,

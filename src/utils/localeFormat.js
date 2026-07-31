@@ -18,11 +18,22 @@ export function formatAppDate(date, options = {}) {
   return d.toLocaleDateString(getAppLocale(), options);
 }
 
-export function formatAppDateTime(date, options = {}) {
+/** Fixed app-wide date/time format: DD/MM/YYYY, HH:MM:SS (24h) — deliberately not
+ * locale-dependent, so it stays identical across every page regardless of UI language
+ * or browser locale (unlike `toLocaleString`, which flips to MM/DD/YYYY + AM/PM under
+ * an en-US locale). */
+export function formatAppDateTime(date) {
   if (!date) return '';
   const d = date instanceof Date ? date : new Date(date);
   if (Number.isNaN(d.getTime())) return '';
-  return d.toLocaleString(getAppLocale(), options);
+  const pad = (n) => String(n).padStart(2, '0');
+  const day = pad(d.getDate());
+  const month = pad(d.getMonth() + 1);
+  const year = d.getFullYear();
+  const hours = pad(d.getHours());
+  const minutes = pad(d.getMinutes());
+  const seconds = pad(d.getSeconds());
+  return `${day}/${month}/${year}, ${hours}:${minutes}:${seconds}`;
 }
 
 /** Month filter options for dashboards (value 1-12 or ''). */

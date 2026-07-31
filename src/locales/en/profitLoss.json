@@ -12,6 +12,7 @@
     "netRevenue": "Net revenue",
     "netCogs": "Net COGS",
     "operatingExpenses": "Operating expenses",
+    "conversionDiff": "Conversion differences",
     "otherIncome": "Other income",
     "netProfitLoss": "Net profit / loss"
   },
@@ -51,6 +52,17 @@
     "date": "Date",
     "noRows": "No operating expenses in this period",
     "totalOperating": "Total operating"
+  },
+  "conversionDiff": {
+    "title": "Currency conversion differences",
+    "hint": "Profit and loss from currency conversion — money exchanges, and sales settled in a different currency than they were priced in. Included in net profit below.",
+    "description": "Source",
+    "gainUsd": "Profit (USD)",
+    "lossUsd": "Loss (USD)",
+    "date": "Date",
+    "total": "Total",
+    "net": "Net",
+    "noRows": "No conversion differences in this period"
   },
   "otherIncome": {
     "title": "Other income",
