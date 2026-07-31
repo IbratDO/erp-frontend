@@ -39,6 +39,7 @@
     "receivedQty": "Qabul qilindi",
     "orderedQty": "Buyurtma qilindi",
     "refundedCheckbox": "Pul qaytarildi",
+    "unpaidShortHint": "Bu buyurtma hali to‘langan deb belgilanmagan, shuning uchun qaytarilgan pulni unga bog‘lab qayd etib bo‘lmaydi. Avval «Buyurtmani to‘lash» ni bajaring — keyin yetkazib beruvchi qaytargan pulni qayd etasiz. Shundayligicha qoldirilsa, faqat to‘lanadigan summa kamayadi.",
     "refundedHint": "Faqat yetkazib beruvchi yetib kelmagan mahsulotlar uchun pulni allaqachon qaytargan bo‘lsa belgilang.",
     "refundUzs": "Qaytarilgan UZS",
     "refundUsd": "Qaytarilgan USD",
@@ -117,7 +118,8 @@
     "cancelGroup": "Butun buyurtmani bekor qilish",
     "receiveRemaining": "Qolganini qabul qilish",
     "markRefunded": "Pul qaytarildi deb belgilash",
-    "writeOff": "Zarar deb hisobdan chiqarish"
+    "writeOff": "Zarar deb hisobdan chiqarish",
+    "dropFromBill": "Hisobdan chiqarish"
   },
   "form": {
     "newTitle": "Yangi buyurtma",
@@ -267,6 +269,8 @@
     "receiveRemainingSuccess": "Yetib kelmagan mahsulotlar omborga qabul qilindi.",
     "shortfallResolved": "Yetib kelmagan mahsulotlar bo‘yicha masala hal qilindi.",
     "shortfallError": "Yetib kelmagan mahsulotlarni hal qilishda xatolik",
+    "sellGroupSuccess": "{{count}} ta mahsulot uchun sotuv yaratildi.",
+    "moveGroupSuccess": "{{count}} ta mahsulot omborga o‘tkazildi.",
     "groupCancelled": "Ko‘p mahsulotli buyurtma bekor qilindi.",
     "statusUpdateError": "Holatni yangilashda xatolik",
     "orderedNoteRequired": "Izoh kiriting.",
@@ -314,10 +318,13 @@
     "unitDetailUsd": "\n({{perUnit}} / dona × {{qty}})",
     "productFallback": "Mahsulot #{{id}}",
     "cancelOrder": "Buyurtma #{{id}} bekor qilinsinmi?\n\nYozuv saqlanadi. To‘langan yetkazib beruvchi/yuk summalari kerak bo‘lsa qaytariladi. Omborga o‘tgan yoki sotilgan buyurtmalar bekor qilinmaydi.",
+    "sellProductGroup": "Ushbu buyurtmadagi tayyor barcha mahsulotlar uchun sotuv yaratilsinmi?\n\nHar bir mahsulot uchun bitta kutilayotgan sotuv, birga guruhlanadi — to‘lovni Sotuvlar bo‘limida yakunlang. Kam yetib kelgan mahsulotlar faqat yetib kelgan miqdorda sotiladi.",
+    "moveGroupToInventory": "Ushbu buyurtmadagi tayyor barcha mahsulotlar omborga o‘tkazilsinmi?\n\nAllaqachon sotilganlariga tegilmaydi.",
     "cancelGroup": "Ushbu ko‘p mahsulotli buyurtmaning qolgan barcha mahsulotlari bekor qilinsinmi?\n\nOmborga o‘tgan yoki sotilgan mahsulotlarga tegilmaydi. To‘langan yetkazib beruvchi/yuk summalari kerak bo‘lsa qaytariladi, allaqachon to‘langan kargo esa qolgan mahsulotlarga qayta taqsimlanadi.",
     "receiveRemaining": "Buyurtma #{{id}} bo‘yicha yetib kelmagan {{count}} ta mahsulot endi yetib keldimi?\n\nUlar omborga qo‘shiladi.",
     "markRefunded": "Buyurtma #{{id}} bo‘yicha yetib kelmagan mahsulot uchun yetkazib beruvchi pulni qaytardi deb belgilansinmi?\n\n{{amount}} balansingizga qaytariladi.",
-    "writeOff": "Buyurtma #{{id}} bo‘yicha yetib kelmagan mahsulot zarar deb hisobdan chiqarilsinmi?\n\nPul harakatlanmaydi — u to‘lov paytida allaqachon chiqib ketgan. Xarajat Foyda va Zararda zarar sifatida qayd etiladi va buni ortga qaytarib bo‘lmaydi."
+    "writeOff": "Buyurtma #{{id}} bo‘yicha yetib kelmagan mahsulot zarar deb hisobdan chiqarilsinmi?\n\nPul harakatlanmaydi — u to‘lov paytida allaqachon chiqib ketgan. Xarajat Foyda va Zararda zarar sifatida qayd etiladi va buni ortga qaytarib bo‘lmaydi.",
+    "dropFromBill": "Buyurtma #{{id}} bo‘yicha yetib kelmagan mahsulotlar hisobdan chiqarilsinmi?\n\nBu buyurtma to‘langan deb belgilanmagan, shuning uchun pul harakatlanmaydi — yetkazib beruvchi xarajati faqat yetib kelgan miqdorga kamayadi. Agar to‘lagan bo‘lsangiz va pul qaytarilgan bo‘lsa, avval to‘lovni qayd eting."
   },
   "errors": {
     "loadHistoryFailed": "Buyurtmalar yuklanmadi"

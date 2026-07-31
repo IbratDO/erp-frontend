@@ -65,6 +65,51 @@ function orderReadyForInventoryActions(order) {
   );
 }
 
+/** Pipeline order of the workflow steps a row can be waiting on. */
+const ORDER_STEP_SEQUENCE = [
+  'mark_ordered',
+  'pay_order',
+  'mark_received',
+  'pay_cargo',
+  'finalize',
+];
+
+/**
+ * The single workflow step an order line is waiting on, or null when it is finished.
+ *
+ * The supplier is paid *before* the goods are counted, because that is the real sequence:
+ * the eShop takes the money when the order is placed. Recording it in that order means the
+ * system already knows the order is paid at the moment a short delivery is discovered, so
+ * money the supplier sends back is recorded as a genuine refund rather than silently
+ * shrinking a bill that was never raised.
+ *
+ * Cargo stays after receiving — freight is weighed on arrival, so its cost is not known
+ * until the shipment is in hand.
+ *
+ * Corrections and exceptions — cancel, editing cargo cost, resolving a short delivery — are
+ * not steps and keep their own independent visibility.
+ */
+function availableOrderSteps(order) {
+  if (ORDER_TERMINAL_STATUSES.has(order.status)) return [];
+  if (showMarkAsOrderedAction(order)) return ['mark_ordered'];
+  if (!order.order_is_paid) return ['pay_order'];
+  if (showMarkAsReceivedAction(order)) return ['mark_received'];
+  if (!order.cargo_is_paid) return ['pay_cargo'];
+  if (orderReadyForInventoryActions(order)) return ['finalize'];
+  return [];
+}
+
+/**
+ * Earliest step still outstanding anywhere in a multi-item order, so a group never offers
+ * to pay cargo while some of its lines have not been received.
+ */
+function availableGroupSteps(groupOrders) {
+  const open = new Set();
+  (groupOrders || []).forEach((o) => availableOrderSteps(o).forEach((s) => open.add(s)));
+  const earliest = ORDER_STEP_SEQUENCE.find((s) => open.has(s));
+  return earliest ? [earliest] : [];
+}
+
 /** Colour of the "9 / 10" quantity badge, by how the short delivery ended up. */
 const SHORTFALL_BADGE_COLORS = {
   pending: '#ff9800',
@@ -802,15 +847,20 @@ const Orders = () => {
   const sortedFilteredOrders = useMemo(() => {
     const rows = orderDisplayRows;
     if (!rows?.length) return rows;
+    // An explicit header click sorts the whole table by that column and nothing else.
+    // Grouping open orders above finished ones here would pin the pipeline to the top and
+    // leave the click only reordering rows *within* each group, which is not what the
+    // header promises. That grouping stays the default view below, for no active sort.
     if (orderSort.sortCol && ORDER_SORT_ACCESSORS[orderSort.sortCol]) {
       const get = ORDER_SORT_ACCESSORS[orderSort.sortCol];
       const sign = orderSort.sortDir === 'desc' ? -1 : 1;
       return [...rows].sort((a, b) => {
         const oa = orderLikeForDisplayRow(a);
         const ob = orderLikeForDisplayRow(b);
-        const active = compareActiveOrdersFirst(oa, ob);
-        if (active !== 0) return active;
-        return compareForSort(get(oa), get(ob)) * sign;
+        const byColumn = compareForSort(get(oa), get(ob)) * sign;
+        if (byColumn !== 0) return byColumn;
+        // Ties keep a stable, predictable order instead of drifting between renders.
+        return (oa.id ?? 0) - (ob.id ?? 0);
       });
     }
     return [...rows].sort((a, b) => {
@@ -1078,17 +1128,67 @@ const Orders = () => {
     }
   };
 
+  /**
+   * Per-unit supplier cost of an order line, as (usd, uzs).
+   *
+   * Mirrors the backend's `supplier_unit_cost_from_order`: the amounts actually paid once
+   * the order is settled, the planned buckets before that. Divided by the ORDERED quantity,
+   * because that is what the money bought.
+   */
+  const orderSupplierUnitCost = (order) => {
+    const ordered = parseInt(order.ordered_quantity, 10) || 0;
+    if (ordered <= 0) return { usd: 0, uzs: 0 };
+    if (order.order_is_paid) {
+      return {
+        usd: (numOrZero(order.order_payment_usd_cash) + numOrZero(order.order_payment_usd_card)) / ordered,
+        uzs: (numOrZero(order.order_payment_uzs_cash) + numOrZero(order.order_payment_uzs_card)) / ordered,
+      };
+    }
+    const plannedUsd = numOrZero(order.supplier_cost_usd_cash) + numOrZero(order.supplier_cost_usd_card);
+    const plannedUzs = numOrZero(order.supplier_cost_uzs_cash) + numOrZero(order.supplier_cost_uzs_card);
+    return {
+      usd: (plannedUsd > 0 ? plannedUsd : numOrZero(order.cost_total)) / ordered,
+      uzs: plannedUzs / ordered,
+    };
+  };
+
+  const round2 = (n) => Math.round(n * 100) / 100;
+
   /** One editable row of the receive modal, pre-filled with the full ordered quantity. */
   const buildReceiveLine = (order) => ({
     orderId: order.id,
     label: `#${order.id} ${order.product_detail?.brand || ''} ${order.product_detail?.model || ''}`.trim(),
     ordered: parseInt(order.ordered_quantity, 10) || 0,
     received: String(parseInt(order.ordered_quantity, 10) || 0),
+    unitCost: orderSupplierUnitCost(order),
+    // Nothing has been handed over yet on an unpaid order, so there is nothing to refund —
+    // the missing units simply come off the bill instead.
+    orderIsPaid: Boolean(order.order_is_paid),
     refunded: false,
     refundUzs: '',
     refundUsd: '',
-    refundPaymentType: 'cash',
+    // Once the amount is typed by hand, autofill stops overwriting it.
+    refundTouched: false,
   });
+
+  /**
+   * Fill the refund with what the missing units cost, matching the backend's own default
+   * (`_shortfall_supplier_value`) so the pre-filled figure is the one it would have used
+   * anyway. Left alone once the user has edited the amount themselves.
+   */
+  const withRefundAutofill = (line) => {
+    if (line.refundTouched || !line.refunded) return line;
+    const received = parseInt(line.received, 10);
+    const missing = Number.isInteger(received) ? line.ordered - received : 0;
+    if (missing <= 0) return line;
+    const usd = round2((line.unitCost?.usd || 0) * missing);
+    const uzs = round2((line.unitCost?.uzs || 0) * missing);
+    return {
+      ...line,
+      refundUsd: usd > 0 ? String(usd) : '',
+      refundUzs: uzs > 0 ? String(uzs) : '',
+    };
+  };
 
   const openReceiveForm = (ordersToReceive, groupId = null) => {
     if (!canPostOrderStatus) {
@@ -1113,9 +1213,16 @@ const Orders = () => {
   };
 
   const updateReceiveLine = (orderId, patch) => {
+    // A hand-typed amount marks the line as touched so the autofill below backs off.
+    const touched =
+      patch.refundUzs !== undefined || patch.refundUsd !== undefined
+        ? { refundTouched: true }
+        : {};
     setReceiveData((prev) => ({
       ...prev,
-      lines: prev.lines.map((l) => (l.orderId === orderId ? { ...l, ...patch } : l)),
+      lines: prev.lines.map((l) =>
+        l.orderId === orderId ? withRefundAutofill({ ...l, ...patch, ...touched }) : l,
+      ),
     }));
   };
 
@@ -1127,7 +1234,6 @@ const Orders = () => {
       payload.shortfall_refunded = true;
       payload.shortfall_refund_uzs = line.refundUzs || 0;
       payload.shortfall_refund_usd = line.refundUsd || 0;
-      payload.shortfall_refund_payment_type = line.refundPaymentType;
     }
     return payload;
   };
@@ -1203,13 +1309,29 @@ const Orders = () => {
 
   const handleResolveShortfall = async (order, resolution) => {
     const body = { resolution };
+    // Nothing was paid, so neither closure moves money — both simply drop the missing units
+    // off the bill. Promising a refund here would be a lie.
+    if (!order.order_is_paid) {
+      if (!window.confirm(t('confirm.dropFromBill', { id: order.id }))) return;
+      try {
+        await api.post(`/orders/${order.id}/resolve_shortfall/`, { resolution: 'refunded' });
+        await fetchOrders();
+        showNotification(t('notifications.shortfallResolved'), 'success');
+      } catch (error) {
+        console.error('Error resolving shortfall:', error);
+        showNotification(
+          error.response?.data?.error || error.response?.data?.detail || t('notifications.shortfallError'),
+          'error',
+        );
+      }
+      return;
+    }
     if (resolution === 'refunded') {
       // Default to what the missing units cost; the backend recomputes if left blank.
       const perUnit = parseFloat(order.cost_per_unit) || 0;
       const amount = (perUnit * (parseInt(order.shortfall_quantity, 10) || 0)).toFixed(2);
       if (!window.confirm(t('confirm.markRefunded', { id: order.id, amount: `$${amount}` }))) return;
       body.usd = amount;
-      body.payment_type = 'cash';
     } else if (!window.confirm(t('confirm.writeOff', { id: order.id }))) {
       return;
     }
@@ -1415,6 +1537,44 @@ const Orders = () => {
 
   const handleMarkReceivedGroup = (groupId, groupOrders) => {
     openReceiveForm(groupOrders.filter((o) => showMarkAsReceivedAction(o)), groupId);
+  };
+
+  const handleSellProductGroup = async (groupId) => {
+    if (!window.confirm(t('confirm.sellProductGroup'))) return;
+    try {
+      const { data } = await api.post('/orders/sell_product_group/', { order_group: groupId });
+      await fetchOrders();
+      showNotification(
+        t('notifications.sellGroupSuccess', { count: data?.sale_ids?.length ?? 0 }),
+        'success',
+      );
+    } catch (error) {
+      console.error('Error selling group from order:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        'error',
+      );
+    }
+  };
+
+  const handleMoveToInventoryGroupFromOrder = async (groupId) => {
+    if (!window.confirm(t('confirm.moveGroupToInventory'))) return;
+    try {
+      const { data } = await api.post('/orders/move_to_inventory_from_order_group/', {
+        order_group: groupId,
+      });
+      await fetchOrders();
+      showNotification(
+        t('notifications.moveGroupSuccess', { count: data?.order_ids?.length ?? 0 }),
+        'success',
+      );
+    } catch (error) {
+      console.error('Error moving group to inventory:', error);
+      showNotification(
+        error.response?.data?.error || error.response?.data?.detail || t('notifications.statusUpdateError'),
+        'error',
+      );
+    }
   };
 
   const handleCancelGroup = async (groupId) => {
@@ -2188,13 +2348,17 @@ const Orders = () => {
     const cargoUnits = cargoUnitCosts(order);
     const lineCargoUzs = parseFloat(order.allocated_cargo_cost_uzs) || 0;
     const lineCargoUsd = parseFloat(order.allocated_cargo_cost_usd) || 0;
+    const steps = availableOrderSteps(order);
     return (
       <tr key={rowKey ?? order.id} className={extraClassName}>
         <td>#{order.id}</td>
         <td>{formatAppDateTime(order.order_date || order.created_at)}</td>
         <td>
-          {/* Show status update buttons based on current status */}
-          {showMarkAsOrderedAction(order) && canMarkAsOrdered && (
+          {/* `availableOrderSteps` decides which workflow buttons this row is waiting on —
+              one at a time, except receiving and paying the supplier which are offered
+              together. Corrections below (edit cargo, short delivery, cancel) are not steps
+              and stay independently visible. */}
+          {steps.includes('mark_ordered') && canMarkAsOrdered && (
             <button
               className="btn-status"
               onClick={() => handleMarkAsOrdered(order.id)}
@@ -2203,7 +2367,7 @@ const Orders = () => {
               {t('actions.markAsOrdered', { ns: 'orders' })}
             </button>
           )}
-          {showMarkAsReceivedAction(order) && canUpdateStatus && (
+          {steps.includes('mark_received') && canUpdateStatus && (
             <button
               className="btn-status"
               onClick={() => handleMarkReceived(order.id)}
@@ -2212,37 +2376,7 @@ const Orders = () => {
               {t('actions.markReceived', { ns: 'orders' })}
             </button>
           )}
-          {order.shortfall_status === 'pending' && canUpdateStatus && (
-            <button
-              className="btn-status"
-              onClick={() => handleReceiveRemaining(order)}
-              style={{ marginRight: '5px' }}
-            >
-              {t('actions.receiveRemaining', { ns: 'orders' })}
-            </button>
-          )}
-          {order.shortfall_status === 'pending' && canPayOrder && (
-            <>
-              <button
-                className="btn-status"
-                onClick={() => handleResolveShortfall(order, 'refunded')}
-                style={{ marginRight: '5px' }}
-              >
-                {t('actions.markRefunded', { ns: 'orders' })}
-              </button>
-              <button
-                className="btn-status"
-                onClick={() => handleResolveShortfall(order, 'written_off')}
-                style={{ marginRight: '5px', backgroundColor: '#f44336' }}
-              >
-                {t('actions.writeOff', { ns: 'orders' })}
-              </button>
-            </>
-          )}
-          {!order.order_is_paid &&
-            canPayOrder &&
-            order.status !== 'order_created' &&
-            !ORDER_TERMINAL_STATUSES.has(order.status) && (
+          {steps.includes('pay_order') && canPayOrder && (
             <button
               className="btn-status"
               onClick={() => handlePayOrder(order)}
@@ -2251,10 +2385,7 @@ const Orders = () => {
               {t('actions.payOrder', { ns: 'orders' })}
             </button>
           )}
-          {!order.cargo_is_paid &&
-            canPayCargo &&
-            order.status !== 'order_created' &&
-            !ORDER_TERMINAL_STATUSES.has(order.status) && (
+          {steps.includes('pay_cargo') && canPayCargo && (
             <button
               className="btn-status"
               onClick={() => handlePayCargo(order.id)}
@@ -2275,6 +2406,44 @@ const Orders = () => {
               {t('actions.editCargoCost', { ns: 'orders' })}
             </button>
           )}
+          {order.shortfall_status === 'pending' && canUpdateStatus && (
+            <button
+              className="btn-status"
+              onClick={() => handleReceiveRemaining(order)}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.receiveRemaining', { ns: 'orders' })}
+            </button>
+          )}
+          {/* Unpaid: refund and write-off are the same act — stop billing for what never
+              came — so a single neutral button avoids a false choice. */}
+          {order.shortfall_status === 'pending' && canPayOrder && !order.order_is_paid && (
+            <button
+              className="btn-status"
+              onClick={() => handleResolveShortfall(order, 'refunded')}
+              style={{ marginRight: '5px' }}
+            >
+              {t('actions.dropFromBill', { ns: 'orders' })}
+            </button>
+          )}
+          {order.shortfall_status === 'pending' && canPayOrder && order.order_is_paid && (
+            <>
+              <button
+                className="btn-status"
+                onClick={() => handleResolveShortfall(order, 'refunded')}
+                style={{ marginRight: '5px' }}
+              >
+                {t('actions.markRefunded', { ns: 'orders' })}
+              </button>
+              <button
+                className="btn-status"
+                onClick={() => handleResolveShortfall(order, 'written_off')}
+                style={{ marginRight: '5px', backgroundColor: '#f44336' }}
+              >
+                {t('actions.writeOff', { ns: 'orders' })}
+              </button>
+            </>
+          )}
           {canCancelOrder && !ORDER_TERMINAL_STATUSES.has(order.status) && (
             <button
               className="btn-edit"
@@ -2284,7 +2453,7 @@ const Orders = () => {
               {t('actions.cancelOrder', { ns: 'orders' })}
             </button>
           )}
-          {orderReadyForInventoryActions(order) &&
+          {steps.includes('finalize') &&
             order.order_type === 'stock' &&
             canMoveInventory && (
             <button
@@ -2295,11 +2464,10 @@ const Orders = () => {
               {t('actions.moveToInventory', { ns: 'orders' })}
             </button>
           )}
-          {/* Per-line even inside a group: a customer can buy some items from a
-              multi-item on_demand order and decline others, so this stays a per-line
-              choice rather than becoming a single group-wide action. */}
-          {order.order_type === 'on_demand' &&
-            orderReadyForInventoryActions(order) &&
+          {/* Still per-line as well as group-wide: a customer can buy some items from a
+              multi-item on_demand order and decline others. */}
+          {steps.includes('finalize') &&
+            order.order_type === 'on_demand' &&
             !order.has_sale && (
             <>
               {canSellProduct && (
@@ -3153,7 +3321,11 @@ const Orders = () => {
                           />
                         </td>
                         <td>
-                          {isShort ? (
+                          {isShort && !line.orderIsPaid ? (
+                            <span style={{ color: '#777', fontSize: '0.85em' }}>
+                              {t('batch.unpaidShortHint', { ns: 'orders' })}
+                            </span>
+                          ) : isShort ? (
                             <div>
                               <label style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                                 <input
@@ -3189,16 +3361,6 @@ const Orders = () => {
                                       updateReceiveLine(line.orderId, { refundUsd: e.target.value })
                                     }
                                   />
-                                  <select
-                                    className="batch-sale-lines__control"
-                                    value={line.refundPaymentType}
-                                    onChange={(e) =>
-                                      updateReceiveLine(line.orderId, { refundPaymentType: e.target.value })
-                                    }
-                                  >
-                                    <option value="cash">{t('batch.refundCash', { ns: 'orders' })}</option>
-                                    <option value="card">{t('batch.refundCard', { ns: 'orders' })}</option>
-                                  </select>
                                 </div>
                               ) : (
                                 <span style={{ color: '#999', fontSize: '0.85em' }}>
@@ -3877,6 +4039,8 @@ const Orders = () => {
                 const expanded = expandedOrderGroups.has(row.groupId);
                 const groupEshopLabel = formatEshopDisplay(first?.eshop, t);
                 const openLine = row.orders.find((o) => !ORDER_TERMINAL_STATUSES.has(o.status));
+                // One step for the whole shipment: the earliest thing any line still needs.
+                const groupSteps = availableGroupSteps(row.orders);
 
                 return (
                   <React.Fragment key={row.key}>
@@ -3891,7 +4055,7 @@ const Orders = () => {
                       <td>{agg.idsLabel}</td>
                       <td>{formatAppDateTime(first?.order_date || first?.created_at)}</td>
                       <td onClick={(e) => e.stopPropagation()}>
-                        {canMarkAsOrdered && row.orders.some((o) => showMarkAsOrderedAction(o)) && (
+                        {groupSteps.includes('mark_ordered') && canMarkAsOrdered && (
                           <button
                             className="btn-status"
                             onClick={() => handleMarkAsOrderedGroup(row.orders)}
@@ -3900,7 +4064,7 @@ const Orders = () => {
                             {t('actions.markAsOrdered', { ns: 'orders' })}
                           </button>
                         )}
-                        {canUpdateStatus && row.orders.some((o) => showMarkAsReceivedAction(o)) && (
+                        {groupSteps.includes('mark_received') && canUpdateStatus && (
                           <button
                             className="btn-status"
                             onClick={() => handleMarkReceivedGroup(row.groupId, row.orders)}
@@ -3909,9 +4073,7 @@ const Orders = () => {
                             {t('actions.markReceived', { ns: 'orders' })}
                           </button>
                         )}
-                        {canPayOrder && row.orders.some(
-                          (o) => !o.order_is_paid && o.status !== 'order_created' && !ORDER_TERMINAL_STATUSES.has(o.status),
-                        ) && (
+                        {groupSteps.includes('pay_order') && canPayOrder && (
                           <button
                             className="btn-status"
                             onClick={() => handlePayOrderGroup(row.orders.filter(
@@ -3922,9 +4084,7 @@ const Orders = () => {
                             {t('actions.payOrder', { ns: 'orders' })}
                           </button>
                         )}
-                        {canPayCargo && row.orders.some(
-                          (o) => !o.cargo_is_paid && o.status !== 'order_created' && !ORDER_TERMINAL_STATUSES.has(o.status),
-                        ) && (
+                        {groupSteps.includes('pay_cargo') && canPayCargo && (
                           <button
                             className="btn-status"
                             onClick={() => handlePayCargoGroup(row.orders)}
@@ -3933,12 +4093,41 @@ const Orders = () => {
                             {t('actions.payCargo', { ns: 'orders' })}
                           </button>
                         )}
-                        {canMoveInventory && row.orders.some(
-                          (o) => orderReadyForInventoryActions(o) && o.order_type === 'stock',
+                        {groupSteps.includes('finalize') && canMoveInventory && row.orders.some(
+                          (o) => availableOrderSteps(o).includes('finalize') && o.order_type === 'stock',
                         ) && (
                           <button
                             className="btn-status"
                             onClick={() => handleMoveToInventoryGroup(row.groupId)}
+                            style={{ marginRight: '5px' }}
+                          >
+                            {t('actions.moveToInventory', { ns: 'orders' })}
+                          </button>
+                        )}
+                        {/* On-demand fulfillment for the whole order at once. Each line keeps
+                            its own button too, since a customer can take some items and
+                            decline others. */}
+                        {groupSteps.includes('finalize') && canSellProduct && row.orders.some(
+                          (o) => o.order_type === 'on_demand'
+                            && availableOrderSteps(o).includes('finalize')
+                            && !o.has_sale,
+                        ) && (
+                          <button
+                            className="btn-status"
+                            onClick={() => handleSellProductGroup(row.groupId)}
+                            style={{ marginRight: '5px' }}
+                          >
+                            {t('actions.sellProduct', { ns: 'orders' })}
+                          </button>
+                        )}
+                        {groupSteps.includes('finalize') && canMoveInventory && row.orders.some(
+                          (o) => o.order_type === 'on_demand'
+                            && availableOrderSteps(o).includes('finalize')
+                            && !o.has_sale,
+                        ) && (
+                          <button
+                            className="btn-status"
+                            onClick={() => handleMoveToInventoryGroupFromOrder(row.groupId)}
                             style={{ marginRight: '5px' }}
                           >
                             {t('actions.moveToInventory', { ns: 'orders' })}

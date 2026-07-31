@@ -82,6 +82,11 @@
     "other_income": "Boshqa daromad",
     "currency_conversion": "Valyuta konvertatsiyasi",
     "owner_contribution": "Egasi hissasi",
-    "owner_withdrawal": "Egasi yechib olishi"
+    "owner_withdrawal": "Egasi yechib olishi",
+    "advance_payment": "Oldindan to‘lov",
+    "advance_payment_return": "Oldindan to‘lov qaytarildi",
+    "package_purchase": "Qadoqlash xaridi",
+    "salary_payment": "Ish haqi to‘lovi",
+    "lunch_expense": "Tushlik xarajati"
   }
 }

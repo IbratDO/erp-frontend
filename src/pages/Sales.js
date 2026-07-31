@@ -125,6 +125,38 @@ const SALES_TABLE_COLUMN_COUNT = 22;
 /** Footer label spans id → package (inclusive); quantity is the next column. */
 const SALES_FOOTER_LABEL_COL_SPAN = 12;
 
+/**
+ * Quantity being sold, shown as "3 / 5" when a from-order sale covers only part of what was
+ * ordered. A short delivery sells what arrived, so the plain number alone would leave the
+ * user wondering why the total is smaller than the order they placed.
+ */
+function renderSaleQuantityCell(quantity, orderedQuantity, t) {
+  const qty = parseInt(quantity, 10) || 0;
+  const ordered = orderedQuantity == null ? null : parseInt(orderedQuantity, 10);
+  if (ordered == null || !Number.isInteger(ordered) || ordered <= qty) {
+    return <>{qty}</>;
+  }
+  return (
+    <span title={t('completeFromOrder.partialQtyHint', { qty, ordered })}>
+      <strong>{qty}</strong>
+      <span style={{ color: '#999' }}> / {ordered}</span>
+      <span
+        style={{
+          marginLeft: '6px',
+          padding: '1px 5px',
+          borderRadius: '8px',
+          backgroundColor: '#ff9800',
+          color: '#fff',
+          fontSize: '0.75em',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {t('completeFromOrder.partialQtyBadge', { count: ordered - qty })}
+      </span>
+    </span>
+  );
+}
+
 function saleRowBackground(sale) {
   if (sale.balance_shortfall_type === 'on_credit') return '#ffebee';
   if (sale.balance_shortfall_type === 'discount') return '#fff3e0';
@@ -1289,6 +1321,8 @@ const Sales = () => {
       return {
         saleId: s.id,
         product_detail: s.product_detail,
+        quantity: parseInt(s.quantity, 10) || 0,
+        orderedQuantity: s.order_ordered_quantity ?? null,
         selling_price: s.selling_price != null && s.selling_price !== '' ? String(s.selling_price) : '',
         uzs: sc === 'UZS' && remaining != null ? String(Math.round(remaining)) : '',
         usd: sc === 'USD' && remaining != null ? remaining.toFixed(2) : '',
@@ -2090,6 +2124,16 @@ const Sales = () => {
       {showCompleteFromOrderForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('completeFromOrder.title', { id: completeFromOrderData.saleId })}</h2>
+          {(() => {
+            const cfoSale = sales.find((s) => s.id === completeFromOrderData.saleId);
+            if (!cfoSale) return null;
+            return (
+              <p style={{ margin: '0 0 12px', color: '#4a5568', fontSize: '0.9em' }}>
+                {t('completeFromOrder.qty')}:{' '}
+                {renderSaleQuantityCell(cfoSale.quantity, cfoSale.order_ordered_quantity, t)}
+              </p>
+            );
+          })()}
           <form onSubmit={handleCompleteFromOrderSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -2377,6 +2421,7 @@ const Sales = () => {
                 <thead>
                   <tr>
                     <th scope="col">{t('batch.product', { ns: 'sales' })}</th>
+                    <th className="batch-sale-lines__th--num">{t('completeFromOrder.qty')}</th>
                     <th className="batch-sale-lines__th--num">{t('completeFromOrder.sellingPrice')}</th>
                     <th className="batch-sale-lines__th--num">{t('completeFromOrder.advanceAuto')}</th>
                     <th scope="col">{t('completeFromOrder.packagesOptional')}</th>
@@ -2389,6 +2434,9 @@ const Sales = () => {
                     <tr key={line.saleId}>
                       <td>
                         #{line.saleId} — {line.product_detail?.brand} {line.product_detail?.model}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        {renderSaleQuantityCell(line.quantity, line.orderedQuantity, t)}
                       </td>
                       <td className="batch-sale-lines__td--num">
                         <input

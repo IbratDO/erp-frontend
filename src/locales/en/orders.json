@@ -39,6 +39,7 @@
     "receivedQty": "Received",
     "orderedQty": "Ordered",
     "refundedCheckbox": "Money refunded by supplier",
+    "unpaidShortHint": "This order is not marked paid yet, so a refund cannot be recorded against it. Run \"Pay for the Order\" first — then come back and record what the supplier sent back. Leaving it as is simply lowers what you owe.",
     "refundedHint": "Tick this only if the supplier already gave the money back for the missing items.",
     "refundUzs": "Refund UZS",
     "refundUsd": "Refund USD",
@@ -117,7 +118,8 @@
     "cancelGroup": "Cancel Whole Order",
     "receiveRemaining": "Receive Remaining",
     "markRefunded": "Mark as Refunded",
-    "writeOff": "Write Off as Loss"
+    "writeOff": "Write Off as Loss",
+    "dropFromBill": "Remove From Bill"
   },
   "form": {
     "newTitle": "New Order",
@@ -267,6 +269,8 @@
     "receiveRemainingSuccess": "Outstanding items received into inventory.",
     "shortfallResolved": "Undelivered items resolved.",
     "shortfallError": "Error resolving undelivered items",
+    "sellGroupSuccess": "Sale created for {{count}} item(s).",
+    "moveGroupSuccess": "Moved {{count}} item(s) to inventory.",
     "groupCancelled": "Multi-item order cancelled.",
     "statusUpdateError": "Error updating status",
     "orderedNoteRequired": "Please enter a note.",
@@ -314,10 +318,13 @@
     "unitDetailUsd": "\n({{perUnit}} / unit × {{qty}})",
     "productFallback": "Product #{{id}}",
     "cancelOrder": "Cancel Order #{{id}}?\n\nThe order record will be kept. Paid supplier/cargo amounts will be reversed when applicable. This cannot undo completed inventory or sold states.",
+    "sellProductGroup": "Create a sale for every ready item in this order?\n\nOne pending sale per item, grouped together — complete the payment in the Sales tab. Items that arrived short are sold only for the quantity that actually came.",
+    "moveGroupToInventory": "Move every ready item in this order into inventory?\n\nItems already sold are left alone.",
     "cancelGroup": "Cancel every remaining item in this multi-item order?\n\nItems already in inventory or sold are left untouched. Paid supplier/cargo amounts are reversed where applicable, and any cargo already paid is re-spread over the items that remain.",
     "receiveRemaining": "Confirm that {{count}} outstanding item(s) for Order #{{id}} have now arrived?\n\nThey will be added to inventory.",
     "markRefunded": "Mark the undelivered item(s) on Order #{{id}} as refunded by the supplier?\n\n{{amount}} will be added back to your balance.",
-    "writeOff": "Write off the undelivered item(s) on Order #{{id}} as a loss?\n\nNo money moves — it already left when you paid. The cost is recorded as a loss in Profit & Loss and cannot be undone."
+    "writeOff": "Write off the undelivered item(s) on Order #{{id}} as a loss?\n\nNo money moves — it already left when you paid. The cost is recorded as a loss in Profit & Loss and cannot be undone.",
+    "dropFromBill": "Stop billing for the undelivered items on Order #{{id}}?\n\nThis order is not marked paid, so no money moves — the supplier cost drops to what actually arrived. If you already paid and the supplier refunded you, record the payment first instead."
   },
   "errors": {
     "loadHistoryFailed": "Could not load orders"

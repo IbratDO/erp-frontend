@@ -76,10 +76,15 @@ export function prefillPayOrderFromSupplier(order) {
 
 /**
  * Fraction of the ordered quantity that actually turned up (1 when nothing is missing).
- * Planned supplier amounts are always for the full order, so a short delivery has to scale
- * them down before they are offered as a payment default.
+ *
+ * Only applied while a short delivery is still **pending**. Closing a shortfall on an unpaid
+ * order already rewrites the planned cost down to what arrived (`_close_unpaid_shortfall`
+ * scales both `cost_total` and the supplier buckets), so scaling again here would discount
+ * the same missing units twice — 5 caps at $20 with one missing would offer $64 instead of
+ * the correct $80.
  */
 function receivedRatio(order) {
+  if (order?.shortfall_status !== 'pending') return 1;
   const ordered = parseInt(order?.ordered_quantity, 10) || 0;
   const received = order?.received_quantity;
   if (!ordered || received === null || received === undefined) return 1;

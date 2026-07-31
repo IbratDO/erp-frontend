@@ -475,6 +475,14 @@ const MoneyBalance = () => {
                 'other_expense',
                 'other_income',
                 'currency_conversion',
+                // Customer prepayments move real cash, so they belong in this filter too.
+                'advance_payment',
+                'advance_payment_return',
+                'package_purchase',
+                'salary_payment',
+                'lunch_expense',
+                'owner_contribution',
+                'owner_withdrawal',
               ].map((txType) => (
                 <option key={txType} value={txType}>
                   {tTxType(txType)}
