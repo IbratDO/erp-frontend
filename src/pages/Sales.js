@@ -23,6 +23,7 @@ import { matchesProductCatalogFilters, getCascadedFilterOptions, getCascadedDate
 import { layerSalePickerLabel, resolveLayerListPrice } from '../utils/productCost';
 import {
   computeAdvanceRemainingDue,
+  computePaymentDifferenceMeta,
   saleHasOrderAdvance,
   getAdvanceCurrency,
   computeReservedPaymentMeta,
@@ -32,6 +33,9 @@ import {
   usdToUzs,
 } from '../utils/saleCompletePayHelpers';
 import { runSalePaymentSubmitFlow } from '../utils/salePaymentFlowHelpers';
+import ShortfallClassificationFields, {
+  isUnderpaidMeta,
+} from '../components/ShortfallClassificationFields';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatAppDateTime } from '../utils/localeFormat';
@@ -1016,6 +1020,11 @@ const Sales = () => {
     deposit_received: false,
     deposit_amount: '',
     deposit_currency: 'USD',
+    // Underpayment classification — a gap is a discount and/or an FX difference, never
+    // silent customer debt (see ShortfallClassificationFields).
+    balance_shortfall_type: '',
+    balance_shortfall_amount: '',
+    apply_currency_conversion_difference: false,
   });
 
   /** Completing a whole SaleGroup at once (e.g. several items sold individually from the
@@ -1331,6 +1340,10 @@ const Sales = () => {
             ? formatDisplayAmount(s.advance_payment_received, getAdvanceCurrency(s))
             : null,
         packageLines: EMPTY_PKG_LINES(),
+        // Each line settles on its own, so a shortfall is classified per line too.
+        balance_shortfall_type: '',
+        balance_shortfall_amount: '',
+        apply_currency_conversion_difference: false,
       };
     });
     setCompleteFromOrderGroupData({
@@ -1392,19 +1405,61 @@ const Sales = () => {
       }
     }
 
+    // Every underpaid line must say why before any of them post — the backend runs the group
+    // in one transaction, so a line rejected halfway rolls the whole thing back.
+    if (completeFromOrderGroupData.sale_type === 'bought_from_shop') {
+      for (const line of completeFromOrderGroupData.lines) {
+        const saleRow = sales.find((s) => s.id === line.saleId);
+        if (!saleRow) continue;
+        const meta = computePaymentDifferenceMeta(
+          { ...saleRow, selling_price: line.selling_price },
+          {
+            uzs: line.uzs,
+            usd: line.usd,
+            balance_shortfall_type: line.balance_shortfall_type,
+            balance_shortfall_amount: line.balance_shortfall_amount,
+            apply_currency_conversion_difference: line.apply_currency_conversion_difference,
+          },
+          cfoGroupExchangeRate?.rate ?? null,
+        );
+        if (!isUnderpaidMeta(meta)) continue;
+        if (line.balance_shortfall_type === 'discount' && !(parseFloat(line.balance_shortfall_amount) > 0)) {
+          showNotification(t('completePay.errDiscountAmount'), 'error');
+          return;
+        }
+        if (meta.differenceNeedsClassification) {
+          showNotification(t('completePay.errShortfall'), 'error');
+          return;
+        }
+      }
+    }
+
     try {
       const payload = {
         sale_group: completeFromOrderGroupData.saleGroupId,
         sale_type: completeFromOrderGroupData.sale_type,
         lines: completeFromOrderGroupData.lines.map((l) => {
           const active = (l.packageLines || []).filter((pl) => pl.package_type && pl.quantity > 0);
+          const discount = parseFloat(l.balance_shortfall_amount);
+          const isDelivery = completeFromOrderGroupData.sale_type === 'delivery';
           return {
             sale_id: l.saleId,
             selling_price: parseFloat(l.selling_price) || 0,
-            uzs: parseFloat(l.uzs) || 0,
-            usd: parseFloat(l.usd) || 0,
+            uzs: isDelivery ? 0 : parseFloat(l.uzs) || 0,
+            usd: isDelivery ? 0 : parseFloat(l.usd) || 0,
             ...(active.length > 0
               ? { package_lines: active.map(({ package_type, quantity }) => ({ package_type, quantity })) }
+              : {}),
+            ...(l.balance_shortfall_type === 'discount'
+              ? {
+                balance_shortfall_type: 'discount',
+                ...(Number.isFinite(discount) && discount > 0
+                  ? { balance_shortfall_amount: discount }
+                  : {}),
+              }
+              : {}),
+            ...(l.apply_currency_conversion_difference
+              ? { apply_currency_conversion_difference: true }
               : {}),
           };
         }),
@@ -1460,19 +1515,25 @@ const Sales = () => {
         uzs: parseFloat(completeFromOrderData.now_uzs) || 0,
         usd: parseFloat(completeFromOrderData.now_usd) || 0,
       };
-      if (completeFromOrderData.sale_type !== 'reserved') {
+      // Reserved sales take a deposit instead; delivery sales are collected by the courier
+      // at settlement, so neither runs the counter-payment flow here.
+      if (completeFromOrderData.sale_type === 'delivery') {
+        paymentPayload = { uzs: 0, usd: 0 };
+      } else if (completeFromOrderData.sale_type !== 'reserved') {
         const flow = await runSalePaymentSubmitFlow({
           sale: saleForComplete,
           paymentFormData: {
             uzs: completeFromOrderData.now_uzs,
             usd: completeFromOrderData.now_usd,
-            balance_shortfall_type: '',
+            balance_shortfall_type: completeFromOrderData.balance_shortfall_type,
+            balance_shortfall_amount: completeFromOrderData.balance_shortfall_amount,
+            apply_currency_conversion_difference:
+              completeFromOrderData.apply_currency_conversion_difference,
           },
           exchangeRate: cfoExchangeRate,
           exchangeRateError: cfoExchangeRateError,
           showNotification,
           sellingPriceOverride: completeFromOrderData.selling_price,
-          allowDiscount: false,
         });
         if (!flow.ok) return;
         paymentPayload = {
@@ -1483,6 +1544,17 @@ const Sales = () => {
             : {}),
           ...(flow.requestData.apply_additional_profit
             ? { apply_additional_profit: true }
+            : {}),
+          ...(flow.requestData.balance_shortfall_type
+            ? {
+              balance_shortfall_type: flow.requestData.balance_shortfall_type,
+              ...(flow.requestData.balance_shortfall_amount != null
+                ? { balance_shortfall_amount: flow.requestData.balance_shortfall_amount }
+                : {}),
+            }
+            : {}),
+          ...(flow.requestData.apply_currency_conversion_difference
+            ? { apply_currency_conversion_difference: true }
             : {}),
         };
       }
@@ -1500,6 +1572,17 @@ const Sales = () => {
           : {}),
         ...(paymentPayload.apply_additional_profit
           ? { apply_additional_profit: true }
+          : {}),
+        ...(paymentPayload.balance_shortfall_type
+          ? {
+            balance_shortfall_type: paymentPayload.balance_shortfall_type,
+            ...(paymentPayload.balance_shortfall_amount != null
+              ? { balance_shortfall_amount: paymentPayload.balance_shortfall_amount }
+              : {}),
+          }
+          : {}),
+        ...(paymentPayload.apply_currency_conversion_difference
+          ? { apply_currency_conversion_difference: true }
           : {}),
         ...(cfoActiveLines.length > 0 ? {
           package_lines: cfoActiveLines.map(({ package_type, quantity }) => ({ package_type, quantity })),
@@ -2261,30 +2344,44 @@ const Sales = () => {
                   packages={packages}
                 />
               </div>
-              <div className="form-group" style={{ gridColumn: '1 / -1', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
-                <p style={{ margin: '0 0 10px 0', color: '#555', fontSize: '0.9em', fontWeight: 600 }}>
-                  {t('completeFromOrder.paymentHint')}
-                </p>
-                {cfoExchangeRate?.label && (
-                  <p style={{ margin: '0 0 8px', color: '#4a5568', fontSize: '0.85em' }}>{cfoExchangeRate.label}</p>
-                )}
-                {cfoExchangeRateError && (
-                  <p style={{ margin: '0 0 8px', color: '#b45309', fontSize: '0.85em' }}>{cfoExchangeRateError}</p>
-                )}
-              </div>
-              <div className="form-group">
-                <label>{t('currency.uzs', { ns: 'common' })}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
-                  value={completeFromOrderData.now_uzs ?? ''}
-                  onChange={(e) => setCompleteFromOrderData({ ...completeFromOrderData, now_uzs: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>{t('currency.usd', { ns: 'common' })}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
-                  value={completeFromOrderData.now_usd ?? ''}
-                  onChange={(e) => setCompleteFromOrderData({ ...completeFromOrderData, now_usd: e.target.value })} />
-              </div>
+              {completeFromOrderData.sale_type === 'delivery' ? (
+                // The courier collects a delivery sale at settlement, where the due is
+                // computed and any shortfall is classified. Money taken here would never
+                // reach Money Balance and would be invisible to that calculation.
+                <div className="form-group" style={{ gridColumn: '1 / -1', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
+                  <p style={{ margin: 0, color: '#555', fontSize: '0.9em', lineHeight: 1.5 }}>
+                    {t('completeFromOrder.deliveryPaymentLater')}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="form-group" style={{ gridColumn: '1 / -1', borderTop: '1px solid #eee', paddingTop: '12px', marginTop: '4px' }}>
+                    <p style={{ margin: '0 0 10px 0', color: '#555', fontSize: '0.9em', fontWeight: 600 }}>
+                      {t('completeFromOrder.paymentHint')}
+                    </p>
+                    {cfoExchangeRate?.label && (
+                      <p style={{ margin: '0 0 8px', color: '#4a5568', fontSize: '0.85em' }}>{cfoExchangeRate.label}</p>
+                    )}
+                    {cfoExchangeRateError && (
+                      <p style={{ margin: '0 0 8px', color: '#b45309', fontSize: '0.85em' }}>{cfoExchangeRateError}</p>
+                    )}
+                  </div>
+                  <div className="form-group">
+                    <label>{t('currency.uzs', { ns: 'common' })}</label>
+                    <input type="number" step="0.01" min="0" placeholder="0"
+                      value={completeFromOrderData.now_uzs ?? ''}
+                      onChange={(e) => setCompleteFromOrderData({ ...completeFromOrderData, now_uzs: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label>{t('currency.usd', { ns: 'common' })}</label>
+                    <input type="number" step="0.01" min="0" placeholder="0"
+                      value={completeFromOrderData.now_usd ?? ''}
+                      onChange={(e) => setCompleteFromOrderData({ ...completeFromOrderData, now_usd: e.target.value })} />
+                  </div>
+                </>
+              )}
               {(() => {
+                if (completeFromOrderData.sale_type === 'delivery') return null;
                 const saleRow = sales.find((s) => s.id === completeFromOrderData.saleId);
                 if (!saleHasOrderAdvance(saleRow)) return null;
                 const remaining = computeAdvanceRemainingDue(
@@ -2311,6 +2408,44 @@ const Sales = () => {
                   </div>
                 );
               })()}
+              {(() => {
+                // Paying less than due has to be explained here, or the gap silently becomes
+                // customer debt and never reaches the FX-difference report.
+                if (completeFromOrderData.sale_type !== 'bought_from_shop') return null;
+                const saleRow = sales.find((s) => s.id === completeFromOrderData.saleId);
+                if (!saleRow) return null;
+                const meta = computePaymentDifferenceMeta(
+                  { ...saleRow, selling_price: completeFromOrderData.selling_price },
+                  {
+                    uzs: completeFromOrderData.now_uzs,
+                    usd: completeFromOrderData.now_usd,
+                    balance_shortfall_type: completeFromOrderData.balance_shortfall_type,
+                    balance_shortfall_amount: completeFromOrderData.balance_shortfall_amount,
+                    apply_currency_conversion_difference:
+                      completeFromOrderData.apply_currency_conversion_difference,
+                  },
+                  cfoExchangeRate?.rate ?? null,
+                );
+                if (!isUnderpaidMeta(meta)) return null;
+                return (
+                  <div
+                    className="form-group"
+                    style={{
+                      gridColumn: '1 / -1',
+                      borderTop: '1px solid #eee',
+                      paddingTop: '12px',
+                      marginTop: '4px',
+                    }}
+                  >
+                    <ShortfallClassificationFields
+                      form={completeFromOrderData}
+                      setForm={setCompleteFromOrderData}
+                      meta={meta}
+                      t={t}
+                    />
+                  </div>
+                );
+              })()}
             </div>
             <div className="form-actions">
               <button type="submit" className="btn-primary">
@@ -2325,6 +2460,8 @@ const Sales = () => {
                   setCompleteFromOrderData({
                     saleId: null, customer: '', selling_price: '', sale_type: 'bought_from_shop',
                     now_uzs: '', now_usd: '', deposit_received: false, deposit_amount: '', deposit_currency: 'USD',
+                    balance_shortfall_type: '', balance_shortfall_amount: '',
+                    apply_currency_conversion_difference: false,
                   });
                 }}
               >
@@ -2407,14 +2544,22 @@ const Sales = () => {
                 </>
               )}
             </div>
-            <p style={{ margin: '4px 0 8px', color: '#555', fontSize: '0.9em', fontWeight: 600 }}>
-              {t('completeFromOrder.paymentHint')}
-            </p>
-            {cfoGroupExchangeRate?.label && (
-              <p style={{ margin: '0 0 8px', color: '#4a5568', fontSize: '0.85em' }}>{cfoGroupExchangeRate.label}</p>
-            )}
-            {cfoGroupExchangeRateError && (
-              <p style={{ margin: '0 0 8px', color: '#b45309', fontSize: '0.85em' }}>{cfoGroupExchangeRateError}</p>
+            {completeFromOrderGroupData.sale_type === 'delivery' ? (
+              <p style={{ margin: '4px 0 8px', color: '#555', fontSize: '0.9em', lineHeight: 1.5 }}>
+                {t('completeFromOrder.deliveryPaymentLater')}
+              </p>
+            ) : (
+              <>
+                <p style={{ margin: '4px 0 8px', color: '#555', fontSize: '0.9em', fontWeight: 600 }}>
+                  {t('completeFromOrder.paymentHint')}
+                </p>
+                {cfoGroupExchangeRate?.label && (
+                  <p style={{ margin: '0 0 8px', color: '#4a5568', fontSize: '0.85em' }}>{cfoGroupExchangeRate.label}</p>
+                )}
+                {cfoGroupExchangeRateError && (
+                  <p style={{ margin: '0 0 8px', color: '#b45309', fontSize: '0.85em' }}>{cfoGroupExchangeRateError}</p>
+                )}
+              </>
             )}
             <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
               <table className="batch-sale-lines" role="table">
@@ -2464,33 +2609,87 @@ const Sales = () => {
                           packages={packages}
                         />
                       </td>
+                      {/* Delivery lines are collected by the courier at settlement, so there
+                          is nothing to take here (see deliveryPaymentLater note above). */}
                       <td className="batch-sale-lines__td--num">
-                        <input
-                          className="batch-sale-lines__control"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0"
-                          value={line.uzs ?? ''}
-                          onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'uzs', e.target.value)}
-                        />
+                        {completeFromOrderGroupData.sale_type === 'delivery' ? '—' : (
+                          <input
+                            className="batch-sale-lines__control"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0"
+                            value={line.uzs ?? ''}
+                            onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'uzs', e.target.value)}
+                          />
+                        )}
                       </td>
                       <td className="batch-sale-lines__td--num">
-                        <input
-                          className="batch-sale-lines__control"
-                          type="number"
-                          step="0.01"
-                          min="0"
-                          placeholder="0"
-                          value={line.usd ?? ''}
-                          onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'usd', e.target.value)}
-                        />
+                        {completeFromOrderGroupData.sale_type === 'delivery' ? '—' : (
+                          <input
+                            className="batch-sale-lines__control"
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            placeholder="0"
+                            value={line.usd ?? ''}
+                            onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'usd', e.target.value)}
+                          />
+                        )}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            {completeFromOrderGroupData.sale_type === 'bought_from_shop'
+              && completeFromOrderGroupData.lines.map((line) => {
+                // Lines settle independently, so each underpaid one is classified on its own
+                // rather than lumping the group's total gap into a single discount.
+                const saleRow = sales.find((s) => s.id === line.saleId);
+                if (!saleRow) return null;
+                const meta = computePaymentDifferenceMeta(
+                  { ...saleRow, selling_price: line.selling_price },
+                  {
+                    uzs: line.uzs,
+                    usd: line.usd,
+                    balance_shortfall_type: line.balance_shortfall_type,
+                    balance_shortfall_amount: line.balance_shortfall_amount,
+                    apply_currency_conversion_difference: line.apply_currency_conversion_difference,
+                  },
+                  cfoGroupExchangeRate?.rate ?? null,
+                );
+                if (!isUnderpaidMeta(meta)) return null;
+                return (
+                  <div
+                    key={`cfo-group-shortfall-${line.saleId}`}
+                    style={{
+                      borderTop: '1px solid #eee',
+                      paddingTop: '12px',
+                      marginTop: '12px',
+                    }}
+                  >
+                    <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: '0.9em' }}>
+                      #{line.saleId} — {line.product_detail?.brand} {line.product_detail?.model}
+                    </p>
+                    <ShortfallClassificationFields
+                      form={line}
+                      setForm={(updater) => {
+                        setCompleteFromOrderGroupData((prev) => ({
+                          ...prev,
+                          lines: prev.lines.map((l) => (
+                            l.saleId === line.saleId
+                              ? (typeof updater === 'function' ? updater(l) : { ...l, ...updater })
+                              : l
+                          )),
+                        }));
+                      }}
+                      meta={meta}
+                      t={t}
+                    />
+                  </div>
+                );
+              })}
             <div className="form-actions">
               <button type="submit" className="btn-primary">
                 {t('completeSale')}

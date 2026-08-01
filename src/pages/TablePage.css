@@ -309,6 +309,15 @@
   border-collapse: collapse;
 }
 
+/*
+ * Many-column tables inside .data-table-scroll. Without a floor the table shrinks to the
+ * viewport instead of overflowing, so the columns squash and the trailing Actions cell
+ * loses its buttons on a laptop or phone. The floor makes the scroll container do its job.
+ */
+.data-table--wide {
+  min-width: 72rem;
+}
+
 .data-table th {
   background-color: #34495e;
   color: white;

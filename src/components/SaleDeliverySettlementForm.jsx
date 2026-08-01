@@ -19,6 +19,9 @@ import {
   combinedPaymentInSaleCurrency,
 } from '../utils/salePaymentFlowHelpers';
 import { buildCombinedSaleForGroup } from '../utils/saleGroupDisplay';
+import ShortfallClassificationFields, {
+  isUnderpaidMeta,
+} from './ShortfallClassificationFields';
 
 /** Amount-due summary — same gray info-box treatment SaleCompletePayForm uses for its
  * list/discount/final-price/amount-due box, so Complete & Pay and delivery settlement look
@@ -90,67 +93,8 @@ function DeliveryPaymentAmountFields({ form, setForm, meta, t, disabled = false,
   );
 }
 
-/** Discount / currency-difference classification for a payment shortfall — shared by Step 1
- * (courier proposes when under-collecting) and Step 2 per-line/combined (shop reviews/confirms). */
-function ShortfallClassificationFields({ form, setForm, meta, t }) {
-  return (
-    <>
-      <p style={{ margin: '0 0 10px', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
-        {t('completePay.shortfallHint')}
-      </p>
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
-        <input
-          type="checkbox"
-          checked={form.balance_shortfall_type === 'discount'}
-          onChange={(e) => {
-            const checked = e.target.checked;
-            const def =
-              meta.short > 0
-                ? meta.sc === 'UZS'
-                  ? String(Math.round(meta.short))
-                  : meta.short.toFixed(2)
-                : '';
-            setForm((prev) => ({
-              ...prev,
-              balance_shortfall_type: checked ? 'discount' : '',
-              balance_shortfall_amount: checked ? prev.balance_shortfall_amount || def : '',
-            }));
-          }}
-        />
-        <span>{t('completePay.discountOption')}</span>
-      </label>
-      {form.balance_shortfall_type === 'discount' && (
-        <div style={{ marginTop: 10, maxWidth: 280 }}>
-          <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
-            {t('completePay.discountAmountLabel', { currency: meta.sc || 'UZS/USD' })}
-          </label>
-          <input
-            type="number"
-            step={meta.sc === 'UZS' ? '1' : '0.01'}
-            min="0"
-            value={form.balance_shortfall_amount ?? ''}
-            onChange={(e) => setForm((prev) => ({ ...prev, balance_shortfall_amount: e.target.value }))}
-          />
-        </div>
-      )}
-      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 12 }}>
-        <input
-          type="checkbox"
-          checked={!!form.apply_currency_conversion_difference}
-          onChange={(e) => setForm((prev) => ({ ...prev, apply_currency_conversion_difference: e.target.checked }))}
-        />
-        <span>{t('completePay.conversionDifferenceOption')}</span>
-      </label>
-    </>
-  );
-}
-
-/** True when a payment-difference meta reflects a genuine underpayment (not overpayment/exact). */
-function isUnderpaidMeta(meta) {
-  if (meta.short == null || Number.isNaN(meta.short)) return false;
-  const tol = (meta.sc || 'USD').toUpperCase() === 'UZS' ? 1 : 0.005;
-  return meta.short > tol;
-}
+// Shortfall classification lives in its own component so Complete-from-Order can present the
+// same Discount / Conversion-difference choice this form does.
 
 /** Step 2's default form for a line, computed fresh from its current fields every render (no
  * effect/ref timing to get wrong) — prefills the courier's step-1-collected amount and, if they

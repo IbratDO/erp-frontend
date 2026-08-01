@@ -752,6 +752,7 @@ const Packages = () => {
         <p style={{ color: '#666', fontSize: '0.85em', marginTop: 0 }}>
           {t('inventory.subtitle')}
         </p>
+        <div className="data-table-scroll">
         <table className="data-table">
           <thead>
             <tr>
@@ -823,11 +824,13 @@ const Packages = () => {
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
 
       <div className="table-card" style={{ marginTop: '30px' }}>
         <h2>{t('history.title')}</h2>
-        <table className="data-table">
+        <div className="data-table-scroll">
+        <table className="data-table data-table--wide">
           <thead>
             <tr>
               <SortableTh columnId="id" sortCol={pkgHistSort.sortCol} sortDir={pkgHistSort.sortDir} onSort={pkgHistSort.onHeaderClick}>
@@ -1000,6 +1003,7 @@ const Packages = () => {
             </tr>
           </tfoot>
         </table>
+        </div>
       </div>
     </div>
   );
