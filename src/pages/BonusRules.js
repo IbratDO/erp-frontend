@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts } from '../utils/catalogCache';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -38,9 +39,9 @@ const BonusRules = () => {
     setLoading(true);
     try {
       const [rulesRes, txRes, usersRes, products] = await Promise.all([
-        api.get('/bonus-rules/'),
-        api.get('/bonus-transactions/'),
-        canManage ? api.get('/users/') : Promise.resolve({ data: [] }),
+        apiGetAll('/bonus-rules/'),
+        apiGetAll('/bonus-transactions/'),
+        canManage ? apiGetAll('/users/') : Promise.resolve({ data: [] }),
         canManage ? getCachedProducts(api) : Promise.resolve([]),
       ]);
       setRules(rulesRes.data.results || rulesRes.data);

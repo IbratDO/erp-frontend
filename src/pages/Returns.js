@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts } from '../utils/catalogCache';
 import { cashBalanceTotalByCurrency, formatDisplayAmount, formatInsufficientLedgerMessage } from '../utils/currencyFormat';
 import SortableTh from '../components/SortableTh';
@@ -303,7 +304,7 @@ const Returns = () => {
 
   const fetchReturns = async () => {
     try {
-      const response = await api.get('/returns/');
+      const response = await apiGetAll('/returns/');
       const returnsList = response.data.results || response.data;
       setReturns(returnsList);
       applyFilters(returnsList);
@@ -556,7 +557,7 @@ const Returns = () => {
 
   const fetchSales = async () => {
     try {
-      const response = await api.get('/sales/');
+      const response = await apiGetAll('/sales/');
       setSales(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching sales:', error);
@@ -565,7 +566,7 @@ const Returns = () => {
 
   const fetchCustomers = async () => {
     try {
-      const response = await api.get('/customers/', { params: { lite: 1 } });
+      const response = await apiGetAll('/customers/', { params: { lite: 1 } });
       setCustomers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -775,7 +776,7 @@ const Returns = () => {
       }
     }
     try {
-      const balanceResponse = await api.get('/cash-balance/');
+      const balanceResponse = await apiGetAll('/cash-balance/');
       const balanceList = balanceResponse.data.results || balanceResponse.data;
       const balChecks = [
         { amount: uzs, currency: 'UZS' },

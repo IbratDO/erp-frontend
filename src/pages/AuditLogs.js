@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime } from '../utils/localeFormat';
@@ -54,7 +54,7 @@ const AuditLogs = () => {
           if (statusFilter.object_type) params.append('object_type', statusFilter.object_type);
           if (statusFilter.object_id) params.append('object_id', statusFilter.object_id);
           const url = params.toString() ? `/audit-logs/?${params}` : '/audit-logs/';
-          const response = await api.get(url);
+          const response = await apiGetAll(url);
           setStatusLogs(response.data.results || response.data);
         } else {
           const params = new URLSearchParams();
@@ -62,7 +62,7 @@ const AuditLogs = () => {
           if (actionFilter.object_type) params.append('object_type', actionFilter.object_type);
           if (actionFilter.object_id) params.append('object_id', actionFilter.object_id);
           const url = params.toString() ? `/action-audit-logs/?${params}` : '/action-audit-logs/';
-          const response = await api.get(url);
+          const response = await apiGetAll(url);
           setActionLogs(response.data.results || response.data);
         }
       } catch (error) {

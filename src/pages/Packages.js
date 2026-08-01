@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { cashBalanceTotalByCurrency, formatInsufficientLedgerMessage } from '../utils/currencyFormat';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
@@ -127,7 +128,7 @@ const Packages = () => {
 
   const fetchBalances = async () => {
     try {
-      const response = await api.get('/cash-balance/');
+      const response = await apiGetAll('/cash-balance/');
       setBalances(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching balances:', error);
@@ -136,7 +137,7 @@ const Packages = () => {
 
   const fetchPackageBatches = async () => {
     try {
-      const response = await api.get('/package-batches/');
+      const response = await apiGetAll('/package-batches/');
       setPackageBatches(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching package batches:', error);
@@ -203,7 +204,7 @@ const Packages = () => {
 
   const fetchPackages = async () => {
     try {
-      const response = await api.get('/packages/');
+      const response = await apiGetAll('/packages/');
       let packagesList = response.data.results || response.data;
       
       // Ensure both M and L packages exist
@@ -228,7 +229,7 @@ const Packages = () => {
       }
       
       // Refetch after creating missing packages
-      const updatedResponse = await api.get('/packages/');
+      const updatedResponse = await apiGetAll('/packages/');
       setPackages(updatedResponse.data.results || updatedResponse.data);
     } catch (error) {
       console.error('Error fetching packages:', error);
@@ -258,7 +259,7 @@ const Packages = () => {
         const totalUsd = delta * costUsd;
         let freshBalances = balances;
         try {
-          const balancesRes = await api.get('/cash-balance/');
+          const balancesRes = await apiGetAll('/cash-balance/');
           freshBalances = balancesRes.data.results || balancesRes.data;
           setBalances(freshBalances);
         } catch (balanceErr) {
@@ -329,7 +330,7 @@ const Packages = () => {
 
   const fetchPackageHistory = async () => {
     try {
-      const response = await api.get('/package-history/');
+      const response = await apiGetAll('/package-history/');
       setPackageHistory(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching package history:', error);
@@ -392,7 +393,7 @@ const Packages = () => {
       }
       let freshBalances = balances;
       try {
-        const balancesRes = await api.get('/cash-balance/');
+        const balancesRes = await apiGetAll('/cash-balance/');
         freshBalances = balancesRes.data.results || balancesRes.data;
         setBalances(freshBalances);
       } catch (balanceErr) {

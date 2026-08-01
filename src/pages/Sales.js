@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts } from '../utils/catalogCache';
 import i18n from '../i18n';
 import {
@@ -473,7 +474,7 @@ const Sales = () => {
       return;
     }
     try {
-      const response = await api.get('/packages/');
+      const response = await apiGetAll('/packages/');
       setPackages(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching packages:', error);
@@ -483,7 +484,7 @@ const Sales = () => {
   
   const fetchCustomers = async () => {
     try {
-      const response = await api.get('/customers/', { params: { lite: 1 } });
+      const response = await apiGetAll('/customers/', { params: { lite: 1 } });
       setCustomers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -523,7 +524,7 @@ const Sales = () => {
 
   const fetchSales = async () => {
     try {
-      const response = await api.get('/sales/');
+      const response = await apiGetAll('/sales/');
       const salesList = response.data.results || response.data;
       setSales(salesList);
       applyFilters(salesList);
@@ -745,7 +746,7 @@ const Sales = () => {
 
   const fetchInventory = async () => {
     try {
-      const response = await api.get('/inventory/layers/');
+      const response = await apiGetAll('/inventory/layers/');
       setInventory(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching inventory:', error);
@@ -849,7 +850,7 @@ const Sales = () => {
     }
     let freshInventory = inventory;
     try {
-      const invRes = await api.get('/inventory/layers/');
+      const invRes = await apiGetAll('/inventory/layers/');
       freshInventory = invRes.data.results || invRes.data;
       setInventory(freshInventory);
     } catch (err) {
@@ -1166,8 +1167,8 @@ const Sales = () => {
     (async () => {
       try {
         const [dispatchersRes, balancesRes] = await Promise.all([
-          api.get('/dispatchers/', { params: { is_active: true } }),
-          api.get('/cash-balance/'),
+          apiGetAll('/dispatchers/', { params: { is_active: true } }),
+          apiGetAll('/cash-balance/'),
         ]);
         setDispatchersList(dispatchersRes.data.results || dispatchersRes.data);
         setBalances(balancesRes.data.results || balancesRes.data);
@@ -1197,7 +1198,7 @@ const Sales = () => {
       if (dispatchFormData.is_paid && deliveryCost > 0) {
         let freshBalances = balances;
         try {
-          const balancesRes = await api.get('/cash-balance/');
+          const balancesRes = await apiGetAll('/cash-balance/');
           freshBalances = balancesRes.data.results || balancesRes.data;
           setBalances(freshBalances);
         } catch (balanceErr) {

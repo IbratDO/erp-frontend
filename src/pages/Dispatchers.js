@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import SaleCompletePayForm from '../components/SaleCompletePayForm';
 import SaleDeliverySettlementForm from '../components/SaleDeliverySettlementForm';
 import ShopDeliverySettlementButtons from '../components/ShopDeliverySettlementButtons';
@@ -183,7 +184,7 @@ const Dispatchers = () => {
   const fetchDispatchers = useCallback(async () => {
     if (isDispatcherRole) return;
     try {
-      const res = await api.get('/dispatchers/');
+      const res = await apiGetAll('/dispatchers/');
       const list = res.data.results || res.data;
       setDispatchers(list);
     } catch (e) {
@@ -194,7 +195,7 @@ const Dispatchers = () => {
   const fetchActiveDispatchers = useCallback(async () => {
     if (isDispatcherRole) return;
     try {
-      const res = await api.get('/dispatchers/', { params: { is_active: true } });
+      const res = await apiGetAll('/dispatchers/', { params: { is_active: true } });
       const list = res.data.results || res.data;
       setActiveDispatchers(list);
     } catch (e) {
@@ -208,7 +209,7 @@ const Dispatchers = () => {
       if (filters.status) params.status = filters.status;
       if (filters.dispatcher) params.dispatcher = filters.dispatcher;
       if (filters.serviceType) params.dispatch_type = filters.serviceType;
-      const res = await api.get('/dispatches/', { params });
+      const res = await apiGetAll('/dispatches/', { params });
       const list = res.data.results || res.data;
       setDispatches(list);
     } catch (e) {

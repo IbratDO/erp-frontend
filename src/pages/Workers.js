@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { formatDisplayAmount, formatPlainAmount } from '../utils/currencyFormat';
 import useAppTranslation from '../hooks/useAppTranslation';
 import SortableTh from '../components/SortableTh';
@@ -54,7 +55,7 @@ const Workers = () => {
 
   const fetchWorkers = async () => {
     try {
-      const response = await api.get('/workers/');
+      const response = await apiGetAll('/workers/');
       setWorkers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching workers:', error);

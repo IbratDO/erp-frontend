@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import { cashBalanceTotalByCurrency, formatInsufficientLedgerMessage } from '../utils/currencyFormat';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -76,7 +77,7 @@ const FixedAssets = () => {
   const fetchAssets = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/fixed-assets/');
+      const { data } = await apiGetAll('/fixed-assets/');
       setAssets(data.results || data);
     } catch (e) {
       console.error(e);
@@ -87,7 +88,7 @@ const FixedAssets = () => {
 
   const fetchBalances = async () => {
     try {
-      const { data } = await api.get('/cash-balance/');
+      const { data } = await apiGetAll('/cash-balance/');
       setBalances(data.results || data);
     } catch (e) {
       setBalances([]);

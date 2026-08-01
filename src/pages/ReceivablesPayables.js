@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Trans } from 'react-i18next';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import {
   sumAmountsByCurrency,
   formatMultiCurrencyAmounts,
@@ -241,7 +242,7 @@ const ReceivablesPayables = () => {
       
       if (params.toString()) url += `?${params.toString()}`;
 
-      const response = await api.get(url);
+      const response = await apiGetAll(url);
       setReceivables(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching receivables:', error);
@@ -278,7 +279,7 @@ const ReceivablesPayables = () => {
       
       if (params.toString()) url += `?${params.toString()}`;
 
-      const response = await api.get(url);
+      const response = await apiGetAll(url);
       setPayables(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching payables:', error);

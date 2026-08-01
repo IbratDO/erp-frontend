@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { formatDisplayAmount, cashBalanceTotalByCurrency, formatInsufficientLedgerMessage } from '../utils/currencyFormat';
 import {
   isOperationalSenior,
@@ -673,7 +674,7 @@ const Orders = () => {
 
   const fetchBalances = async () => {
     try {
-      const response = await api.get('/cash-balance/');
+      const response = await apiGetAll('/cash-balance/');
       setBalances(response.data.results || response.data);
       setBalancesLoaded(true);
     } catch (error) {
@@ -693,7 +694,7 @@ const Orders = () => {
 
   const fetchCustomers = async () => {
     try {
-      const response = await api.get('/customers/', { params: { lite: 1 } });
+      const response = await apiGetAll('/customers/', { params: { lite: 1 } });
       setCustomers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching customers:', error);
@@ -720,7 +721,7 @@ const Orders = () => {
 
   const fetchOrders = async () => {
     try {
-      const response = await api.get('/orders/');
+      const response = await apiGetAll('/orders/');
       const ordersList = response.data.results || response.data;
       setOrders(ordersList);
       applyFilters(ordersList);

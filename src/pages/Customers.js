@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { formatDisplayAmount, formatAmountByBalanceType, formatPlainAmount } from '../utils/currencyFormat';
 import PageTitle from '../components/PageTitle';
 import './TablePage.css';
@@ -142,7 +143,7 @@ const Customers = () => {
 
   const fetchCustomers = async () => {
     try {
-      const response = await api.get('/customers/');
+      const response = await apiGetAll('/customers/');
       const customersList = response.data.results || response.data;
       setCustomers(customersList);
     } catch (error) {

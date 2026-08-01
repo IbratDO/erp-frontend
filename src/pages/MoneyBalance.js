@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
@@ -185,7 +186,7 @@ const MoneyBalance = () => {
 
   const fetchBalances = async () => {
     try {
-      const response = await api.get('/cash-balance/');
+      const response = await apiGetAll('/cash-balance/');
       const balancesList = response.data.results || response.data;
 
       /** Option A: new money uses *_cash buckets; card rows are legacy-only — do not auto-create all four. */
@@ -205,7 +206,7 @@ const MoneyBalance = () => {
         }
       }
 
-      const updatedResponse = await api.get('/cash-balance/');
+      const updatedResponse = await apiGetAll('/cash-balance/');
       setBalances(updatedResponse.data.results || updatedResponse.data);
     } catch (error) {
       console.error('Error fetching balances:', error);
@@ -239,7 +240,9 @@ const MoneyBalance = () => {
       if (dateRange?.dateTo) params.append('date_to', dateRange.dateTo);
       if (params.toString()) url += `?${params.toString()}`;
 
-      const response = await api.get(url);
+      // Every page: the footer totals below are summed from these rows, so a truncated
+      // fetch would show wrong totals, not just fewer rows.
+      const response = await apiGetAll(url);
       let list = response.data.results || response.data;
 
       if (filter.currency && !filter.balance_type) {

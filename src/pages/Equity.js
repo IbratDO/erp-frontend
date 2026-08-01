@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
@@ -25,7 +26,7 @@ const Equity = () => {
   const fetchRows = async () => {
     setLoading(true);
     try {
-      const { data } = await api.get('/equity-transactions/');
+      const { data } = await apiGetAll('/equity-transactions/');
       setRows(data.results || data);
     } catch (e) {
       console.error(e);

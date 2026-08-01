@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import useAppTranslation from '../hooks/useAppTranslation';
 
 function customerLabel(c) {
@@ -74,7 +74,7 @@ export default function CustomerSearchableSelect({
     const timer = setTimeout(async () => {
       setAsyncLoading(true);
       try {
-        const res = await api.get('/customers/', {
+        const res = await apiGetAll('/customers/', {
           params: { search: q, limit: 50, lite: 1 },
         });
         setAsyncCustomers(res.data.results || res.data);

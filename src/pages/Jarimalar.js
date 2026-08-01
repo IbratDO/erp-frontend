@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
@@ -56,8 +57,8 @@ const Jarimalar = () => {
     setLoading(true);
     try {
       const [penRes, mgrRes] = await Promise.all([
-        api.get('/penalties/'),
-        api.get('/penalties/managers/'),
+        apiGetAll('/penalties/'),
+        apiGetAll('/penalties/managers/'),
       ]);
       setRows(penRes.data.results || penRes.data || []);
       setManagers(mgrRes.data || []);

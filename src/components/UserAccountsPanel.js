@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from './PageTitle';
@@ -50,8 +51,8 @@ const UserAccountsPanel = () => {
     setLoading(true);
     try {
       const [usersRes, rolesRes] = await Promise.all([
-        api.get('/users/'),
-        api.get('/roles/'),
+        apiGetAll('/users/'),
+        apiGetAll('/roles/'),
       ]);
       setUsers(usersRes.data.results || usersRes.data);
       setRoles(rolesRes.data.results || rolesRes.data);

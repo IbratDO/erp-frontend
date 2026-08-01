@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts } from '../utils/catalogCache';
 import { productCostPickerLabel } from '../utils/productCost';
 import { plannedSellingSummary } from '../utils/orderPlannedPricing';
@@ -144,7 +145,7 @@ const Inventory = () => {
 
   const fetchInventory = async () => {
     try {
-      const response = await api.get('/inventory/layers/');
+      const response = await apiGetAll('/inventory/layers/');
       const inventoryList = response.data.results || response.data;
       setInventory(inventoryList);
       applyFilters(inventoryList);

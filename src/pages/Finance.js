@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Trans } from 'react-i18next';
 import api from '../utils/api';
+import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import useAppTranslation from '../hooks/useAppTranslation';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
@@ -161,7 +162,7 @@ const Finance = () => {
 
   const fetchWorkers = async () => {
     try {
-      const response = await api.get('/workers/');
+      const response = await apiGetAll('/workers/');
       setWorkers(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching workers:', error);
@@ -201,7 +202,7 @@ const Finance = () => {
       
       if (params.toString()) url += `?${params.toString()}`;
 
-      const response = await api.get(url);
+      const response = await apiGetAll(url);
       setRecords(response.data.results || response.data);
     } catch (error) {
       console.error('Error fetching finance records:', error);
