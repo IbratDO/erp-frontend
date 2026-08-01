@@ -836,6 +836,9 @@ const Packages = () => {
               <SortableTh columnId="id" sortCol={pkgHistSort.sortCol} sortDir={pkgHistSort.sortDir} onSort={pkgHistSort.onHeaderClick}>
                 {t('table.id', { ns: 'common' })}
               </SortableTh>
+              {/* Actions sit right after ID so the buttons stay reachable without scrolling
+                  to the far edge of a wide table. */}
+              <th>{t('table.actions', { ns: 'common' })}</th>
               <SortableTh columnId="package_type" sortCol={pkgHistSort.sortCol} sortDir={pkgHistSort.sortDir} onSort={pkgHistSort.onHeaderClick}>
                 {t('inventory.packageType')}
               </SortableTh>
@@ -863,7 +866,6 @@ const Packages = () => {
               <SortableTh columnId="date" sortCol={pkgHistSort.sortCol} sortDir={pkgHistSort.sortDir} onSort={pkgHistSort.onHeaderClick}>
                 {t('history.date')}
               </SortableTh>
-              <th>{t('table.actions', { ns: 'common' })}</th>
             </tr>
           </thead>
           <tbody>
@@ -883,6 +885,43 @@ const Packages = () => {
                 return (
                 <tr key={historyItem.id}>
                   <td>#{historyItem.id}</td>
+                  <td>
+                    {historyItem.status === 'ordered' && (canMarkPaid || canMarkReceivedAndPay) && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                        {canMarkPaid && (
+                        <button
+                          type="button"
+                          className="btn-status"
+                          onClick={() => openPaymentForm(historyItem.id, 'pay')}
+                        >
+                          {t('actions.pay')}
+                        </button>
+                        )}
+                        {canMarkReceivedAndPay && (
+                        <button
+                          type="button"
+                          className="btn-primary"
+                          style={{ fontSize: '0.85em', padding: '4px 8px' }}
+                          onClick={() => openPaymentForm(historyItem.id, 'pay_receive')}
+                        >
+                          {t('actions.payAndReceive')}
+                        </button>
+                        )}
+                      </div>
+                    )}
+                    {historyItem.status === 'order_paid' && canMarkReceived && (
+                      <button
+                        type="button"
+                        className="btn-status"
+                        onClick={() => openPaymentForm(historyItem.id, 'receive')}
+                      >
+                        {t('actions.receiveStock')}
+                      </button>
+                    )}
+                    {(historyItem.status === 'paid' || historyItem.status === 'received') && (
+                      <span style={{ color: '#adb5bd' }}>—</span>
+                    )}
+                  </td>
                   <td>
                     <strong>
                       {t('history.packageLabel', {
@@ -928,43 +967,6 @@ const Packages = () => {
                   </td>
                   <td>{historyItem.created_by_detail?.username || '-'}</td>
                   <td>{formatAppDateTime(historyItem.created_at)}</td>
-                  <td>
-                    {historyItem.status === 'ordered' && (canMarkPaid || canMarkReceivedAndPay) && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                        {canMarkPaid && (
-                        <button
-                          type="button"
-                          className="btn-status"
-                          onClick={() => openPaymentForm(historyItem.id, 'pay')}
-                        >
-                          {t('actions.pay')}
-                        </button>
-                        )}
-                        {canMarkReceivedAndPay && (
-                        <button
-                          type="button"
-                          className="btn-primary"
-                          style={{ fontSize: '0.85em', padding: '4px 8px' }}
-                          onClick={() => openPaymentForm(historyItem.id, 'pay_receive')}
-                        >
-                          {t('actions.payAndReceive')}
-                        </button>
-                        )}
-                      </div>
-                    )}
-                    {historyItem.status === 'order_paid' && canMarkReceived && (
-                      <button
-                        type="button"
-                        className="btn-status"
-                        onClick={() => openPaymentForm(historyItem.id, 'receive')}
-                      >
-                        {t('actions.receiveStock')}
-                      </button>
-                    )}
-                    {(historyItem.status === 'paid' || historyItem.status === 'received') && (
-                      <span style={{ color: '#adb5bd' }}>—</span>
-                    )}
-                  </td>
                 </tr>
                 );
               })
@@ -972,7 +974,8 @@ const Packages = () => {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan="2" style={{ textAlign: 'right' }}>
+              {/* ID + Amallar + package type */}
+              <td colSpan="3" style={{ textAlign: 'right' }}>
                 {t('history.total')}
               </td>
               <td style={{ fontWeight: 600 }}>{formatAppNumber(packageHistoryTotals.quantityAdded)}</td>
@@ -997,7 +1000,7 @@ const Packages = () => {
               <td style={{ fontSize: '0.9em', fontWeight: 600 }}>
                 {formatHistoryUsd(packageHistoryTotals.sumUsd)}
               </td>
-              <td>—</td>
+              {/* added_by, date */}
               <td>—</td>
               <td>—</td>
             </tr>
