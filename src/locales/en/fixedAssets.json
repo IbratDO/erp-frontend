@@ -66,6 +66,7 @@
     "writeOff": "Write off",
     "remove": "Remove"
   },
+  "confirmUnderpayment": "This payment is less than the purchase cost.\n\nCost: {{cost}} {{currency}}\nPaying: {{paid}} {{currency}}\nShort by: {{shortfall}} {{currency}}\n\nIf you continue this is treated as a discount: the asset's cost becomes {{paid}} {{currency}} and nothing stays owed.\n\nContinue?",
   "confirmWriteOff": "Write off \"{{name}}\"? Remaining book value will be expensed.",
   "confirmDelete": "Remove purchase order for \"{{name}}\"? Payable will be cancelled.",
   "promptWriteOffNotes": "Notes for write-off (optional):",

@@ -66,6 +66,7 @@
     "writeOff": "Hisobdan chiqarish",
     "remove": "Olib tashlash"
   },
+  "confirmUnderpayment": "To‘lov summasi xarid narxidan kam.\n\nNarx: {{cost}} {{currency}}\nTo‘lov: {{paid}} {{currency}}\nFarq: {{shortfall}} {{currency}}\n\nDavom etsangiz, bu chegirma sifatida qabul qilinadi: vosita narxi {{paid}} {{currency}} ga o‘zgartiriladi va hech qanday qarz qolmaydi.\n\nDavom etasizmi?",
   "confirmWriteOff": "\"{{name}}\" hisobdan chiqarilsinmi? Qolgan balans qiymati xarajatga yoziladi.",
   "confirmDelete": "\"{{name}}\" uchun xarid buyurtmasi olib tashlansinmi? Kreditorlik bekor qilinadi.",
   "promptWriteOffNotes": "Hisobdan chiqarish izohi (ixtiyoriy):",

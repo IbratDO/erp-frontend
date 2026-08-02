@@ -95,6 +95,9 @@ const BalanceSheet = () => {
     assets?.current?.product_receivables?.total_usd
     ?? assets?.current?.supplier_advances_usd
     ?? 0;
+  // Ordered, not paid for, not yet in inventory — the debit matching the supplier payable
+  // an order books at creation. Absent on responses from an older backend, hence the ?? 0.
+  const unpaidOrderRecv = assets?.current?.unpaid_order_receivables?.total_usd ?? 0;
   const fixedAssetRecv = assets?.current?.fixed_asset_receivables?.total_usd ?? 0;
 
   const inv = assets?.current?.inventory;
@@ -258,6 +261,11 @@ const BalanceSheet = () => {
                     <LineRow
                       label={t('assets.productReceivables')}
                       value={formatUsd(productRecv)}
+                      indent={1}
+                    />
+                    <LineRow
+                      label={t('assets.unpaidOrderReceivables')}
+                      value={formatUsd(unpaidOrderRecv)}
                       indent={1}
                     />
                     <LineRow

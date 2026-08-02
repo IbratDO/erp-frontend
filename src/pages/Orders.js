@@ -490,17 +490,12 @@ const Orders = () => {
   const canSellProduct = hasPermission('orders.sell_product');
   const canUpdateStatus = hasPermission('orders.update_status');
   const canMarkAsOrdered = hasPermission('orders.mark_as_ordered');
-  // Edit Cargo Cost is only for roles that cannot pay cargo (Purchasing Agent).
-  // Roles with Pay Cargo set/change the amount in the pay-cargo flow.
-  const canEditCargoCost =
-    hasPermission('orders.edit_cargo_cost') && !hasPermission('orders.pay_cargo');
   const canCancelOrder = hasPermission('orders.cancel');
   const canPostOrderStatus = hasAnyPermission(['orders.update_status', 'orders.move_to_inventory']);
   const canManageStockOrders = canUpdateStatus || isOperationalSenior(user);
-  // Purchasing Agent must see stock + on-demand rows to mark Ordered / edit cargo.
+  // Purchasing Agent must see stock + on-demand rows to mark Ordered.
   // Sales managers without stock workflow still see on-demand only.
-  const canSeeStockOrders =
-    canManageStockOrders || canMarkAsOrdered || canEditCargoCost;
+  const canSeeStockOrders = canManageStockOrders || canMarkAsOrdered;
   const orderTableColumnCount = canSeeStockOrders ? 28 : 27;
   const orderFooterLabelColSpan = canSeeStockOrders ? 15 : 14;
   /** Ledger totals for pay flows and move-to-inventory advance refunds (not bare status updates). */
@@ -571,14 +566,6 @@ const Orders = () => {
     weight: '',
   });
   const [showCargoForm, setShowCargoForm] = useState(false);
-  const [editCargoFormData, setEditCargoFormData] = useState({
-    orderId: null,
-    uzs: '',
-    usd: '',
-    notes: '',
-  });
-  const [showEditCargoForm, setShowEditCargoForm] = useState(false);
-  const editCargoFormRef = useRef(null);
   const [markOrderedFormData, setMarkOrderedFormData] = useState({
     orderId: null,
     notes: '',
@@ -1364,7 +1351,6 @@ const Orders = () => {
       notes: order.ordered_note || '',
     });
     setShowMarkOrderedForm(true);
-    setShowEditCargoForm(false);
     setTimeout(() => markOrderedFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
@@ -1446,57 +1432,6 @@ const Orders = () => {
     });
     setShowCargoForm(true);
     setTimeout(() => cargoFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-  };
-
-  const handleEditCargoCost = (orderId) => {
-    const order = orders.find((o) => o.id === orderId);
-    if (!order || ORDER_TERMINAL_STATUSES.has(order.status)) {
-      showNotification(t('notifications.cargoCostTerminal'), 'error');
-      return;
-    }
-    if (order.status === 'order_created') {
-      showNotification(t('notifications.editCargoAfterOrdered'), 'error');
-      return;
-    }
-    if (order.cargo_is_paid) {
-      showNotification(t('notifications.cargoCostAlreadyPaid'), 'error');
-      return;
-    }
-    setEditCargoFormData({
-      orderId,
-      uzs: order.cargo_cost_uzs != null && Number(order.cargo_cost_uzs) > 0 ? String(order.cargo_cost_uzs) : '',
-      usd: order.cargo_cost_usd != null && Number(order.cargo_cost_usd) > 0 ? String(order.cargo_cost_usd) : '',
-      notes: order.ordered_note || '',
-    });
-    setShowEditCargoForm(true);
-    setShowMarkOrderedForm(false);
-    setTimeout(() => editCargoFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-  };
-
-  const handleEditCargoCostSubmit = async (e) => {
-    e.preventDefault();
-    const notes = String(editCargoFormData.notes || '').trim();
-    if (!notes) {
-      showNotification(t('notifications.orderedNoteRequired'), 'error');
-      return;
-    }
-    try {
-      await api.post(`/orders/${editCargoFormData.orderId}/edit_cargo_cost/`, {
-        cargo_cost_uzs: editCargoFormData.uzs === '' ? 0 : Number(editCargoFormData.uzs) || 0,
-        cargo_cost_usd: editCargoFormData.usd === '' ? 0 : Number(editCargoFormData.usd) || 0,
-        notes,
-      });
-      setShowEditCargoForm(false);
-      setEditCargoFormData({ orderId: null, uzs: '', usd: '', notes: '' });
-      await fetchOrders();
-      showNotification(t('notifications.cargoCostUpdated'), 'success');
-    } catch (error) {
-      console.error('Error updating cargo cost:', error);
-      showNotification(
-        error.response?.data?.error || error.response?.data?.detail || t('notifications.cargoCostUpdateError'),
-        'error',
-      );
-    }
   };
 
   const handleMarkAsOrderedGroup = (groupOrders) => {
@@ -2395,18 +2330,6 @@ const Orders = () => {
               {t('actions.payCargo', { ns: 'orders' })}
             </button>
           )}
-          {canEditCargoCost &&
-            order.status !== 'order_created' &&
-            !ORDER_TERMINAL_STATUSES.has(order.status) &&
-            !order.cargo_is_paid && (
-            <button
-              className="btn-status"
-              onClick={() => handleEditCargoCost(order.id)}
-              style={{ marginRight: '5px' }}
-            >
-              {t('actions.editCargoCost', { ns: 'orders' })}
-            </button>
-          )}
           {order.shortfall_status === 'pending' && canUpdateStatus && (
             <button
               className="btn-status"
@@ -3005,67 +2928,6 @@ const Orders = () => {
         </div>
         );
       })()}
-
-      {showEditCargoForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={editCargoFormRef}>
-          <h2>{t('editCargoForm.title', { id: editCargoFormData.orderId })}</h2>
-          {renderOrderContextCard(editCargoFormData.orderId, { showCargo: true })}
-          <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
-            {t('editCargoForm.intro')}
-          </p>
-          <form onSubmit={handleEditCargoCostSubmit}>
-            <div className="form-grid">
-              <div className="form-group">
-                <label>{uzsLabel}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0"
-                  value={editCargoFormData.uzs}
-                  onChange={(e) => setEditCargoFormData({ ...editCargoFormData, uzs: e.target.value })}
-                />
-              </div>
-              <div className="form-group">
-                <label>{t('currency.usd', { ns: 'common' })}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="0"
-                  value={editCargoFormData.usd}
-                  onChange={(e) => setEditCargoFormData({ ...editCargoFormData, usd: e.target.value })}
-                />
-              </div>
-              <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                <label>{t('editCargoForm.notes')} *</label>
-                <textarea
-                  rows={3}
-                  required
-                  value={editCargoFormData.notes}
-                  onChange={(e) => setEditCargoFormData({ ...editCargoFormData, notes: e.target.value })}
-                  placeholder={t('editCargoForm.notesPlaceholder')}
-                />
-              </div>
-            </div>
-            <div className="form-actions">
-              <button type="submit" className="btn-primary">
-                {t('actions.saveCargoCost', { ns: 'orders' })}
-              </button>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowEditCargoForm(false);
-                  setEditCargoFormData({ orderId: null, uzs: '', usd: '', notes: '' });
-                }}
-              >
-                {t('actions.cancel', { ns: 'common' })}
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
 
       {showMarkOrderedGroupForm && canMarkAsOrdered && (() => {
         const markOrderedGroupOrder = orders.find((o) => o.order_group === markOrderedGroupData.groupId);

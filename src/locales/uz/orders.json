@@ -106,8 +106,6 @@
   "actions": {
     "payOrder": "Buyurtmani to‘lash",
     "payCargo": "Yukni to‘lash",
-    "editCargoCost": "Yuk narxini tahrirlash",
-    "saveCargoCost": "Yuk narxini saqlash",
     "cancelOrder": "Buyurtmani bekor qilish",
     "markAsOrdered": "Buyurtma berildi deb belgilash",
     "markReceived": "Qabul qilindi deb belgilash",
@@ -192,12 +190,6 @@
     "notes": "Izoh",
     "notesPlaceholder": "Nima buyurtma qilindi / tasdiq / ma’lumotnoma"
   },
-  "editCargoForm": {
-    "title": "Yuk narxini tahrirlash — Buyurtma #{{id}}",
-    "intro": "Rejalashtirilgan yuk narxi va izohni yangilang. Boshqa maydonlar o‘zgarmaydi.",
-    "notes": "Izoh",
-    "notesPlaceholder": "Xarid izohini yangilang"
-  },
   "moveForm": {
     "title": "Omborga o‘tkazish — Buyurtma #{{id}}",
     "returnAdvance": "Mijozga oldindan to‘lovni qaytarish — qayd etilgan oldindan to‘lov:",
@@ -274,7 +266,6 @@
     "groupCancelled": "Ko‘p mahsulotli buyurtma bekor qilindi.",
     "statusUpdateError": "Holatni yangilashda xatolik",
     "orderedNoteRequired": "Izoh kiriting.",
-    "editCargoAfterOrdered": "Avval «Buyurtma berildi deb belgilash», keyin yuk narxini tahrirlashingiz mumkin.",
     "notesRequired": "Ushbu buyurtma yangilanishi uchun izoh kiriting.",
     "paymentAmountRequired": "Kamida bitta to‘lov summasi kiriting.",
     "orderPaidSuccess": "Buyurtma to‘lovi muvaffaqiyatli yakunlandi!",
@@ -293,10 +284,6 @@
     "moveInventoryError": "Omborga o‘tkazishda xatolik",
     "advanceReturnRequired": "Qaytariladigan oldindan to‘lov summasini kiriting (noldan katta).",
     "advanceReturnExceeds": "Qaytarish summasi qayd etilgan oldindan to‘lovdan ({{booked}}) oshmasligi kerak.",
-    "cargoCostUpdated": "Yuk narxi muvaffaqiyatli yangilandi.",
-    "cargoCostUpdateError": "Yuk narxini yangilashda xatolik",
-    "cargoCostTerminal": "Buyurtma yakunlangandan keyin yuk narxini tahrirlab bo‘lmaydi.",
-    "cargoCostAlreadyPaid": "Yuk to‘langandan keyin yuk narxini tahrirlab bo‘lmaydi.",
     "noCancelPermission": "Buyurtmani bekor qilish uchun ruxsatingiz yo‘q.",
     "orderCancelled": "Buyurtma muvaffaqiyatli bekor qilindi.",
     "orderCancelError": "Buyurtmani bekor qilishda xatolik",

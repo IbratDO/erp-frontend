@@ -184,20 +184,48 @@ const FixedAssets = () => {
       }
     }
 
-    try {
-      let url = '';
-      if (paymentForm.action === 'pay') url = `/fixed-assets/${asset.id}/pay_purchase/`;
-      else if (paymentForm.action === 'receive') url = `/fixed-assets/${asset.id}/receive_asset/`;
-      else if (paymentForm.action === 'sell') url = `/fixed-assets/${asset.id}/sell_asset/`;
+    let url = '';
+    if (paymentForm.action === 'pay') url = `/fixed-assets/${asset.id}/pay_purchase/`;
+    else if (paymentForm.action === 'receive') url = `/fixed-assets/${asset.id}/receive_asset/`;
+    else if (paymentForm.action === 'sell') url = `/fixed-assets/${asset.id}/sell_asset/`;
 
-      await api.post(url, payload);
+    const finish = () => {
       setShowPaymentForm(false);
       setPaymentForm(defaultPaymentState);
       fetchAssets();
       fetchBalances();
       showNotification(t('notifications.updated'));
+    };
+
+    try {
+      await api.post(url, payload);
+      finish();
     } catch (err) {
-      showNotification(formatApiError(err.response?.data) || t('notifications.actionFailed'), 'error');
+      const data = err.response?.data;
+      // Paying less than the recorded cost is allowed, but only once the user has seen what
+      // it does: the asset's cost drops to what was actually handed over.
+      if (data?.code === 'fixed_asset_underpayment') {
+        const confirmed = window.confirm(
+          t('confirmUnderpayment', {
+            cost: formatAppNumber(data.cost),
+            paid: formatAppNumber(data.paid),
+            shortfall: formatAppNumber(data.shortfall),
+            currency: formatCurrency(data.currency),
+          })
+        );
+        if (!confirmed) return;
+        try {
+          await api.post(url, { ...payload, confirm_underpayment: true });
+          finish();
+        } catch (retryErr) {
+          showNotification(
+            formatApiError(retryErr.response?.data) || t('notifications.actionFailed'),
+            'error'
+          );
+        }
+        return;
+      }
+      showNotification(formatApiError(data) || t('notifications.actionFailed'), 'error');
     }
   };
 

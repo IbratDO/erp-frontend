@@ -33,6 +33,7 @@
     "bank": "Bank",
     "customerReceivables": "Customer receivables (unpaid sales)",
     "productReceivables": "Product receivables (prepaid orders, goods in transit)",
+    "unpaidOrderReceivables": "Product receivables (unpaid orders)",
     "fixedAssetReceivables": "Fixed asset receivables (paid, not yet received)",
     "products": "Products",
     "packages": "Packages",

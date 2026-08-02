@@ -33,6 +33,7 @@
     "bank": "Bank",
     "customerReceivables": "Mijoz debitorligi (to‘lanmagan sotuvlar)",
     "productReceivables": "Mahsulot debitorligi (oldindan to‘langan buyurtmalar, yo‘lda)",
+    "unpaidOrderReceivables": "Mahsulot debitorligi (hali to‘lanmagan buyurtmalar)",
     "fixedAssetReceivables": "Asosiy vosita debitorligi (to‘langan, hali olinmagan)",
     "products": "Mahsulotlar",
     "packages": "Qadoqlar",

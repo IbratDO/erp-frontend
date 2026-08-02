@@ -106,8 +106,6 @@
   "actions": {
     "payOrder": "Pay for the Order",
     "payCargo": "Pay for the Cargo",
-    "editCargoCost": "Edit Cargo Cost",
-    "saveCargoCost": "Save Cargo Cost",
     "cancelOrder": "Cancel Order",
     "markAsOrdered": "Mark as Ordered",
     "markReceived": "Mark as Received",
@@ -192,12 +190,6 @@
     "notes": "Note",
     "notesPlaceholder": "What was ordered / supplier confirmation / reference"
   },
-  "editCargoForm": {
-    "title": "Edit Cargo Cost - Order #{{id}}",
-    "intro": "Update planned cargo cost and the ordered note. Other order fields stay read-only.",
-    "notes": "Note",
-    "notesPlaceholder": "Update the procurement note"
-  },
   "moveForm": {
     "title": "Move to Inventory - Order #{{id}}",
     "returnAdvance": "Return advance payment to customer — recorded advance:",
@@ -274,7 +266,6 @@
     "groupCancelled": "Multi-item order cancelled.",
     "statusUpdateError": "Error updating status",
     "orderedNoteRequired": "Please enter a note.",
-    "editCargoAfterOrdered": "Mark as Ordered first, then you can edit cargo cost.",
     "notesRequired": "Please enter notes for this order update.",
     "paymentAmountRequired": "Please enter at least one payment amount.",
     "orderPaidSuccess": "Order payment completed successfully!",
@@ -293,10 +284,6 @@
     "moveInventoryError": "Error moving to inventory",
     "advanceReturnRequired": "Enter how much advance to return (greater than zero).",
     "advanceReturnExceeds": "Return amount cannot exceed the recorded advance ({{booked}}).",
-    "cargoCostUpdated": "Cargo cost updated successfully.",
-    "cargoCostUpdateError": "Error updating cargo cost",
-    "cargoCostTerminal": "Cargo cost cannot be edited after the order is finished.",
-    "cargoCostAlreadyPaid": "Cargo cost cannot be edited after cargo has been paid.",
     "noCancelPermission": "You do not have permission to cancel orders.",
     "orderCancelled": "Order cancelled successfully.",
     "orderCancelError": "Error cancelling order",
