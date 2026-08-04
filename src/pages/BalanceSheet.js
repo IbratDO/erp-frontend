@@ -104,6 +104,10 @@ const BalanceSheet = () => {
   const invTotal = parseFloat(inv?.total_usd) || 0;
   const packageUsd = parseFloat(inv?.package_value_usd) || 0;
   const productInvUsd = Math.max(invTotal - packageUsd, 0);
+  // Declined delivery items the courier still holds, and the margin on goods already sold but
+  // not yet paid for. Both absent on responses from an older backend, hence the ?? 0.
+  const goodsWithCourier = assets?.current?.goods_with_courier?.total_usd ?? 0;
+  const expectedProfit = equity?.expected_profit_usd ?? 0;
 
   const faNonCurrent =
     assets?.non_current?.fixed_assets_usd
@@ -277,6 +281,13 @@ const BalanceSheet = () => {
                     <SectionHeader number={3} title={t('assets.sections.inventory')} />
                     <LineRow label={t('assets.products')} value={formatUsd(productInvUsd)} indent={1} />
                     <LineRow label={packageLabel} value={formatUsd(packageUsd)} indent={1} />
+                    {goodsWithCourier > 0.005 && (
+                      <LineRow
+                        label={t('assets.goodsWithCourier')}
+                        value={formatUsd(goodsWithCourier)}
+                        indent={1}
+                      />
+                    )}
 
                     {prepaid > 0.005 && (
                       <LineRow label={t('assets.prepaidExpenses')} value={formatUsd(prepaid)} indent={1} />
@@ -335,6 +346,11 @@ const BalanceSheet = () => {
                     <LineRow
                       label={t('equity.currentPeriodPl')}
                       value={formatUsd(equity?.current_period_profit_usd)}
+                      indent={1}
+                    />
+                    <LineRow
+                      label={t('equity.expectedProfit')}
+                      value={formatUsd(expectedProfit)}
                       indent={1}
                     />
                     <LineRow

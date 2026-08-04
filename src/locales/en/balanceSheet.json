@@ -38,6 +38,7 @@
     "products": "Products",
     "packages": "Packages",
     "packagesWithUnits": "Packages ({{units}} units)",
+    "goodsWithCourier": "Goods with courier (awaiting return)",
     "prepaidExpenses": "Prepaid expenses",
     "fixedAssetsOnBooks": "Fixed assets (on the books)"
   },
@@ -56,6 +57,7 @@
     "ownerCapital": "Owner capital (net contributions)",
     "retainedEarnings": "Retained earnings (prior periods)",
     "currentPeriodPl": "Current period profit / loss (P&L)",
+    "expectedProfit": "Expected profit/loss (sold, unpaid)",
     "currencyConversionPl": "Current difference from currency operations (profit/loss)"
   },
   "notes": "Notes"
