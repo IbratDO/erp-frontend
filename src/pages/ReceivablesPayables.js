@@ -187,6 +187,8 @@ const ReceivablesPayables = () => {
   const { hasPermission } = usePermissions();
   const canCollect = hasPermission('receivables.collect');
   const canRefundDeposit = hasPermission('payables.refund_deposit');
+  const canPayDispatchFee = hasPermission('payables.pay_dispatch_fee');
+  const canCancelDispatchFee = hasPermission('payables.cancel_dispatch_fee');
   const [activeTab, setActiveTab] = useState('receivables');
   const [receivables, setReceivables] = useState([]);
   const [payables, setPayables] = useState([]);
@@ -383,6 +385,24 @@ const ReceivablesPayables = () => {
     } catch (error) {
       console.error(error);
       alert(error.response?.data?.error || t('notifications.refundDepositFailed'));
+    }
+  };
+
+  // A cancelled sale keeps its courier fee: the trip happened, so it is still owed or waived.
+  const isStrandedDispatchFee = (payable) =>
+    !!payable.dispatch &&
+    payable.status === 'pending' &&
+    payable.dispatch_detail?.sale_detail?.status === 'cancelled';
+
+  const handleDispatchFeeAction = async (payable, endpoint, confirmKey, failKey) => {
+    if (!window.confirm(t(confirmKey))) return;
+    try {
+      const res = await api.post(`/payables/${payable.id}/${endpoint}/`);
+      alert(res.data?.message || t('notifications.paid'));
+      fetchPayables();
+    } catch (error) {
+      console.error(error);
+      alert(error.response?.data?.error || t(failKey));
     }
   };
 
@@ -896,6 +916,43 @@ const ReceivablesPayables = () => {
                           >
                             {t('payablesTable.returnDeposit')}
                           </button>
+                        ) : isStrandedDispatchFee(payable) &&
+                          (canPayDispatchFee || canCancelDispatchFee) ? (
+                          <>
+                            {canPayDispatchFee && (
+                              <button
+                                type="button"
+                                className="btn-edit"
+                                style={{ marginRight: '5px' }}
+                                onClick={() =>
+                                  handleDispatchFeeAction(
+                                    payable,
+                                    'pay_dispatch_fee',
+                                    'notifications.confirmPayDispatchFee',
+                                    'notifications.payDispatchFeeFailed'
+                                  )
+                                }
+                              >
+                                {t('payablesTable.payDispatchFee')}
+                              </button>
+                            )}
+                            {canCancelDispatchFee && (
+                              <button
+                                type="button"
+                                className="btn-delete"
+                                onClick={() =>
+                                  handleDispatchFeeAction(
+                                    payable,
+                                    'cancel_dispatch_fee',
+                                    'notifications.confirmCancelDispatchFee',
+                                    'notifications.cancelDispatchFeeFailed'
+                                  )
+                                }
+                              >
+                                {t('payablesTable.cancelDispatchFee')}
+                              </button>
+                            )}
+                          </>
                         ) : payable.finance_record && payable.status === 'pending' ? (
                           <button type="button" className="btn-edit" onClick={() => handleSettleManualPayable(payable)}>
                             {t('payablesTable.pay')}

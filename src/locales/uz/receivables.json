@@ -77,7 +77,9 @@
     "pay": "To‘lash",
     "returnDeposit": "Depositni qaytarish",
     "footerSupplier": "Yetkazuvchi / kuryer / qadoq (kutilmoqda)",
-    "footerDeposits": "Mijoz depozitlari (on-demand, hali sotilmagan)"
+    "footerDeposits": "Mijoz depozitlari (on-demand, hali sotilmagan)",
+    "payDispatchFee": "Kuryer haqini to‘lash",
+    "cancelDispatchFee": "Kuryer haqini bekor qilish"
   },
   "saleTypes": {
     "bought_from_shop": "Do‘kon",
@@ -121,6 +123,10 @@
     "depositRefunded": "Mijoz depoziti qaytarildi.",
     "refundDepositFailed": "Mijoz depozitini qaytarib bo‘lmadi.",
     "paid": "To‘landi.",
-    "settleFailed": "Kreditorni yakunlab bo‘lmadi."
+    "settleFailed": "Kreditorni yakunlab bo‘lmadi.",
+    "confirmPayDispatchFee": "Bekor qilingan sotuv uchun kuryer haqi to‘lansinmi? Pul balansi kamayadi va joriy foyda/zarar shu miqdorda kamayadi.",
+    "payDispatchFeeFailed": "Kuryer haqini to‘lab bo‘lmadi.",
+    "confirmCancelDispatchFee": "Kuryer haqi bekor qilinsinmi? Kuryerga to‘lanmaydi, pul balansi o‘zgarmaydi.",
+    "cancelDispatchFeeFailed": "Kuryer haqini bekor qilib bo‘lmadi."
   }
 }

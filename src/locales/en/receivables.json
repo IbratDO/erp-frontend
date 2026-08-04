@@ -77,7 +77,9 @@
     "pay": "Pay",
     "returnDeposit": "Return deposit",
     "footerSupplier": "Supplier / courier / package (pending)",
-    "footerDeposits": "Customer deposits (on-demand, not sold yet)"
+    "footerDeposits": "Customer deposits (on-demand, not sold yet)",
+    "payDispatchFee": "Pay courier fee",
+    "cancelDispatchFee": "Cancel courier fee"
   },
   "saleTypes": {
     "bought_from_shop": "Shop",
@@ -121,6 +123,10 @@
     "depositRefunded": "Customer deposit returned.",
     "refundDepositFailed": "Could not return customer deposit.",
     "paid": "Paid.",
-    "settleFailed": "Could not settle payable."
+    "settleFailed": "Could not settle payable.",
+    "confirmPayDispatchFee": "Pay the courier fee for this cancelled sale? Money Balance will decrease and current profit/loss will fall by the same amount.",
+    "payDispatchFeeFailed": "Could not pay the courier fee.",
+    "confirmCancelDispatchFee": "Cancel this courier fee? The courier will not be paid and Money Balance is unchanged.",
+    "cancelDispatchFeeFailed": "Could not cancel the courier fee."
   }
 }
