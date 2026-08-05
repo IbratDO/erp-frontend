@@ -7,6 +7,7 @@ import PageTitle from '../components/PageTitle';
 import { formatAppNumber } from '../utils/localeFormat';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 const EMPTY_FILTERS = {
   employee: '',
@@ -232,10 +233,7 @@ const Jarimalar = () => {
               </div>
               <div className="form-group">
                 <label>{t('form.amount')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={form.amount}
                   onChange={(e) => setForm({ ...form, amount: e.target.value })}
                   required

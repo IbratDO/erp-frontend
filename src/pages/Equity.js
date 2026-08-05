@@ -6,6 +6,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 const Equity = () => {
   const { t } = useAppTranslation(['equity', 'common']);
@@ -137,10 +138,7 @@ const Equity = () => {
               </div>
               <div className="form-group">
                 <label>{t('form.amount')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   required
                   value={form.amount}
                   onChange={(e) => setForm({ ...form, amount: e.target.value })}

@@ -122,6 +122,29 @@ export function aggregateGroupSales(groupSales) {
   };
 }
 
+/**
+ * The one status a multi-item group shows.
+ *
+ * Cancelled lines do not speak for the group. Selling two items by delivery and having the
+ * customer refuse one leaves that line `cancelled` while the other completes — the group is
+ * not cancelled, it is completed with one item returned, and the declined count says the
+ * rest. Reading the raw `statuses[0]` labelled such a group **Bekor qilindi** purely because
+ * the refused line happened to sort first.
+ *
+ * Only when *every* line is cancelled is the group itself cancelled. Genuine disagreement
+ * between still-open lines is 'mixed'.
+ *
+ * Single source of truth on purpose: the table badge and the sort accessor both call this,
+ * and they previously implemented the rule differently — the row sorted as completed and
+ * displayed as cancelled.
+ */
+export function groupDisplayStatus(agg) {
+  if (agg?.activeStatuses?.length) {
+    return agg.hasMixedStatus ? 'mixed' : agg.activeStatuses[0];
+  }
+  return agg?.statuses?.[0] || 'cancelled';
+}
+
 /** Synthetic sale object for combined Complete & Pay on a group. */
 export function buildCombinedSaleForGroup(groupSales) {
   if (!groupSales?.length) return null;
@@ -148,11 +171,7 @@ export function buildCombinedSaleForGroup(groupSales) {
 export function saleLikeForDisplayRow(row) {
   if (row.type === 'single') return row.sale;
   const agg = aggregateGroupSales(row.sales);
-  // Status reflects the still-active lines; only falls back to 'cancelled' when every line in
-  // the group is cancelled (declined items excluded from this, per aggregateGroupSales).
-  const displayStatus = agg.activeStatuses.length
-    ? (agg.hasMixedStatus ? 'pending' : agg.activeStatuses[0])
-    : (agg.statuses[0] || 'cancelled');
+  const displayStatus = groupDisplayStatus(agg);
   return {
     ...agg.first,
     id: agg.first?.id ?? 0,

@@ -9,6 +9,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 const PKG_INV_SORT = {
   package_type: (r) => String(r.package_type ?? '').toLowerCase(),
@@ -619,10 +620,7 @@ const Packages = () => {
               </div>
               <div className="form-group">
                 <label>{t('form.costUzs')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={formData.cost_per_unit_uzs}
                   onChange={(e) => setFormData({ ...formData, cost_per_unit_uzs: e.target.value })}
                   placeholder="0"
@@ -630,10 +628,7 @@ const Packages = () => {
               </div>
               <div className="form-group">
                 <label>{t('form.costUsd')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={formData.cost_per_unit_usd}
                   onChange={(e) => setFormData({ ...formData, cost_per_unit_usd: e.target.value })}
                   placeholder={formData.package_type === 'L' ? '2.00' : '1.00'}

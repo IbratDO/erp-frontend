@@ -145,8 +145,9 @@ const TAB_INVENTORY = 'inventory';
 
 const DashboardModern = () => {
   const { hasPermission, roleCode, isTargetolog } = usePermissions();
-  const { t, monthOptions } = useAppTranslation(['dashboard', 'common']);
-  const td = (key, opts) => t(key, { ns: 'dashboard', ...opts });
+  const { t, tStatus, monthOptions } = useAppTranslation(['dashboard', 'common', 'status']);
+  // Memoized so it is stable across renders and can be a useMemo dependency below.
+  const td = useCallback((key, opts) => t(key, { ns: 'dashboard', ...opts }), [t]);
   const targetologView = isTargetolog || roleCode === 'targetolog';
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -271,6 +272,28 @@ const DashboardModern = () => {
   const kpis = analytics?.kpis;
   const filterHint = crossFilterSummary(crossFilter);
   const isExecutiveView = canViewMgmt || Boolean(analytics?.company_wide);
+
+  /** Sub-line for the unfinished-sales card: what the open sales are waiting on, and how
+   *  long the oldest has been waiting. Falls back to the scope label when there are none,
+   *  so the card never reads as a bare "0" with no context. */
+  const unfinishedSalesSub = useMemo(() => {
+    const total = kpis?.unfinished_sales ?? 0;
+    if (!total) return td('unfinishedSalesNone');
+
+    const byStatus = kpis?.unfinished_sales_by_status || {};
+    const breakdown = Object.entries(byStatus)
+      .sort((a, b) => b[1] - a[1])
+      .map(([status, n]) => `${tStatus(status, 'sale')}: ${n}`)
+      .join(' · ');
+
+    const oldest = kpis?.unfinished_oldest_date;
+    if (!oldest) return breakdown;
+    const days = Math.max(
+      0,
+      Math.floor((Date.now() - new Date(`${oldest}T00:00:00`).getTime()) / 86400000),
+    );
+    return `${breakdown} — ${td('unfinishedSalesOldest', { days })}`;
+  }, [kpis, td, tStatus]);
 
   const cbuRateLine = useMemo(() => {
     if (!cbuRate?.rate) return null;
@@ -469,6 +492,14 @@ const DashboardModern = () => {
 
       {activeTab === TAB_SALES && (
         <>
+          <section className="dash-kpi-row">
+            <KpiCard
+              label={td('unfinishedSales')}
+              value={(kpis?.unfinished_sales ?? 0).toLocaleString()}
+              sub={unfinishedSalesSub}
+            />
+          </section>
+
           <section className="dash-section">
             <h2 className="dash-section-title">{td('monthlyPerformance')}</h2>
             <p className="dash-section-hint">{td('monthlyHint')}</p>

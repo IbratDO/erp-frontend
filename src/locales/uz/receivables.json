@@ -19,6 +19,8 @@
     "title": "Filtrlar",
     "status": "Holat",
     "pendingDefault": "Faqat kutilmoqda (standart)",
+    "payableKind": "Kreditorlik turi",
+    "allPayableKinds": "Barcha turlar",
     "year": "Yil",
     "allYears": "Barcha yillar",
     "month": "Oy",

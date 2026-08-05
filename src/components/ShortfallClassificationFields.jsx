@@ -1,4 +1,5 @@
 import React from 'react';
+import AmountInput from './AmountInput';
 
 /**
  * Discount / currency-difference classification for a payment shortfall.
@@ -43,10 +44,8 @@ export default function ShortfallClassificationFields({ form, setForm, meta, t }
           <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
             {t('completePay.discountAmountLabel', { currency: meta.sc || 'UZS/USD' })}
           </label>
-          <input
-            type="number"
+          <AmountInput
             step={meta.sc === 'UZS' ? '1' : '0.01'}
-            min="0"
             value={form.balance_shortfall_amount ?? ''}
             onChange={(e) => setForm((prev) => ({ ...prev, balance_shortfall_amount: e.target.value }))}
           />

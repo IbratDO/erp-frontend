@@ -494,6 +494,14 @@
   color: #721c24;
 }
 
+/* Multi-item group whose still-open lines disagree. Deliberately neutral: it is not a real
+   sale status, and borrowing `pending`'s amber said the whole group was waiting when part of
+   it may already be settled. */
+.status-badge.mixed {
+  background-color: #e2e3e5;
+  color: #383d41;
+}
+
 /* Notification animations */
 @keyframes slideIn {
   from {
@@ -1272,3 +1280,33 @@ input.batch-sale-lines__control[type='number']::-webkit-outer-spin-button {
   }
 }
 
+
+/* —— Money fields (components/AmountInput.jsx) ——
+   Grouped digits ("1 200 000") take more room than the raw number, and these fields hold
+   7-8 digits of soum routinely. Tabular figures stop the groups jittering as you type; the
+   min-width is a floor for the tight layouts (settlement rows, multi-item line tables)
+   where a control would otherwise shrink below its own content. It is deliberately ~10ch,
+   which fits "1 200 000" without forcing the 6-column order grids to overflow. */
+.amount-input {
+  font-variant-numeric: tabular-nums;
+}
+
+.amount-input--wide {
+  min-width: 10ch;
+}
+
+/* Delivery settlement Step 1 puts UZS + USD + a dropdown on one line; money needs the
+   larger share of it now that the digits are grouped. */
+.settlement-line-row .form-group {
+  flex: 1 1 200px;
+}
+
+.batch-sale-lines input.amount-input {
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .amount-input--wide {
+    min-width: 0;
+  }
+}

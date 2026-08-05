@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import AmountInput from '../components/AmountInput';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts } from '../utils/catalogCache';
@@ -48,6 +49,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import {
   buildSaleDisplayRows,
   aggregateGroupSales,
+  groupDisplayStatus,
   buildCombinedSaleForGroup,
   saleLikeForDisplayRow,
   sumSalesDiscountTotals,
@@ -2141,10 +2143,7 @@ const Sales = () => {
               </div>
               <div className="form-group">
                 <label>{t('dispatch.deliveryCost', { currency: dispatchFormData.currency })}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={dispatchFormData.delivery_cost}
                   onChange={(e) => setDispatchFormData({ ...dispatchFormData, delivery_cost: e.target.value })}
                   required
@@ -2243,10 +2242,7 @@ const Sales = () => {
               </div>
               <div className="form-group">
                 <label>{t('completeFromOrder.sellingPrice')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={completeFromOrderData.selling_price ?? ''}
                   onChange={(e) => {
                     setCompleteFromOrderData({
@@ -2301,10 +2297,7 @@ const Sales = () => {
                     <>
                       <div className="form-group">
                         <label>{t('completeFromOrder.depositAmount')}</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                        <AmountInput
                           value={completeFromOrderData.deposit_amount ?? ''}
                           onChange={(e) => {
                             const depositAmount = parseFloat(e.target.value) || 0;
@@ -2369,13 +2362,13 @@ const Sales = () => {
                   </div>
                   <div className="form-group">
                     <label>{t('currency.uzs', { ns: 'common' })}</label>
-                    <input type="number" step="0.01" min="0" placeholder="0"
+                    <AmountInput placeholder="0"
                       value={completeFromOrderData.now_uzs ?? ''}
                       onChange={(e) => setCompleteFromOrderData({ ...completeFromOrderData, now_uzs: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label>{t('currency.usd', { ns: 'common' })}</label>
-                    <input type="number" step="0.01" min="0" placeholder="0"
+                    <AmountInput placeholder="0"
                       value={completeFromOrderData.now_usd ?? ''}
                       onChange={(e) => setCompleteFromOrderData({ ...completeFromOrderData, now_usd: e.target.value })} />
                   </div>
@@ -2516,10 +2509,7 @@ const Sales = () => {
                     <>
                       <div className="form-group">
                         <label>{t('completeFromOrder.depositAmount')}</label>
-                        <input
-                          type="number"
-                          step="0.01"
-                          min="0"
+                        <AmountInput
                           value={completeFromOrderGroupData.deposit_amount ?? ''}
                           onChange={(e) => setCompleteFromOrderGroupData((prev) => ({
                             ...prev, deposit_amount: e.target.value,
@@ -2585,11 +2575,8 @@ const Sales = () => {
                         {renderSaleQuantityCell(line.quantity, line.orderedQuantity, t)}
                       </td>
                       <td className="batch-sale-lines__td--num">
-                        <input
+                        <AmountInput
                           className="batch-sale-lines__control"
-                          type="number"
-                          step="0.01"
-                          min="0"
                           value={line.selling_price ?? ''}
                           onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'selling_price', e.target.value)}
                         />
@@ -2614,11 +2601,8 @@ const Sales = () => {
                           is nothing to take here (see deliveryPaymentLater note above). */}
                       <td className="batch-sale-lines__td--num">
                         {completeFromOrderGroupData.sale_type === 'delivery' ? '—' : (
-                          <input
+                          <AmountInput
                             className="batch-sale-lines__control"
-                            type="number"
-                            step="0.01"
-                            min="0"
                             placeholder="0"
                             value={line.uzs ?? ''}
                             onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'uzs', e.target.value)}
@@ -2627,11 +2611,8 @@ const Sales = () => {
                       </td>
                       <td className="batch-sale-lines__td--num">
                         {completeFromOrderGroupData.sale_type === 'delivery' ? '—' : (
-                          <input
+                          <AmountInput
                             className="batch-sale-lines__control"
-                            type="number"
-                            step="0.01"
-                            min="0"
                             placeholder="0"
                             value={line.usd ?? ''}
                             onChange={(e) => updateCompleteFromOrderGroupLine(line.saleId, 'usd', e.target.value)}
@@ -2747,13 +2728,13 @@ const Sales = () => {
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('currency.uzs', { ns: 'common' })}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
+                <AmountInput placeholder="0"
                   value={sellReservedData.uzs ?? ''}
                   onChange={(e) => setSellReservedData({ ...sellReservedData, uzs: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>{t('currency.usd', { ns: 'common' })}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
+                <AmountInput placeholder="0"
                   value={sellReservedData.usd ?? ''}
                   onChange={(e) => setSellReservedData({ ...sellReservedData, usd: e.target.value })} />
               </div>
@@ -2820,10 +2801,8 @@ const Sales = () => {
                       <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
                         {t('completePay.discountAmountLabel', { currency: sellReservedPayMeta.sc })}
                       </label>
-                      <input
-                        type="number"
+                      <AmountInput
                         step={sellReservedPayMeta.sc === 'UZS' ? '1' : '0.01'}
-                        min="0"
                         value={sellReservedData.balance_shortfall_amount ?? ''}
                         onChange={(e) =>
                           setSellReservedData({
@@ -3035,11 +3014,8 @@ const Sales = () => {
                             />
                           </td>
                           <td className="batch-sale-lines__td--num">
-                            <input
+                            <AmountInput
                               className="batch-sale-lines__control"
-                              type="number"
-                              step="0.01"
-                              min="0"
                               value={line.selling_price ?? ''}
                               onChange={(e) => updateBatchLine(line.key, 'selling_price', e.target.value)}
                               title={t('batch.sellingPrice')}
@@ -3048,11 +3024,8 @@ const Sales = () => {
                             />
                           </td>
                           <td className="batch-sale-lines__td--num">
-                            <input
+                            <AmountInput
                               className="batch-sale-lines__control"
-                              type="number"
-                              step="0.01"
-                              min="0"
                               value={line.discount_price ?? ''}
                               onChange={(e) => updateBatchLine(line.key, 'discount_price', e.target.value)}
                               title={t('batch.discountPrice')}
@@ -3386,9 +3359,23 @@ const Sales = () => {
                       <td>{sale ? formatAppDateTime(sale.sale_date) : '—'}</td>
                       <td onClick={(e) => e.stopPropagation()}>{renderSaleActionsCell(sale, row.sales)}</td>
                       <td>
-                        <span className={`status-badge ${agg.hasMixedStatus ? 'pending' : agg.statuses[0]}`}>
-                          {agg.hasMixedStatus ? t('mixed') : tStatus(agg.statuses[0], 'sale')}
-                        </span>
+                        {(() => {
+                          const groupStatus = groupDisplayStatus(agg);
+                          return (
+                            <span className={`status-badge ${groupStatus}`}>
+                              {groupStatus === 'mixed' ? t('mixed') : tStatus(groupStatus, 'sale')}
+                            </span>
+                          );
+                        })()}
+                        {/* A refused item no longer renames the group, so say so here instead —
+                            otherwise "Yakunlandi" would hide that one item came back. */}
+                        {agg.declinedCount > 0 && (
+                          <small style={{ display: 'block', color: '#b45309', marginTop: 2 }}>
+                            {t('deliverySettlement.declinedCountBadge', {
+                              ns: 'sales', count: agg.declinedCount,
+                            })}
+                          </small>
+                        )}
                       </td>
                       <td><span style={{ color: '#999' }}>—</span></td>
                       <td>
@@ -3423,7 +3410,7 @@ const Sales = () => {
                       </td>
                       <td>
                         {agg.uzsPay > 0 ? (
-                          <span style={{ color: agg.statuses.every((s) => s === 'completed') ? '#4caf50' : 'inherit' }}>
+                          <span style={{ color: agg.activeStatuses.every((s) => s === 'completed') ? '#4caf50' : 'inherit' }}>
                             {agg.uzsPay.toLocaleString()} UZS
                           </span>
                         ) : (
@@ -3432,7 +3419,7 @@ const Sales = () => {
                       </td>
                       <td>
                         {agg.usdPay > 0 ? (
-                          <span style={{ color: agg.statuses.every((s) => s === 'completed') ? '#4caf50' : 'inherit' }}>
+                          <span style={{ color: agg.activeStatuses.every((s) => s === 'completed') ? '#4caf50' : 'inherit' }}>
                             ${agg.usdPay.toFixed(2)}
                           </span>
                         ) : (

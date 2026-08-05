@@ -9,6 +9,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 /** Table columns: one per currency (legacy *_cash and *_card ledger buckets roll up here). */
 const CURRENCY_COLS = [
@@ -401,10 +402,7 @@ const MoneyBalance = () => {
               </div>
               <div className="form-group">
                 <label>{t('amount')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={adjustFormData.amount}
                   onChange={(e) => setAdjustFormData({ ...adjustFormData, amount: e.target.value })}
                   required

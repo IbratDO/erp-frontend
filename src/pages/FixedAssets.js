@@ -7,6 +7,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 const CATEGORY_VALUES = [
   'vehicle',
@@ -330,10 +331,7 @@ const FixedAssets = () => {
               </div>
               <div className="form-group">
                 <label>{t('form.purchaseCost')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   required
                   value={form.purchase_cost}
                   onChange={(e) => setForm({ ...form, purchase_cost: e.target.value })}
@@ -341,20 +339,14 @@ const FixedAssets = () => {
               </div>
               <div className="form-group">
                 <label>{t('form.currentValue')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={form.current_value}
                   onChange={(e) => setForm({ ...form, current_value: e.target.value })}
                 />
               </div>
               <div className="form-group">
                 <label>{t('form.depreciation')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={form.depreciation}
                   onChange={(e) => setForm({ ...form, depreciation: e.target.value })}
                 />

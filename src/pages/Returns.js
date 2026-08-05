@@ -23,6 +23,7 @@ import PageTitle from '../components/PageTitle';
 import { formatAppDateTime } from '../utils/localeFormat';
 import i18n from '../i18n';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
@@ -1241,8 +1242,7 @@ const Returns = () => {
                     {t('form.refundAmount')} <span style={{ color: '#e53e3e' }}>*</span>
                   </label>
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch', flexWrap: 'wrap' }}>
-                    <input
-                      type="number"
+                    <AmountInput
                       step={formData.sold_price_currency === 'UZS' ? '1' : '0.01'}
                       min={formData.sold_price_currency === 'UZS' ? '1' : '0.01'}
                       required
@@ -1406,13 +1406,13 @@ const Returns = () => {
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('refundForm.uzsRefund')}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
+                <AmountInput placeholder="0"
                   value={refundFormData.uzs}
                   onChange={(e) => setRefundFormData({ ...refundFormData, uzs: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>{t('refundForm.usdRefund')}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
+                <AmountInput placeholder="0"
                   value={refundFormData.usd}
                   onChange={(e) => setRefundFormData({ ...refundFormData, usd: e.target.value })} />
               </div>

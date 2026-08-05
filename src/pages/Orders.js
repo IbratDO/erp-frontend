@@ -30,6 +30,7 @@ import { buildOrderDisplayRows, aggregateGroupOrders, orderLikeForDisplayRow, ca
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
+import AmountInput from '../components/AmountInput';
 
 const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
@@ -2678,13 +2679,13 @@ const Orders = () => {
             <div className="form-grid">
               <div className="form-group">
                 <label>{uzsLabel}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
+                <AmountInput placeholder="0"
                   value={paymentFormData.uzs}
                   onChange={(e) => setPaymentFormData({ ...paymentFormData, uzs: e.target.value })} />
               </div>
               <div className="form-group">
                 <label>{t('currency.usd', { ns: 'common' })}</label>
-                <input type="number" step="0.01" min="0" placeholder="0"
+                <AmountInput placeholder="0"
                   value={paymentFormData.usd}
                   onChange={(e) => setPaymentFormData({ ...paymentFormData, usd: e.target.value })} />
               </div>
@@ -2751,11 +2752,8 @@ const Orders = () => {
                         >
                           <div className="form-group" style={{ marginBottom: 0, width: '11rem', maxWidth: '100%' }}>
                             <label htmlFor="move-inv-return-amt">{t('moveForm.amount')}</label>
-                            <input
+                            <AmountInput
                               id="move-inv-return-amt"
-                              type="number"
-                              step="0.01"
-                              min="0"
                               style={{ width: '100%', boxSizing: 'border-box', display: 'block', marginTop: '4px' }}
                               value={moveToInventoryData.return_advance_amount}
                               onChange={(e) =>
@@ -2833,10 +2831,7 @@ const Orders = () => {
             <div className="form-grid">
               <div className="form-group">
                 <label>{uzsLabel}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   placeholder="0"
                   value={cargoFormData.uzs}
                   onChange={(e) => setCargoFormData({ ...cargoFormData, uzs: e.target.value })}
@@ -2844,10 +2839,7 @@ const Orders = () => {
               </div>
               <div className="form-group">
                 <label>{t('currency.usd', { ns: 'common' })}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   placeholder="0"
                   value={cargoFormData.usd}
                   onChange={(e) => setCargoFormData({ ...cargoFormData, usd: e.target.value })}
@@ -2981,10 +2973,7 @@ const Orders = () => {
             <div className="form-grid">
               <div className="form-group">
                 <label>{uzsLabel}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   placeholder="0"
                   value={cargoGroupData.uzs}
                   onChange={(e) => setCargoGroupData({ ...cargoGroupData, uzs: e.target.value })}
@@ -2992,10 +2981,7 @@ const Orders = () => {
               </div>
               <div className="form-group">
                 <label>{t('currency.usd', { ns: 'common' })}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   placeholder="0"
                   value={cargoGroupData.usd}
                   onChange={(e) => setCargoGroupData({ ...cargoGroupData, usd: e.target.value })}
@@ -3202,22 +3188,16 @@ const Orders = () => {
                               </label>
                               {line.refunded ? (
                                 <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
-                                  <input
+                                  <AmountInput
                                     className="batch-sale-lines__control"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
                                     placeholder={t('batch.refundUzs', { ns: 'orders' })}
                                     value={line.refundUzs}
                                     onChange={(e) =>
                                       updateReceiveLine(line.orderId, { refundUzs: e.target.value })
                                     }
                                   />
-                                  <input
+                                  <AmountInput
                                     className="batch-sale-lines__control"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
                                     placeholder={t('batch.refundUsd', { ns: 'orders' })}
                                     value={line.refundUsd}
                                     onChange={(e) =>
@@ -3302,21 +3282,15 @@ const Orders = () => {
                         )}
                       </td>
                       <td className="batch-sale-lines__td--num">
-                        <input
+                        <AmountInput
                           className="batch-sale-lines__control"
-                          type="number"
-                          step="0.01"
-                          min="0"
                           value={line.uzs ?? ''}
                           onChange={(e) => updatePayOrderGroupLine(line.orderId, 'uzs', e.target.value)}
                         />
                       </td>
                       <td className="batch-sale-lines__td--num">
-                        <input
+                        <AmountInput
                           className="batch-sale-lines__control"
-                          type="number"
-                          step="0.01"
-                          min="0"
                           value={line.usd ?? ''}
                           onChange={(e) => updatePayOrderGroupLine(line.orderId, 'usd', e.target.value)}
                         />
@@ -3516,11 +3490,8 @@ const Orders = () => {
                             />
                           </td>
                           <td className="batch-sale-lines__td--num">
-                            <input
+                            <AmountInput
                               className="batch-sale-lines__control"
-                              type="number"
-                              step="0.01"
-                              min="0"
                               value={line.cost_usd_per_unit ?? ''}
                               onChange={(e) => updateBatchLine(line.key, 'cost_usd_per_unit', e.target.value)}
                               placeholder="0.00"
@@ -3528,11 +3499,8 @@ const Orders = () => {
                             />
                           </td>
                           <td className="batch-sale-lines__td--num">
-                            <input
+                            <AmountInput
                               className="batch-sale-lines__control"
-                              type="number"
-                              step="0.01"
-                              min="0"
                               value={line.selling_usd_per_unit ?? ''}
                               onChange={(e) => updateBatchLine(line.key, 'selling_usd_per_unit', e.target.value)}
                               placeholder="0.00"
@@ -3566,11 +3534,8 @@ const Orders = () => {
                           {batchShared.order_type === 'on_demand' && (
                           <td className="batch-sale-lines__td--num">
                             <div className="batch-order-lines-advance-cell">
-                              <input
+                              <AmountInput
                                 className="batch-sale-lines__control"
-                                type="number"
-                                step="0.01"
-                                min="0"
                                 value={line.advance_payment_amount ?? ''}
                                 onChange={(e) => updateBatchLine(line.key, 'advance_payment_amount', e.target.value)}
                                 placeholder={t('form.advanceNone')}

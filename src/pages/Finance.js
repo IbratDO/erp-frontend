@@ -15,6 +15,7 @@ import FormSearchableSelect from '../components/FormSearchableSelect';
 import './TablePage.css';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
+import AmountInput from '../components/AmountInput';
 
 const EXPENSE_TYPE_VALUES = [
   'salary', 'lunch', 'taxi', 'office_supplies', 'utilities', 'rent', 'delivery', 'cargo', 'smm', 'other',
@@ -401,10 +402,7 @@ const Finance = () => {
               </div>
               <div className="form-group">
                 <label>{t('expenseForm.amount')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={expenseFormData.amount}
                   onChange={(e) => setExpenseFormData({ ...expenseFormData, amount: e.target.value })}
                   required
@@ -484,10 +482,7 @@ const Finance = () => {
               </div>
               <div className="form-group">
                 <label>{t('incomeForm.amount')}</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={incomeFormData.amount}
                   onChange={(e) => setIncomeFormData({ ...incomeFormData, amount: e.target.value })}
                   required

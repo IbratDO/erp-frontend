@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import AmountInput from './AmountInput';
 import api from '../utils/api';
 import { formatDisplayAmount } from '../utils/currencyFormat';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -255,10 +256,7 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
           )}
           <div className="form-group">
             <label>{t('currency.uzs', { ns: 'common' })}</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <AmountInput
               placeholder="0"
               value={paymentFormData.uzs ?? ''}
               onChange={(e) => setPaymentFormData({ ...paymentFormData, uzs: e.target.value })}
@@ -266,10 +264,7 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
           </div>
           <div className="form-group">
             <label>{t('currency.usd', { ns: 'common' })}</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
+            <AmountInput
               placeholder="0"
               value={paymentFormData.usd ?? ''}
               onChange={(e) => setPaymentFormData({ ...paymentFormData, usd: e.target.value })}
@@ -344,10 +339,8 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
                   <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
                     {t('completePay.discountAmountLabel', { currency: shortfallMeta.sc })}
                   </label>
-                  <input
-                    type="number"
+                  <AmountInput
                     step={shortfallMeta.sc === 'UZS' ? '1' : '0.01'}
-                    min="0"
                     value={paymentFormData.balance_shortfall_amount ?? ''}
                     onChange={(e) =>
                       setPaymentFormData({
@@ -408,10 +401,7 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
                     currency: paymentFormData.dispatch_payment_currency,
                   })}
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   value={paymentFormData.dispatch_payment_amount ?? ''}
                   onChange={(e) =>
                     setPaymentFormData({ ...paymentFormData, dispatch_payment_amount: e.target.value })

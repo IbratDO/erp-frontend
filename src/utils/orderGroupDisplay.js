@@ -23,9 +23,18 @@ export function cargoPoolTotals(order, allOrders) {
 }
 
 /** This line's own cargo cost per unit and per kg, from its allocated share
- * (already split by weight — or per-unit as a fallback — across the pool). */
+ * (already split by weight — or per-unit as a fallback — across the pool).
+ *
+ * Per unit divides by the quantity actually RECEIVED, matching the backend
+ * (cargo_allocation_utils.cargo_unit_costs_from_order) — freight is weighed on arrival, so
+ * it only ever paid to move the goods that came. Dividing by the ordered count instead made
+ * a short delivery print a lower per-unit cost than the one really carried into inventory
+ * and COGS ($40 over 5 ordered = $8.00, where the 4 that arrived each carry $10.00).
+ * received_quantity is null on lines predating short-delivery tracking, and those were
+ * always all-or-nothing, so they read as fully received. */
 export function cargoUnitCosts(order) {
-  const qty = parseFloat(order.ordered_quantity) || 0;
+  const received = parseFloat(order.received_quantity);
+  const qty = Number.isFinite(received) ? received : parseFloat(order.ordered_quantity) || 0;
   const weight = parseFloat(order.weight) || 0;
   const uzsTotal = parseFloat(order.allocated_cargo_cost_uzs) || 0;
   const usdTotal = parseFloat(order.allocated_cargo_cost_usd) || 0;

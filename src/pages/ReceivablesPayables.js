@@ -14,6 +14,7 @@ import './TablePage.css';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
 import { usePermissions } from '../hooks/usePermissions';
+import AmountInput from '../components/AmountInput';
 
 /** Pending receivable — sale on-credit remainder or manual other income. */
 function canCollectReceivable(receivable) {
@@ -51,6 +52,25 @@ function isCustomerDepositPayable(p) {
 function isOpenPayable(p) {
   return p?.status === 'pending' || isCustomerDepositPayable(p);
 }
+
+/** Stable code for a payable's type — what the Kreditorlik turi filter and the sort agree on.
+ *  Deliberately the same order of checks as `payableKind` below, which renders the label. */
+export function payableKindCode(p) {
+  if (isCustomerDepositPayable(p)) return 'customerdeposit';
+  if (p.order) return 'supplier';
+  if (p.dispatch) return 'dispatch';
+  if (p.package_history) return 'package';
+  if (p.finance_record) return 'finance';
+  return '';
+}
+
+export const PAYABLE_KIND_OPTIONS = [
+  { value: 'supplier', labelKey: 'payableKinds.supplier' },
+  { value: 'dispatch', labelKey: 'payableKinds.dispatch' },
+  { value: 'package', labelKey: 'payableKinds.package' },
+  { value: 'finance', labelKey: 'payableKinds.otherExpense' },
+  { value: 'customerdeposit', labelKey: 'payableKinds.customerDeposit' },
+];
 
 function payableKind(p, t) {
   if (isCustomerDepositPayable(p)) {
@@ -158,14 +178,7 @@ const PAYABLE_TABLE_SORT_ACCESSORS = {
     isCustomerDepositPayable(p)
       ? -(Number(p.order_detail?.id) || 0)
       : Number(p.id) || 0,
-  payable_kind: (p) => {
-    if (isCustomerDepositPayable(p)) return 'customerdeposit';
-    if (p.order) return 'supplier';
-    if (p.dispatch) return 'dispatch';
-    if (p.package_history) return 'package';
-    if (p.finance_record) return 'finance';
-    return '';
-  },
+  payable_kind: (p) => payableKindCode(p),
   ref: (p) => String(p.order || p.dispatch || p.package_history || p.finance_record || '').toLowerCase(),
   customer: (p) => payableCustomerName(p).toLowerCase(),
   product: (p) => payableProductSortKey(p),
@@ -203,6 +216,7 @@ const ReceivablesPayables = () => {
     currency: '',
     year: '',
     month: '',
+    kind: '',
   });
 
   useEffect(() => {
@@ -414,21 +428,30 @@ const ReceivablesPayables = () => {
     () => sumAmountsByCurrency(payables),
     [payables]
   );
+  // Kreditorlik turi is filtered in the browser, not by the API: the type is derived from
+  // which foreign key the row carries, and the customer-deposit rows are synthesized here in
+  // the first place, so there is nothing for the server to filter on.
+  const visiblePayables = useMemo(
+    () => (filter.kind ? payables.filter((p) => payableKindCode(p) === filter.kind) : payables),
+    [payables, filter.kind],
+  );
+
+  // Totals follow the filter, so the figures under the table always add up the rows above it.
   const customerDepositPayableTotals = useMemo(
-    () => sumAmountsByCurrency(payables.filter((p) => isCustomerDepositPayable(p))),
-    [payables]
+    () => sumAmountsByCurrency(visiblePayables.filter((p) => isCustomerDepositPayable(p))),
+    [visiblePayables]
   );
   const supplierPayableTotals = useMemo(
-    () => sumAmountsByCurrency(payables.filter((p) => !isCustomerDepositPayable(p) && p.status === 'pending')),
-    [payables]
+    () => sumAmountsByCurrency(visiblePayables.filter((p) => !isCustomerDepositPayable(p) && p.status === 'pending')),
+    [visiblePayables]
   );
   const receivablePendingByCurrency = useMemo(
     () => sumAmountsByCurrency(receivables.filter((r) => r.status === 'pending')),
     [receivables]
   );
   const payablePendingByCurrency = useMemo(
-    () => sumAmountsByCurrency(payables.filter((p) => isOpenPayable(p))),
-    [payables]
+    () => sumAmountsByCurrency(visiblePayables.filter((p) => isOpenPayable(p))),
+    [visiblePayables]
   );
 
   const receivablesSort = useClientTableSort(RECEIVABLE_TABLE_SORT_ACCESSORS);
@@ -439,8 +462,8 @@ const ReceivablesPayables = () => {
 
   const payablesTableSort = useClientTableSort(PAYABLE_TABLE_SORT_ACCESSORS);
   const sortedPayableRows = useMemo(
-    () => payablesTableSort.sortRows(payables || []),
-    [payables, payablesTableSort],
+    () => payablesTableSort.sortRows(visiblePayables || []),
+    [visiblePayables, payablesTableSort],
   );
 
   if (loading) {
@@ -596,6 +619,20 @@ const ReceivablesPayables = () => {
                 <option value="cancelled">{tStatus('cancelled', 'receivable')}</option>
               </select>
             </div>
+          {activeTab === 'payables' && (
+            <div className="filter-field">
+              <label>{t('filters.payableKind')}</label>
+              <select
+                value={filter.kind}
+                onChange={(e) => setFilter({ ...filter, kind: e.target.value })}
+              >
+                <option value="">{t('filters.allPayableKinds')}</option>
+                {PAYABLE_KIND_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{t(opt.labelKey)}</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="filter-field">
             <label>{t('filters.year')}</label>
             <select
@@ -631,7 +668,7 @@ const ReceivablesPayables = () => {
             <button
               type="button"
               className="btn-edit"
-              onClick={() => setFilter({ status: '', currency: '', year: '', month: '' })}
+              onClick={() => setFilter({ status: '', currency: '', year: '', month: '', kind: '' })}
             >
               {t('filters.clearAll')}
             </button>
@@ -672,10 +709,7 @@ const ReceivablesPayables = () => {
                         currency: (collectTarget.currency || collectTarget.sale_detail?.sale_currency || 'USD').toUpperCase(),
                       })}
                     </label>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
+                    <AmountInput
                       placeholder="0"
                       value={collectForm.amount}
                       onChange={(e) => setCollectForm({ ...collectForm, amount: e.target.value })}
@@ -853,7 +887,7 @@ const ReceivablesPayables = () => {
               </tr>
             </thead>
             <tbody>
-              {payables.length === 0 ? (
+              {visiblePayables.length === 0 ? (
                 <tr>
                   <td colSpan="12" style={{ textAlign: 'center' }}>
                     {t('payablesTable.noRows')}

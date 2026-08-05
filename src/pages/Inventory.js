@@ -15,6 +15,7 @@ import FormSearchableSelect from '../components/FormSearchableSelect';
 import FilterSearchableSelect from '../components/FilterSearchableSelect';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
@@ -377,10 +378,7 @@ const Inventory = () => {
                   {t('form.sellingPriceUsd')}{' '}
                   <span style={{ color: '#e53e3e' }}>*</span>
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
+                <AmountInput
                   placeholder={t('form.usdPerUnit')}
                   value={formData.selling_usd_per_unit}
                   onChange={(e) => setFormData({ ...formData, selling_usd_per_unit: e.target.value })}
@@ -399,10 +397,7 @@ const Inventory = () => {
                   {t('form.costPerUnitUsd')}{' '}
                   <span style={{ color: '#e53e3e' }}>*</span>
                 </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
+                <AmountInput
                   placeholder={t('form.usdPerUnit')}
                   value={formData.unit_supplier_cost_usd}
                   onChange={(e) =>

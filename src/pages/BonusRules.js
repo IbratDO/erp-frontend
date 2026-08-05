@@ -8,6 +8,7 @@ import PageTitle from '../components/PageTitle';
 import { formatAppDateTime } from '../utils/localeFormat';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import './TablePage.css';
+import AmountInput from '../components/AmountInput';
 
 const emptyRule = () => ({
   user: '',
@@ -182,7 +183,7 @@ const BonusRules = () => {
               {formData.bonus_type === 'fixed' ? (
                 <label>
                   {t('form.amountPerUnit')}
-                  <input type="number" step="0.01" required value={formData.bonus_amount} onChange={(e) => setFormData({ ...formData, bonus_amount: e.target.value })} />
+                  <AmountInput required value={formData.bonus_amount} onChange={(e) => setFormData({ ...formData, bonus_amount: e.target.value })} />
                 </label>
               ) : (
                 <label>

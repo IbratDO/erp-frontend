@@ -3,6 +3,7 @@ import api from '../utils/api';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
 import useAppTranslation from '../hooks/useAppTranslation';
 import { usdToUzs, uzsToUsd } from '../utils/saleCompletePayHelpers';
+import AmountInput from './AmountInput';
 
 const PL_TOLERANCE_USD = 0.005;
 
@@ -202,10 +203,8 @@ export default function CurrencyConversionForm({ onSuccess, onCancel }) {
           </div>
           <div className="form-group">
             <label>{t('conversion.sourceAmount', { currency: srcCur })}</label>
-            <input
-              type="number"
+            <AmountInput
               step={form.direction === 'usd_to_uzs' ? '0.01' : '1'}
-              min="0"
               value={form.source_amount}
               onChange={(e) => {
                 setTargetManual(false);
@@ -216,10 +215,8 @@ export default function CurrencyConversionForm({ onSuccess, onCancel }) {
           </div>
           <div className="form-group">
             <label>{t('conversion.convertedAmount', { currency: tgtCur })}</label>
-            <input
-              type="number"
+            <AmountInput
               step={form.direction === 'usd_to_uzs' ? '1' : '0.01'}
-              min="0"
               value={form.target_amount}
               onChange={(e) => {
                 setTargetManual(true);

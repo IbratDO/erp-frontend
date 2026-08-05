@@ -19,6 +19,8 @@
     "title": "Filters",
     "status": "Status",
     "pendingDefault": "Pending only (default)",
+    "payableKind": "Payable type",
+    "allPayableKinds": "All types",
     "year": "Year",
     "allYears": "All Years",
     "month": "Month",
