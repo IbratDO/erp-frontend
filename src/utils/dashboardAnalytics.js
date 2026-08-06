@@ -176,3 +176,51 @@ export function crossFilterSummary(crossFilter) {
   if (crossFilter.customerType) parts.push(crossFilter.customerType);
   return parts.length ? parts.join(' · ') : null;
 }
+
+/** Order statuses that still need someone to act — the complement of the terminal set
+ *  (`in_inventory` / `sold` / `cancelled`), mirroring backend `ORDER_TERMINAL_STATUSES`. */
+export const UNFINISHED_ORDER_STATUSES = ['order_created', 'ordered', 'order_paid', 'received'];
+
+/**
+ * Monthly on-demand order counts for the Sotuv bar chart, from the same
+ * `on_demand_order_facts` rows that feed the status cards — no second request.
+ *
+ * Three series, keyed by the labels the caller passes in so they stay translatable:
+ *   total       every on-demand order created that month, whatever became of it
+ *   sold        those now at `sold`
+ *   unfinished  those now at a status that still needs action
+ *
+ * **These deliberately do not add up.** An order that ended `cancelled` or sits `in_inventory`
+ * is in `total` and in neither of the others, so `sold + unfinished <= total`. The bars are
+ * therefore grouped, never stacked — stacking would draw a total taller than the real one and
+ * imply the parts are exhaustive.
+ */
+export function buildOnDemandMonthly(facts, labels) {
+  // Every month of the year is present, empty ones included, so the bars read as a
+  // calendar rather than as "the two months that happened to have orders".
+  const byMonth = new Map();
+  for (let m = 1; m <= 12; m += 1) {
+    byMonth.set(m, {
+      month: m,
+      monthLabel: MONTH_NAMES[m - 1] || String(m),
+      [labels.total]: 0,
+      [labels.sold]: 0,
+      [labels.unfinished]: 0,
+    });
+  }
+
+  for (const fact of facts || []) {
+    const m = Number(fact.month);
+    if (!Number.isFinite(m) || m < 1 || m > 12) continue;
+    const row = byMonth.get(m);
+    const count = Number(fact.count) || 0;
+    row[labels.total] += count;
+    if (fact.status === 'sold') row[labels.sold] += count;
+    if (UNFINISHED_ORDER_STATUSES.includes(fact.status)) row[labels.unfinished] += count;
+  }
+
+  return {
+    data: [...byMonth.values()].sort((a, b) => a.month - b.month),
+    keys: [labels.total, labels.sold, labels.unfinished],
+  };
+}

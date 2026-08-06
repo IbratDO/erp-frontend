@@ -383,9 +383,7 @@ const FixedAssets = () => {
               <div className="form-grid">
                 <div className="form-group">
                   <label>{t('payment.uzsPayment')}</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+                  <AmountInput
                     value={paymentForm.payment_uzs}
                     onChange={(e) =>
                       setPaymentForm({
@@ -397,9 +395,7 @@ const FixedAssets = () => {
                 </div>
                 <div className="form-group">
                   <label>{t('payment.usdPayment')}</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+                  <AmountInput
                     value={paymentForm.payment_usd}
                     onChange={(e) =>
                       setPaymentForm({

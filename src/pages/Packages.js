@@ -687,9 +687,7 @@ const Packages = () => {
                 <>
                   <div className="form-group">
                     <label>{t('paymentForm.uzsPayment')}</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
+                    <AmountInput
                       value={paymentFormData.payment_uzs}
                       onChange={(e) =>
                         setPaymentFormData({
@@ -701,9 +699,7 @@ const Packages = () => {
                   </div>
                   <div className="form-group">
                     <label>{t('paymentForm.usdPayment')}</label>
-                    <input
-                      type="text"
-                      inputMode="decimal"
+                    <AmountInput
                       value={paymentFormData.payment_usd}
                       onChange={(e) =>
                         setPaymentFormData({

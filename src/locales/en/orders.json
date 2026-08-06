@@ -6,6 +6,7 @@
   "batch": {
     "multipleItems": "multiple items",
     "mixedStatus": "mixed",
+    "cancelledCountBadge": "{{count}} item(s) cancelled",
     "newButton": "+ Multi-Item Order",
     "title": "Multi-item order (one shipment)",
     "intro": "Add one line per product, each with its own eShop. Supplier country and cargo partner below apply to the whole shipment. Weight isn't known yet — you'll enter it per item when the shipment is actually weighed at cargo payment time.",

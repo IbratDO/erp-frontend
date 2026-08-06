@@ -6,6 +6,7 @@
   "batch": {
     "multipleItems": "bir nechta mahsulot",
     "mixedStatus": "aralash",
+    "cancelledCountBadge": "{{count}} ta mahsulot bekor qilingan",
     "newButton": "+ Ko‘p mahsulotli buyurtma",
     "title": "Ko‘p mahsulotli buyurtma (bitta yuk jo‘natmasi)",
     "intro": "Har bir mahsulot uchun bitta qator qo‘shing — har birining o‘z eShopi bo‘lishi mumkin. Quyidagi yetkazib beruvchi mamlakati va kargo hamkori butun yuk jo‘natmasiga tegishli. Og‘irlik hali noma’lum — uni yuk haqiqatda tortilgandan keyin, kargo to‘lovi paytida har bir mahsulot uchun kiritasiz.",

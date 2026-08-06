@@ -336,7 +336,7 @@ export function FinanceCharts({ data, expensesGranularity, setExpensesGranularit
   );
 }
 
-function MarketingPerItemChart({ data, marketingGranularity, setMarketingGranularity }) {
+export function MarketingPerItemChart({ data, marketingGranularity, setMarketingGranularity }) {
   const { t } = useAppTranslation(['dashboard', 'common']);
   return (
     <MgmtChart
@@ -427,14 +427,11 @@ function MarketingPerCustomerChart({ data }) {
   );
 }
 
-export function MarketingCharts({ data, marketingGranularity, setMarketingGranularity }) {
+/** Marketing-per-sold-item moved to the Umumiy tab, beside the net-profit chart, so the
+ *  two headline efficiency numbers sit together; this tab keeps the per-customer view. */
+export function MarketingCharts({ data }) {
   return (
     <div className="mgmt-charts-grid">
-      <MarketingPerItemChart
-        data={data}
-        marketingGranularity={marketingGranularity}
-        setMarketingGranularity={setMarketingGranularity}
-      />
       <MarketingPerCustomerChart data={data} />
     </div>
   );

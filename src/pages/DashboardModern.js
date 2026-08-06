@@ -17,6 +17,7 @@ import {
   buildMonthlyStacked,
   buildNetMonthlyStacked,
   buildNetWeekdayAverages,
+  buildOnDemandMonthly,
   CHART_PALETTE,
   filterReturnFacts,
   crossFilterSummary,
@@ -30,10 +31,13 @@ import {
   FinanceCharts,
   NetProfitChart,
   MarketingCharts,
+  MarketingPerItemChart,
   HrCharts,
   InventoryCharts,
+  MgmtChart,
   SalesMgmtCharts,
   TopProductsBlock,
+  tooltipStyle as mgmtTooltipStyle,
 } from '../components/ManagementKpisSection';
 import PenaltyDashboardCard from '../components/PenaltyDashboardCard';
 import { usePermissions } from '../hooks/usePermissions';
@@ -133,6 +137,37 @@ function ChartPanel({
         )}
       </ResponsiveContainer>
     </div>
+  );
+}
+
+/**
+ * Monthly on-demand orders, drawn in the same idiom as the "Do'kon va yetkazib berish"
+ * chart: an `MgmtChart` card at full width, 240px tall, dashed grid, 12/11px ticks.
+ *
+ * The one deliberate departure is that the bars are **grouped, not stacked** — that chart
+ * splits one quantity into two disjoint halves, so its stack height is a real total. Here
+ * Sotilgan and Yakunlanmagan are *subsets* of Jami (cancelled and in-inventory orders are in
+ * Jami and in neither), so `sold + unfinished <= total` and a stack would invent a taller
+ * total. Hence no `stackId`.
+ */
+function OnDemandMonthlyChart({ title, hint, data, keys }) {
+  const fills = ['#0ea5e9', '#10b981', '#f59e0b'];
+  return (
+    <MgmtChart title={title}>
+      {hint ? <p className="dash-section-hint">{hint}</p> : null}
+      <ResponsiveContainer width="100%" height={240}>
+        <BarChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+          <Tooltip contentStyle={mgmtTooltipStyle} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {keys.map((key, i) => (
+            <Bar key={key} dataKey={key} name={key} fill={fills[i % fills.length]} />
+          ))}
+        </BarChart>
+      </ResponsiveContainer>
+    </MgmtChart>
   );
 }
 
@@ -273,27 +308,42 @@ const DashboardModern = () => {
   const filterHint = crossFilterSummary(crossFilter);
   const isExecutiveView = canViewMgmt || Boolean(analytics?.company_wide);
 
-  /** Sub-line for the unfinished-sales card: what the open sales are waiting on, and how
-   *  long the oldest has been waiting. Falls back to the scope label when there are none,
-   *  so the card never reads as a bare "0" with no context. */
-  const unfinishedSalesSub = useMemo(() => {
-    const total = kpis?.unfinished_sales ?? 0;
-    if (!total) return td('unfinishedSalesNone');
+  /**
+   * One card per on-demand order status, following the Yil/Oy filter.
+   *
+   * The backend pre-aggregates per (month, status) — a count cannot be re-filtered once it
+   * has been summed, so the month split has to survive the trip for the Oy filter to work
+   * here the way it already does for the charts.
+   *
+   * Every status is always rendered, in workflow order, including the ones at zero: the row
+   * is a pipeline, and a stage vanishing when it empties would make the shape jump around.
+   */
+  const onDemandStatusCards = useMemo(() => {
+    const rows = analytics?.on_demand_order_facts || [];
+    const order = analytics?.on_demand_status_order || [];
+    const counts = new Map(order.map((s) => [s, 0]));
+    for (const row of rows) {
+      if (monthNum && Number(row.month) !== monthNum) continue;
+      counts.set(row.status, (counts.get(row.status) || 0) + (Number(row.count) || 0));
+    }
+    return order.map((status) => ({ status, count: counts.get(status) || 0 }));
+  }, [analytics, monthNum]);
 
-    const byStatus = kpis?.unfinished_sales_by_status || {};
-    const breakdown = Object.entries(byStatus)
-      .sort((a, b) => b[1] - a[1])
-      .map(([status, n]) => `${tStatus(status, 'sale')}: ${n}`)
-      .join(' · ');
+  const onDemandTotal = useMemo(
+    () => onDemandStatusCards.reduce((sum, c) => sum + c.count, 0),
+    [onDemandStatusCards],
+  );
 
-    const oldest = kpis?.unfinished_oldest_date;
-    if (!oldest) return breakdown;
-    const days = Math.max(
-      0,
-      Math.floor((Date.now() - new Date(`${oldest}T00:00:00`).getTime()) / 86400000),
-    );
-    return `${breakdown} — ${td('unfinishedSalesOldest', { days })}`;
-  }, [kpis, td, tStatus]);
+  /** Monthly bars from the same rows that feed the cards — deliberately unfiltered by Oy,
+   *  since the chart's whole job is to show the months side by side. */
+  const onDemandMonthly = useMemo(
+    () => buildOnDemandMonthly(analytics?.on_demand_order_facts, {
+      total: td('onDemandSeriesTotal'),
+      sold: td('onDemandSeriesSold'),
+      unfinished: td('onDemandSeriesUnfinished'),
+    }),
+    [analytics, td],
+  );
 
   const cbuRateLine = useMemo(() => {
     if (!cbuRate?.rate) return null;
@@ -472,6 +522,11 @@ const DashboardModern = () => {
               <MoneyBalanceCards data={mgmtData} />
               <div className="mgmt-grid">
                 <NetProfitChart data={mgmtData} />
+                <MarketingPerItemChart
+                  data={mgmtData}
+                  marketingGranularity={marketingGranularity}
+                  setMarketingGranularity={setMarketingGranularity}
+                />
               </div>
             </section>
           ) : null}
@@ -492,12 +547,29 @@ const DashboardModern = () => {
 
       {activeTab === TAB_SALES && (
         <>
-          <section className="dash-kpi-row">
-            <KpiCard
-              label={td('unfinishedSales')}
-              value={(kpis?.unfinished_sales ?? 0).toLocaleString()}
-              sub={unfinishedSalesSub}
-            />
+          <section className="dash-section">
+            <h2 className="dash-section-title">{td('onDemandPipeline')}</h2>
+            <p className="dash-section-hint">
+              {td('onDemandPipelineHint', { total: onDemandTotal.toLocaleString() })}
+            </p>
+            <div className="dash-kpi-row">
+              {onDemandStatusCards.map(({ status, count }) => (
+                <KpiCard
+                  key={status}
+                  label={tStatus(status, 'order')}
+                  value={count.toLocaleString()}
+                />
+              ))}
+            </div>
+
+            <div className="mgmt-charts-grid">
+              <OnDemandMonthlyChart
+                title={td('onDemandMonthlyChart')}
+                hint={td('onDemandMonthlyHint')}
+                data={onDemandMonthly.data}
+                keys={onDemandMonthly.keys}
+              />
+            </div>
           </section>
 
           <section className="dash-section">
@@ -575,11 +647,7 @@ const DashboardModern = () => {
             </div>
           </section>
           <section className="mgmt-section">
-            <MarketingCharts
-              data={mgmtData}
-              marketingGranularity={marketingGranularity}
-              setMarketingGranularity={setMarketingGranularity}
-            />
+            <MarketingCharts data={mgmtData} />
           </section>
         </>
       )}

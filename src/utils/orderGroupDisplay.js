@@ -86,6 +86,7 @@ export function aggregateGroupOrders(groupOrders) {
       advanceUzs: 0,
       statuses: [],
       activeStatuses: [],
+      cancelledCount: 0,
       hasMixedStatus: false,
       allOrderPaid: false,
       allCargoPaid: false,
@@ -153,6 +154,10 @@ export function aggregateGroupOrders(groupOrders) {
     advanceUzs,
     statuses,
     activeStatuses,
+    // Cancelled lines are excluded from the badge, so their count is surfaced separately —
+    // otherwise a group of three with one cancelled and two sold reads plainly "Sotildi" and
+    // the cancelled line disappears. Same treatment Sales gives its declined lines.
+    cancelledCount: groupOrders.filter((o) => o.status === 'cancelled').length,
     // Mixed only among still-active lines — matches Sales' aggregateGroupSales behaviour.
     hasMixedStatus: activeStatuses.length > 1,
     allOrderPaid: groupOrders.every((o) => o.order_is_paid),

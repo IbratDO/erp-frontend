@@ -2369,7 +2369,12 @@ const Orders = () => {
               </button>
             </>
           )}
-          {canCancelOrder && !ORDER_TERMINAL_STATUSES.has(order.status) && (
+          {/* `has_sale` counts cancelled sales too, on purpose: once an item has been sold
+              from the order it belongs to Sales, and whatever happens there — cancel, refusal
+              at the door, return — is handled exactly as for a direct sale. Cancelling the
+              purchase order would contradict that by unwinding the supplier payment. Without
+              this, cancelling the sale reopened the order and the button came back. */}
+          {canCancelOrder && !ORDER_TERMINAL_STATUSES.has(order.status) && !order.has_sale && (
             <button
               className="btn-edit"
               onClick={() => handleCancelOrder(order.id)}
@@ -3979,6 +3984,15 @@ const Orders = () => {
                             ? t('batch.mixedStatus', { ns: 'orders' })
                             : formatOrderStatus(agg.activeStatuses[0] || agg.statuses[0], tStatus)}
                         </span>
+                        {/* Cancelled lines don't speak for the group's badge, so say so here —
+                            otherwise "Sotildi" would hide that one item was cancelled. */}
+                        {agg.cancelledCount > 0 && agg.activeStatuses.length > 0 && (
+                          <small style={{ display: 'block', color: '#b45309', marginTop: 2 }}>
+                            {t('batch.cancelledCountBadge', {
+                              ns: 'orders', count: agg.cancelledCount,
+                            })}
+                          </small>
+                        )}
                       </td>
                       <td><span style={{ color: '#999' }}>—</span></td>
                       <td><span style={{ color: '#999' }}>—</span></td>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
+import AmountInput from './AmountInput';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
@@ -64,9 +65,7 @@ function DeliveryPaymentAmountFields({ form, setForm, meta, t, disabled = false,
     <>
       <div className="form-group">
         <label>{t('currency.uzs', { ns: 'common' })}</label>
-        <input
-          type="text"
-          inputMode="decimal"
+        <AmountInput
           placeholder="0"
           disabled={disabled}
           value={form.uzs ?? ''}
@@ -75,9 +74,7 @@ function DeliveryPaymentAmountFields({ form, setForm, meta, t, disabled = false,
       </div>
       <div className="form-group">
         <label>{t('currency.usd', { ns: 'common' })}</label>
-        <input
-          type="text"
-          inputMode="decimal"
+        <AmountInput
           placeholder="0"
           disabled={disabled}
           value={form.usd ?? ''}
@@ -1187,18 +1184,14 @@ export default function SaleDeliverySettlementForm({
                   <div className="form-grid">
                     <div className="form-group">
                       <label>{t('currency.uzs', { ns: 'common' })}</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
+                      <AmountInput
                         value={step2Combined.uzs}
                         onChange={(e) => setStep2Combined((prev) => ({ ...prev, uzs: e.target.value }))}
                       />
                     </div>
                     <div className="form-group">
                       <label>{t('currency.usd', { ns: 'common' })}</label>
-                      <input
-                        type="text"
-                        inputMode="decimal"
+                      <AmountInput
                         value={step2Combined.usd}
                         onChange={(e) => setStep2Combined((prev) => ({ ...prev, usd: e.target.value }))}
                       />
@@ -1274,7 +1267,14 @@ export default function SaleDeliverySettlementForm({
                       {form.prepayment_amount && parseFloat(form.prepayment_amount) > 0 ? (
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                           <label>{t('deliverySettlement.prepaymentOnRecord')}</label>
-                          <input readOnly style={{ background: '#f5f5f5' }} value={form.prepayment_amount ?? ''} />
+                          <input
+                            readOnly
+                            style={{ background: '#f5f5f5' }}
+                            value={formatDisplayAmount(
+                              parseFloat(form.prepayment_amount) || 0,
+                              form.prepayment_currency || line.sale_currency,
+                            )}
+                          />
                         </div>
                       ) : null}
                       <DeliveryPaymentAmountFields
@@ -1350,18 +1350,14 @@ export default function SaleDeliverySettlementForm({
               <div className="form-grid">
                 <div className="form-group">
                   <label>{t('currency.uzs', { ns: 'common' })}</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+                  <AmountInput
                     value={step3Combined.uzs}
                     onChange={(e) => setStep3Combined((prev) => ({ ...prev, uzs: e.target.value }))}
                   />
                 </div>
                 <div className="form-group">
                   <label>{t('currency.usd', { ns: 'common' })}</label>
-                  <input
-                    type="text"
-                    inputMode="decimal"
+                  <AmountInput
                     value={step3Combined.usd}
                     onChange={(e) => setStep3Combined((prev) => ({ ...prev, usd: e.target.value }))}
                   />
@@ -1421,9 +1417,7 @@ export default function SaleDeliverySettlementForm({
                       </div>
                       <div className="form-group">
                         <label>{t('currency.uzs', { ns: 'common' })}</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
+                        <AmountInput
                           value={pay.uzs}
                           onChange={(e) =>
                             setStep3PayByLine((prev) => ({ ...prev, [line.id]: { ...prev[line.id], uzs: e.target.value } }))
@@ -1432,9 +1426,7 @@ export default function SaleDeliverySettlementForm({
                       </div>
                       <div className="form-group">
                         <label>{t('currency.usd', { ns: 'common' })}</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
+                        <AmountInput
                           value={pay.usd}
                           onChange={(e) =>
                             setStep3PayByLine((prev) => ({ ...prev, [line.id]: { ...prev[line.id], usd: e.target.value } }))
