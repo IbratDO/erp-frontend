@@ -358,6 +358,14 @@ const BalanceSheet = () => {
                       value={formatUsd(equity?.currency_conversion_pl_usd)}
                       indent={1}
                     />
+                    {/* Sits directly under the realized-FX row because the two read as one
+                        idea: that one is currency actually exchanged, this one is currency
+                        merely held while the rate moved. */}
+                    <LineRow
+                      label={t('equity.notionalFx')}
+                      value={formatUsd(equity?.notional_fx_usd)}
+                      indent={1}
+                    />
                     <TotalRow label={t('equity.total')} value={formatUsd(equity?.total_equity_usd)} />
                   </tbody>
                 </table>

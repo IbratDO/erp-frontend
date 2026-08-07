@@ -58,7 +58,8 @@
     "retainedEarnings": "Retained earnings (prior periods)",
     "currentPeriodPl": "Current period profit / loss (P&L)",
     "expectedProfit": "Expected profit/loss (sold, unpaid)",
-    "currencyConversionPl": "Current difference from currency operations (profit/loss)"
+    "currencyConversionPl": "Current difference from currency operations (profit/loss)",
+    "notionalFx": "Unrealized currency difference (soum held)"
   },
   "notes": "Notes"
 }

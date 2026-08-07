@@ -58,7 +58,8 @@
     "retainedEarnings": "Saqlangan daromad (oldingi davrlar)",
     "currentPeriodPl": "Joriy davr foyda / zarari (F&Z)",
     "expectedProfit": "Kutilayotgan foyda/zarar (sotilgan, to‘lanmagan)",
-    "currencyConversionPl": "Valyuta operatsiyalari orqali yuzaga kelgan joriy farq (foyda/zarar)"
+    "currencyConversionPl": "Valyuta operatsiyalari orqali yuzaga kelgan joriy farq (foyda/zarar)",
+    "notionalFx": "Fiktiv valyuta farqi"
   },
   "notes": "Izohlar"
 }
