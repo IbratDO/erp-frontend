@@ -12,7 +12,13 @@
     "title": "Record owner transaction",
     "type": "Type",
     "contributionOption": "Contribution (cash in)",
+    "shareReductionOption": "Reduce share (cash out)",
     "withdrawalOption": "Withdrawal (cash out)",
+    "owner": "Owner",
+    "selectOwner": "Select owner",
+    "ownerPlaceholder": "Search by name",
+    "addNewOwner": "Add new owner",
+    "ownerRequired": "Select or add the owner this transaction belongs to.",
     "currency": "Currency",
     "amount": "Amount",
     "notes": "Notes"
@@ -20,6 +26,7 @@
   "table": {
     "id": "ID",
     "type": "Type",
+    "owner": "Owner",
     "amount": "Amount",
     "currency": "Currency",
     "date": "Date",
@@ -29,9 +36,19 @@
   },
   "types": {
     "contribution": "Contribution",
-    "withdrawal": "Withdrawal"
+    "withdrawal": "Withdrawal",
+    "shareReduction": "Share reduction"
   },
   "notifications": {
     "saveFailed": "Failed to save"
+  },
+  "shares": {
+    "title": "Shares",
+    "owner": "Owner",
+    "entries": "Entries",
+    "noRows": "No contributions yet"
+  },
+  "history": {
+    "title": "Transaction history"
   }
 }

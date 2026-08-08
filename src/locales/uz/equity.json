@@ -12,7 +12,13 @@
     "title": "Egasi tranzaksiyasini qayd etish",
     "type": "Turi",
     "contributionOption": "Hissa (naqd kirim)",
+    "shareReductionOption": "Hissani kamaytirish (naqd chiqim)",
     "withdrawalOption": "Yechib olish (naqd chiqim)",
+    "owner": "Egasi",
+    "selectOwner": "Egasini tanlang",
+    "ownerPlaceholder": "Ism bo‘yicha qidiring",
+    "addNewOwner": "Yangi egasi qo‘shish",
+    "ownerRequired": "Egasini tanlang yoki yangisini qo‘shing.",
     "currency": "Valyuta",
     "amount": "Summa",
     "notes": "Izoh"
@@ -20,6 +26,7 @@
   "table": {
     "id": "ID",
     "type": "Turi",
+    "owner": "Egasi",
     "amount": "Summa",
     "currency": "Valyuta",
     "date": "Sana",
@@ -29,9 +36,19 @@
   },
   "types": {
     "contribution": "Hissa",
-    "withdrawal": "Yechib olish"
+    "withdrawal": "Yechib olish",
+    "shareReduction": "Hissani kamaytirish"
   },
   "notifications": {
     "saveFailed": "Saqlab bo‘lmadi"
+  },
+  "shares": {
+    "title": "Hissalar",
+    "owner": "Egasi",
+    "entries": "Yozuvlar",
+    "noRows": "Hali hissa qo‘shilmagan"
+  },
+  "history": {
+    "title": "Tranzaksiyalar tarixi"
   }
 }
