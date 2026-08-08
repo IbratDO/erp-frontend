@@ -1201,17 +1201,35 @@ const Orders = () => {
     openReceiveForm(order ? [order] : []);
   };
 
+  /**
+   * Apply an edit to one receive line.
+   *
+   * A hand-typed refund amount marks the line as touched so `withRefundAutofill` backs off.
+   * On the **first** such edit the other currency box is blanked as well, because whatever is
+   * sitting in it is autofill the user never looked at — leaving it there submits both legs
+   * and hands the money back twice.
+   *
+   * Only on the first edit, though. A supplier can genuinely settle across both currencies
+   * ($5 and 60 000 soum against a $10 claim), and the backend nets that correctly, so once
+   * the user has taken the fields over neither box is touched again and both stay editable.
+   */
   const updateReceiveLine = (orderId, patch) => {
-    // A hand-typed amount marks the line as touched so the autofill below backs off.
-    const touched =
-      patch.refundUzs !== undefined || patch.refundUsd !== undefined
-        ? { refundTouched: true }
-        : {};
+    const editsRefund = patch.refundUzs !== undefined || patch.refundUsd !== undefined;
     setReceiveData((prev) => ({
       ...prev,
-      lines: prev.lines.map((l) =>
-        l.orderId === orderId ? withRefundAutofill({ ...l, ...patch, ...touched }) : l,
-      ),
+      lines: prev.lines.map((l) => {
+        if (l.orderId !== orderId) return l;
+        let taking = {};
+        if (editsRefund) {
+          taking = { refundTouched: true };
+          if (!l.refundTouched) {
+            // First manual edit — drop the untouched autofilled counterpart.
+            if (patch.refundUzs !== undefined) taking.refundUsd = '';
+            else taking.refundUzs = '';
+          }
+        }
+        return withRefundAutofill({ ...l, ...patch, ...taking });
+      }),
     }));
   };
 
