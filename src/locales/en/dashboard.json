@@ -16,13 +16,10 @@
   "kpisToday": "Today's KPIs & chart filters",
   "salesAnalyticsTitle": "Sales analytics",
   "soldUnitsToday": "Units sold (today)",
-  "onDemandPipeline": "On-demand orders by status",
-  "onDemandPipelineHint": "{{total}} on-demand order(s) created in the selected period, by where each one stands now.",
   "onDemandMonthlyChart": "On-demand orders by month",
-  "onDemandMonthlyHint": "Bars sit side by side: Sold and Unfinished are subsets of Total, so they do not add up to it (cancelled and in-inventory orders are in Total only).",
+  "onDemandMonthlyHint": "Each bar is the on-demand orders created that month. The segments add up, so the bar height is the month's total.",
   "onDemandSeriesTotal": "Total",
   "onDemandSeriesSold": "Sold",
-  "onDemandSeriesUnfinished": "Unfinished",
   "salesRevenueToday": "Sales revenue (today)",
   "salesRevenueTodayUsd": "Sales revenue USD (today)",
   "salesRevenueTodayUzs": "Sales revenue UZS (today)",
@@ -43,6 +40,8 @@
   "netRevenueSub": "After refunds: {{refunds}}",
   "returnsRefundSub": "Refunds: {{refunds}}",
   "returnsChartHint": "Charts show net units (sales minus returns in each return month).",
+  "salesAmountChart": "Sales amount",
+  "salesAmountCount": "Number of sales",
   "monthlyPerformance": "Monthly performance",
   "monthlyHint": "Click legend items to filter charts. Month/year filter applies here only.",
   "weekdayAverages": "Weekday averages",
@@ -105,5 +104,7 @@
     "top5Products": "Top 5 products (selected period)",
     "noSalesInPeriod": "No sales in period",
     "noSales": "No sales"
-  }
+  },
+  "onDemandSeriesInProcess": "In process",
+  "onDemandSeriesCancelled": "Cancelled"
 }

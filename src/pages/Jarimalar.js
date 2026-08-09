@@ -8,6 +8,7 @@ import { formatAppNumber } from '../utils/localeFormat';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
+import FilterPanel from '../components/FilterPanel';
 
 const EMPTY_FILTERS = {
   employee: '',
@@ -272,8 +273,7 @@ const Jarimalar = () => {
       )}
 
       {!showForm && (
-        <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title">{t('filters.title')}</h3>
+        <FilterPanel title={t('filters.title')} filters={filters} style={{ marginBottom: '16px' }}>
           <div className="filter-toolbar">
             <div className="filter-field">
               <label>{t('filters.manager')}</label>
@@ -351,7 +351,7 @@ const Jarimalar = () => {
               </button>
             </div>
           </div>
-        </div>
+        </FilterPanel>
       )}
 
       <div className="table-card">

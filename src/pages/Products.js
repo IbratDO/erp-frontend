@@ -9,6 +9,7 @@ import PageTitle from '../components/PageTitle';
 import FilterSearchableSelect from '../components/FilterSearchableSelect';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import ProductCatalogFilterFields from '../components/ProductCatalogFilterFields';
+import FilterPanel from '../components/FilterPanel';
 import { matchesProductCatalogFilters, getCascadedFilterOptions, getCascadedDateOptions } from '../utils/productFilterUtils';
 import './TablePage.css';
 
@@ -1018,8 +1019,7 @@ const Products = () => {
 
       {/* Filters */}
       {!showForm && (
-        <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title">{t('filters.title', { ns: 'common' })}</h3>
+        <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
             <label>{t('categoryType')}</label>
@@ -1101,7 +1101,7 @@ const Products = () => {
             </button>
           </div>
         </div>
-        </div>
+        </FilterPanel>
       )}
 
       <div className="table-card">

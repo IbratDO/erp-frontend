@@ -10,6 +10,7 @@ import PageTitle from '../components/PageTitle';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
+import FilterPanel from '../components/FilterPanel';
 
 /** Table columns: one per currency (legacy *_cash and *_card ledger buckets roll up here). */
 const CURRENCY_COLS = [
@@ -427,8 +428,7 @@ const MoneyBalance = () => {
         </div>
       )}
 
-      <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-        <h3 className="filter-card__title">{t('filters.title', { ns: 'common' })}</h3>
+      <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filter} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
             <label>{t('ledgerBucket')}</label>
@@ -554,7 +554,7 @@ const MoneyBalance = () => {
             </button>
           </div>
         </div>
-      </div>
+      </FilterPanel>
 
       <div className="table-card">
         <h2>{t('transactionHistory')}</h2>

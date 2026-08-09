@@ -45,6 +45,7 @@ import './TablePage.css';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
 import PageTitle from '../components/PageTitle';
+import FilterPanel from '../components/FilterPanel';
 import useAppTranslation from '../hooks/useAppTranslation';
 import {
   buildSaleDisplayRows,
@@ -3138,8 +3139,7 @@ const Sales = () => {
 
       {/* Filters */}
       {!showBatchForm && !showCustomerForm && !showDispatchForm && !completePaySale && !showCompleteFromOrderForm && !showCompleteFromOrderGroupForm && !showSellReservedForm && (
-        <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title">{t('filters.title', { ns: 'common' })}</h3>
+        <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
             <label>{t('table.categoryType')}</label>
@@ -3285,7 +3285,7 @@ const Sales = () => {
             </button>
           </div>
         </div>
-        </div>
+        </FilterPanel>
       )}
 
       <div className="table-card">

@@ -177,24 +177,75 @@ export function crossFilterSummary(crossFilter) {
   return parts.length ? parts.join(' · ') : null;
 }
 
-/** Order statuses that still need someone to act — the complement of the terminal set
- *  (`in_inventory` / `sold` / `cancelled`), mirroring backend `ORDER_TERMINAL_STATUSES`. */
-export const UNFINISHED_ORDER_STATUSES = ['order_created', 'ordered', 'order_paid', 'received'];
-
 /**
  * Monthly on-demand order counts for the Sotuv bar chart, from the same
- * `on_demand_order_facts` rows that feed the status cards — no second request.
+ * `on_demand_order_facts` rows the status endpoint already returns — no second request.
  *
  * Three series, keyed by the labels the caller passes in so they stay translatable:
- *   total       every on-demand order created that month, whatever became of it
- *   sold        those now at `sold`
- *   unfinished  those now at a status that still needs action
+ *   sold       those now at `sold`
+ *   inProcess  raised but not yet finished — anything neither sold nor cancelled
+ *   cancelled  those now at `cancelled`
  *
- * **These deliberately do not add up.** An order that ended `cancelled` or sits `in_inventory`
- * is in `total` and in neither of the others, so `sold + unfinished <= total`. The bars are
- * therefore grouped, never stacked — stacking would draw a total taller than the real one and
- * imply the parts are exhaustive.
+ * **The three are exhaustive and mutually exclusive, which is what lets the bars stack.**
+ * Every on-demand order is in exactly one of them, so the stack height is the month's total
+ * and `total` is carried on each row for the tooltip rather than drawn as a fourth bar —
+ * stacking a total on top of its own parts would draw every bar at twice its real height.
+ *
+ * `inProcess` is deliberately defined as *the remainder* rather than as a list of pipeline
+ * statuses. Listing them meant `in_inventory` belonged to no series at all and silently
+ * vanished from the chart while still counting in the total; as a remainder, a status added
+ * to the workflow later shows up on its own instead of disappearing.
  */
+/**
+ * Sales amount per period, as two independent currency series.
+ *
+ * USD and so'm are kept apart rather than summed, matching what the KPI cards already do:
+ * `revenue_usd` and `revenue_uzs` are the money that actually arrived in each currency, and
+ * adding them would need a rate the facts do not carry — inventing one here would put a
+ * different number on the dashboard than the one the balance sheet reports.
+ *
+ * Monthly seeds all twelve months so the line reads as a calendar rather than as "the months
+ * that happened to have sales". Weekly does not: an empty calendar year is 52 mostly-flat
+ * points, so it shows only weeks with activity, like the marketing charts.
+ */
+export function buildSalesAmount(facts, granularity = 'monthly') {
+  const rows = new Map();
+
+  if (granularity === 'monthly') {
+    for (let m = 1; m <= 12; m += 1) {
+      rows.set(`${m}`.padStart(2, '0'), {
+        period: MONTH_NAMES[m - 1] || String(m),
+        revenue_usd: 0,
+        revenue_uzs: 0,
+        sales: 0,
+      });
+    }
+  }
+
+  for (const fact of facts || []) {
+    const key = granularity === 'weekly' ? fact.week_key : `${fact.month}`.padStart(2, '0');
+    if (!key) continue;
+    if (!rows.has(key)) {
+      rows.set(key, {
+        period: granularity === 'weekly'
+          ? fact.week_label || key
+          : MONTH_NAMES[Number(fact.month) - 1] || key,
+        revenue_usd: 0,
+        revenue_uzs: 0,
+        sales: 0,
+      });
+    }
+    const row = rows.get(key);
+    row.revenue_usd += Number(fact.revenue_usd) || 0;
+    row.revenue_uzs += Number(fact.revenue_uzs) || 0;
+    row.sales += 1;
+  }
+
+  return [...rows.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([, row]) => row);
+}
+
 export function buildOnDemandMonthly(facts, labels) {
   // Every month of the year is present, empty ones included, so the bars read as a
   // calendar rather than as "the two months that happened to have orders".
@@ -203,9 +254,10 @@ export function buildOnDemandMonthly(facts, labels) {
     byMonth.set(m, {
       month: m,
       monthLabel: MONTH_NAMES[m - 1] || String(m),
-      [labels.total]: 0,
+      total: 0,
       [labels.sold]: 0,
-      [labels.unfinished]: 0,
+      [labels.inProcess]: 0,
+      [labels.cancelled]: 0,
     });
   }
 
@@ -214,13 +266,15 @@ export function buildOnDemandMonthly(facts, labels) {
     if (!Number.isFinite(m) || m < 1 || m > 12) continue;
     const row = byMonth.get(m);
     const count = Number(fact.count) || 0;
-    row[labels.total] += count;
+    row.total += count;
     if (fact.status === 'sold') row[labels.sold] += count;
-    if (UNFINISHED_ORDER_STATUSES.includes(fact.status)) row[labels.unfinished] += count;
+    else if (fact.status === 'cancelled') row[labels.cancelled] += count;
+    else row[labels.inProcess] += count;
   }
 
   return {
     data: [...byMonth.values()].sort((a, b) => a.month - b.month),
-    keys: [labels.total, labels.sold, labels.unfinished],
+    // Bottom of the stack first: finished work at the base, cancellations on top.
+    keys: [labels.sold, labels.inProcess, labels.cancelled],
   };
 }

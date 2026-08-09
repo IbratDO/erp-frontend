@@ -15,6 +15,7 @@ import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
 import { usePermissions } from '../hooks/usePermissions';
 import AmountInput from '../components/AmountInput';
+import FilterPanel from '../components/FilterPanel';
 
 /** Pending receivable — sale on-credit remainder or manual other income. */
 function canCollectReceivable(receivable) {
@@ -603,8 +604,7 @@ const ReceivablesPayables = () => {
         </div>
       )}
 
-      <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title" style={{ marginBottom: '8px' }}>{t('filters.title')}</h3>
+      <FilterPanel title={t('filters.title')} filters={filter} style={{ marginBottom: '16px' }}>
           <div className="filter-toolbar">
           <div className="filter-field">
               <label>{t('filters.status')}</label>
@@ -674,7 +674,7 @@ const ReceivablesPayables = () => {
             </button>
           </div>
         </div>
-      </div>
+      </FilterPanel>
 
       {/* Receivables Table */}
       {activeTab === 'receivables' && (

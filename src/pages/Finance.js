@@ -16,6 +16,7 @@ import './TablePage.css';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
 import AmountInput from '../components/AmountInput';
+import FilterPanel from '../components/FilterPanel';
 
 const EXPENSE_TYPE_VALUES = [
   'salary', 'lunch', 'taxi', 'office_supplies', 'utilities', 'rent', 'delivery', 'cargo', 'smm', 'other',
@@ -560,8 +561,7 @@ const Finance = () => {
 
       {/* Filters */}
       {!showExpenseForm && !showIncomeForm && (
-        <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title" style={{ marginBottom: '8px' }}>{t('filters.title')}</h3>
+        <FilterPanel title={t('filters.title')} filters={filter} style={{ marginBottom: '16px' }}>
           <div className="filter-toolbar">
               <div className="filter-field">
                 <label>{t('filters.type')}</label>
@@ -648,7 +648,7 @@ const Finance = () => {
             </button>
           </div>
         </div>
-      </div>
+      </FilterPanel>
       )}
 
       <div className="table-card">

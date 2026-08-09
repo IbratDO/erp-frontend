@@ -8,6 +8,8 @@ import {
   BarChart,
   CartesianGrid,
   Legend,
+  Line,
+  LineChart,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -18,6 +20,7 @@ import {
   buildNetMonthlyStacked,
   buildNetWeekdayAverages,
   buildOnDemandMonthly,
+  buildSalesAmount,
   CHART_PALETTE,
   filterReturnFacts,
   crossFilterSummary,
@@ -36,6 +39,7 @@ import {
   InventoryCharts,
   MgmtChart,
   SalesMgmtCharts,
+  ToggleGroup,
   TopProductsBlock,
   tooltipStyle as mgmtTooltipStyle,
 } from '../components/ManagementKpisSection';
@@ -43,7 +47,7 @@ import PenaltyDashboardCard from '../components/PenaltyDashboardCard';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import useManagementKpisData from '../hooks/useManagementKpisData';
-import { formatAppDate } from '../utils/localeFormat';
+import { formatAppDate, formatAppNumber } from '../utils/localeFormat';
 import './Dashboard.css';
 
 function KpiCard({ label, value, sub }) {
@@ -141,17 +145,18 @@ function ChartPanel({
 }
 
 /**
- * Monthly on-demand orders, drawn in the same idiom as the "Do'kon va yetkazib berish"
- * chart: an `MgmtChart` card at full width, 240px tall, dashed grid, 12/11px ticks.
+ * On-demand orders per month, stacked by outcome.
  *
- * The one deliberate departure is that the bars are **grouped, not stacked** — that chart
- * splits one quantity into two disjoint halves, so its stack height is a real total. Here
- * Sotilgan and Yakunlanmagan are *subsets* of Jami (cancelled and in-inventory orders are in
- * Jami and in neither), so `sold + unfinished <= total` and a stack would invent a taller
- * total. Hence no `stackId`.
+ * Drawn in the same idiom as the "Do'kon va yetkazib berish" chart: an `MgmtChart` card at
+ * full width, 240px tall, dashed grid, 12/11px ticks.
+ *
+ * The three segments are exhaustive, so the bar's height *is* the month's total — which is
+ * why the total is printed in the tooltip rather than drawn as a fourth bar. Stacking a
+ * total on top of its own parts would double every bar.
  */
-function OnDemandMonthlyChart({ title, hint, data, keys }) {
-  const fills = ['#0ea5e9', '#10b981', '#f59e0b'];
+function OnDemandMonthlyChart({ title, hint, data, keys, totalLabel }) {
+  // Sold green, still working amber, cancelled red — read bottom-up as the stack is drawn.
+  const fills = ['#10b981', '#f59e0b', '#ef4444'];
   return (
     <MgmtChart title={title}>
       {hint ? <p className="dash-section-hint">{hint}</p> : null}
@@ -160,12 +165,112 @@ function OnDemandMonthlyChart({ title, hint, data, keys }) {
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
           <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-          <Tooltip contentStyle={mgmtTooltipStyle} />
+          <Tooltip
+            contentStyle={mgmtTooltipStyle}
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              return (
+                <div style={mgmtTooltipStyle} className="mgmt-tooltip">
+                  <div><strong>{label}</strong></div>
+                  {payload.map((entry) => (
+                    <div key={entry.dataKey} style={{ color: entry.color }}>
+                      {entry.name}: {entry.value}
+                    </div>
+                  ))}
+                  <div style={{ marginTop: 4, borderTop: '1px solid #e2e8f0', paddingTop: 4 }}>
+                    <strong>{totalLabel}: {payload[0]?.payload?.total ?? 0}</strong>
+                  </div>
+                </div>
+              );
+            }}
+          />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           {keys.map((key, i) => (
-            <Bar key={key} dataKey={key} name={key} fill={fills[i % fills.length]} />
+            <Bar
+              key={key}
+              dataKey={key}
+              name={key}
+              stackId="onDemand"
+              fill={fills[i % fills.length]}
+            />
           ))}
         </BarChart>
+      </ResponsiveContainer>
+    </MgmtChart>
+  );
+}
+
+/**
+ * Money taken per period, USD and so'm on their own axes.
+ *
+ * Two axes because these are two currencies, not two measures: a few hundred dollars and a
+ * few million so'm on one scale flattens the dollar line into the baseline. Each line is
+ * read against the axis on its own side, and the tooltip prints both in full.
+ */
+function SalesAmountChart({ title, data, granularity, onGranularityChange, labels }) {
+  return (
+    <MgmtChart
+      title={title}
+      controls={
+        <ToggleGroup
+          value={granularity}
+          onChange={onGranularityChange}
+          options={[
+            { value: 'weekly', label: labels.weekly },
+            { value: 'monthly', label: labels.monthly },
+          ]}
+        />
+      }
+    >
+      <ResponsiveContainer width="100%" height={240}>
+        <LineChart data={data}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="period" tick={{ fontSize: 11 }} />
+          <YAxis yAxisId="usd" tick={{ fontSize: 11 }} width={54} />
+          <YAxis
+            yAxisId="uzs"
+            orientation="right"
+            tick={{ fontSize: 11 }}
+            width={64}
+            tickFormatter={(v) => (v >= 1000000 ? `${Math.round(v / 1000000)}M` : formatAppNumber(v))}
+          />
+          <Tooltip
+            contentStyle={mgmtTooltipStyle}
+            content={({ active, payload, label }) => {
+              if (!active || !payload?.length) return null;
+              const p = payload[0]?.payload;
+              return (
+                <div style={mgmtTooltipStyle} className="mgmt-tooltip">
+                  <div><strong>{label}</strong></div>
+                  <div>{labels.usd}: {formatAppNumber(p?.revenue_usd, {
+                    minimumFractionDigits: 2, maximumFractionDigits: 2,
+                  })}</div>
+                  <div>{labels.uzs}: {formatAppNumber(p?.revenue_uzs)}</div>
+                  <div>{labels.sales}: {p?.sales ?? 0}</div>
+                </div>
+              );
+            }}
+          />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          <Line
+            yAxisId="usd"
+            type="monotone"
+            dataKey="revenue_usd"
+            name={labels.usd}
+            stroke="#2563eb"
+            strokeWidth={2}
+            dot={false}
+          />
+          <Line
+            yAxisId="uzs"
+            type="monotone"
+            dataKey="revenue_uzs"
+            name={labels.uzs}
+            stroke="#059669"
+            strokeWidth={2}
+            dot={false}
+          />
+        </LineChart>
       </ResponsiveContainer>
     </MgmtChart>
   );
@@ -180,7 +285,7 @@ const TAB_INVENTORY = 'inventory';
 
 const DashboardModern = () => {
   const { hasPermission, roleCode, isTargetolog } = usePermissions();
-  const { t, tStatus, monthOptions } = useAppTranslation(['dashboard', 'common', 'status']);
+  const { t, monthOptions } = useAppTranslation(['dashboard', 'common', 'status']);
   // Memoized so it is stable across renders and can be a useMemo dependency below.
   const td = useCallback((key, opts) => t(key, { ns: 'dashboard', ...opts }), [t]);
   const targetologView = isTargetolog || roleCode === 'targetolog';
@@ -194,6 +299,7 @@ const DashboardModern = () => {
   const [cbuRate, setCbuRate] = useState(null);
   const [expensesGranularity, setExpensesGranularity] = useState('monthly');
   const [marketingGranularity, setMarketingGranularity] = useState('weekly');
+  const [salesAmountGranularity, setSalesAmountGranularity] = useState('monthly');
 
   const loadAnalytics = useCallback(async (y) => {
     try {
@@ -278,6 +384,12 @@ const DashboardModern = () => {
     () => buildNetMonthlyStacked(filteredFacts, filteredReturnFacts, 'customer_type'),
     [filteredFacts, filteredReturnFacts],
   );
+  // Built from the same cross-filtered facts as the chart beside it, so clicking a legend
+  // narrows both together.
+  const salesAmount = useMemo(
+    () => buildSalesAmount(filteredFacts, salesAmountGranularity),
+    [filteredFacts, salesAmountGranularity],
+  );
 
   const weekdayUsers = useMemo(
     () => buildNetWeekdayAverages(filteredFacts, filteredReturnFacts, 'salesman_name'),
@@ -318,29 +430,13 @@ const DashboardModern = () => {
    * Every status is always rendered, in workflow order, including the ones at zero: the row
    * is a pipeline, and a stage vanishing when it empties would make the shape jump around.
    */
-  const onDemandStatusCards = useMemo(() => {
-    const rows = analytics?.on_demand_order_facts || [];
-    const order = analytics?.on_demand_status_order || [];
-    const counts = new Map(order.map((s) => [s, 0]));
-    for (const row of rows) {
-      if (monthNum && Number(row.month) !== monthNum) continue;
-      counts.set(row.status, (counts.get(row.status) || 0) + (Number(row.count) || 0));
-    }
-    return order.map((status) => ({ status, count: counts.get(status) || 0 }));
-  }, [analytics, monthNum]);
-
-  const onDemandTotal = useMemo(
-    () => onDemandStatusCards.reduce((sum, c) => sum + c.count, 0),
-    [onDemandStatusCards],
-  );
-
-  /** Monthly bars from the same rows that feed the cards — deliberately unfiltered by Oy,
-   *  since the chart's whole job is to show the months side by side. */
+  /** Monthly bars, deliberately unfiltered by Oy — the chart's whole job is to show the
+   *  months side by side. */
   const onDemandMonthly = useMemo(
     () => buildOnDemandMonthly(analytics?.on_demand_order_facts, {
-      total: td('onDemandSeriesTotal'),
       sold: td('onDemandSeriesSold'),
-      unfinished: td('onDemandSeriesUnfinished'),
+      inProcess: td('onDemandSeriesInProcess'),
+      cancelled: td('onDemandSeriesCancelled'),
     }),
     [analytics, td],
   );
@@ -547,27 +643,16 @@ const DashboardModern = () => {
 
       {activeTab === TAB_SALES && (
         <>
+          {/* The status-card row and its heading are gone; the chart carries its own title
+              and now shows the same breakdown across every month instead of one period. */}
           <section className="dash-section">
-            <h2 className="dash-section-title">{td('onDemandPipeline')}</h2>
-            <p className="dash-section-hint">
-              {td('onDemandPipelineHint', { total: onDemandTotal.toLocaleString() })}
-            </p>
-            <div className="dash-kpi-row">
-              {onDemandStatusCards.map(({ status, count }) => (
-                <KpiCard
-                  key={status}
-                  label={tStatus(status, 'order')}
-                  value={count.toLocaleString()}
-                />
-              ))}
-            </div>
-
             <div className="mgmt-charts-grid">
               <OnDemandMonthlyChart
                 title={td('onDemandMonthlyChart')}
                 hint={td('onDemandMonthlyHint')}
                 data={onDemandMonthly.data}
                 keys={onDemandMonthly.keys}
+                totalLabel={td('onDemandSeriesTotal')}
               />
             </div>
           </section>
@@ -589,6 +674,19 @@ const DashboardModern = () => {
                   activeCross={crossFilter.category}
                 />
               ) : null}
+              <SalesAmountChart
+                title={td('salesAmountChart')}
+                data={salesAmount}
+                granularity={salesAmountGranularity}
+                onGranularityChange={setSalesAmountGranularity}
+                labels={{
+                  weekly: td('mgmt.weekly'),
+                  monthly: td('mgmt.monthly'),
+                  usd: t('currency.usd', { ns: 'common' }),
+                  uzs: t('currency.uzs', { ns: 'common' }),
+                  sales: td('salesAmountCount'),
+                }}
+              />
             </div>
           </section>
 

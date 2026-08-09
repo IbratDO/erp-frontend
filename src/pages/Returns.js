@@ -24,6 +24,7 @@ import { formatAppDateTime } from '../utils/localeFormat';
 import i18n from '../i18n';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
+import FilterPanel from '../components/FilterPanel';
 
 const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
@@ -1438,8 +1439,7 @@ const Returns = () => {
 
       {/* Filters */}
       {!showForm && !showRefundForm && (
-        <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title">{t('filters.title')}</h3>
+        <FilterPanel title={t('filters.title')} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
             <label>{t('filters.categoryType')}</label>
@@ -1553,7 +1553,7 @@ const Returns = () => {
             </button>
           </div>
         </div>
-        </div>
+        </FilterPanel>
       )}
 
       <div className="table-card">

@@ -5,6 +5,7 @@ import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
 import SortableTh from '../components/SortableTh';
+import FilterPanel from '../components/FilterPanel';
 import { useClientTableSort } from '../utils/tableSort';
 
 const PROFIT_LOSS_SALE_SORT_ACCESSORS = {
@@ -140,10 +141,7 @@ const ProfitLoss = () => {
         <PageTitle ns="profitLoss" />
       </div>
 
-      <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-        <h3 className="filter-card__title" style={{ marginBottom: '8px' }}>
-          {t('filters.title')}
-        </h3>
+      <FilterPanel title={t('filters.title')} filters={filter} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
             <label>{t('filters.year')}</label>
@@ -177,7 +175,7 @@ const ProfitLoss = () => {
             </select>
           </div>
         </div>
-      </div>
+      </FilterPanel>
 
       <p style={{ color: '#666', marginBottom: '8px', fontSize: '0.9em' }}>
         {t('intro')}

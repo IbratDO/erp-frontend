@@ -5,6 +5,7 @@ import { formatDisplayAmount, formatAmountByBalanceType, formatPlainAmount } fro
 import PageTitle from '../components/PageTitle';
 import './TablePage.css';
 import SortableTh from '../components/SortableTh';
+import FilterPanel from '../components/FilterPanel';
 import { useClientTableSort } from '../utils/tableSort';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -377,8 +378,7 @@ const Customers = () => {
 
       {/* Filters */}
       {!showForm && (
-        <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title">{t('filters.title')}</h3>
+        <FilterPanel title={t('filters.title')} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field filter-field--grow">
             <label>{t('filters.name')}</label>
@@ -399,7 +399,7 @@ const Customers = () => {
             </button>
           </div>
         </div>
-        </div>
+        </FilterPanel>
       )}
 
       <div style={{ display: 'flex', gap: '20px' }}>

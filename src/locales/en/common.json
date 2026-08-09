@@ -106,6 +106,8 @@
     "sortDesc": "Kamayish"
   },
   "filters": {
+    "show": "Show filters",
+    "hide": "Hide filters",
     "title": "Filtrlar",
     "year": "Yil",
     "month": "Oy",

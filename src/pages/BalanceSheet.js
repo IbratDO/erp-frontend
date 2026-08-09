@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
+import FilterPanel from '../components/FilterPanel';
 import { formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
 
@@ -140,10 +141,7 @@ const BalanceSheet = () => {
         {t('intro')}
       </p>
 
-      <div className="form-card filter-card" style={{ marginBottom: 16 }}>
-        <h3 className="filter-card__title" style={{ marginBottom: 8 }}>
-          {t('filters.title')}
-        </h3>
+      <FilterPanel title={t('filters.title')} filters={filter} style={{ marginBottom: 16 }}>
         <div className="filter-toolbar">
           <div className="filter-field">
             <label>{t('filters.asOf')}</label>
@@ -193,7 +191,7 @@ const BalanceSheet = () => {
             {data.period?.label ? t('plPeriod', { label: data.period.label }) : ''}
           </p>
         )}
-      </div>
+      </FilterPanel>
 
       {loading ? (
         <p style={{ textAlign: 'center', padding: 40 }}>{t('loading')}</p>

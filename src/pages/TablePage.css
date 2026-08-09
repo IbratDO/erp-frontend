@@ -531,11 +531,69 @@
 }
 
 .filter-card .filter-card__title {
-  margin: 0 0 8px 0;
+  margin: 0;
   font-size: 0.9rem;
   font-weight: 600;
   color: #2c3e50;
   letter-spacing: 0.01em;
+}
+
+.filter-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+/* Closed, the card is just the header — the bottom margin would be dead space. */
+.filter-card--closed {
+  padding-bottom: 12px;
+}
+
+.filter-card--closed .filter-card__header {
+  margin-bottom: 0;
+}
+
+.filter-card__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  background: #fff;
+  color: #495057;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.filter-card__toggle:hover {
+  background: #f1f3f5;
+  color: #212529;
+}
+
+.filter-card__toggle:focus-visible {
+  outline: 2px solid #4dabf7;
+  outline-offset: 2px;
+}
+
+/* The count of filters differing from page load. Only rendered while closed, where it is
+   the sole clue that the table is being narrowed by controls that are out of sight. */
+.filter-card__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #228be6;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .filter-toolbar {
@@ -1208,6 +1266,13 @@ input.batch-sale-lines__control[type='number']::-webkit-outer-spin-button {
   .filter-toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* The whole point of collapsing: give the toggle a real 44px target on a phone. */
+  .filter-card__toggle {
+    min-width: 44px;
+    min-height: 44px;
+    justify-content: center;
   }
 
   .filter-field {

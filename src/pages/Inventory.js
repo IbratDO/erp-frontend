@@ -16,6 +16,7 @@ import FilterSearchableSelect from '../components/FilterSearchableSelect';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
+import FilterPanel from '../components/FilterPanel';
 
 const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
@@ -447,8 +448,7 @@ const Inventory = () => {
 
       {/* Filters */}
       {!showForm && (
-        <div className="form-card filter-card" style={{ marginBottom: '16px' }}>
-          <h3 className="filter-card__title">{t('filters.title', { ns: 'common' })}</h3>
+        <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
             <label>{t('form.categoryType')}</label>
@@ -584,7 +584,7 @@ const Inventory = () => {
             </button>
           </div>
         </div>
-        </div>
+        </FilterPanel>
       )}
 
       <div className="table-card">

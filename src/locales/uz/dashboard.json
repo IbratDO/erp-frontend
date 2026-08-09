@@ -16,13 +16,10 @@
   "kpisToday": "Bugungi KPI va grafik filtrlari",
   "salesAnalyticsTitle": "Sotuv analitikasi",
   "soldUnitsToday": "Sotilgan dona (bugun)",
-  "onDemandPipeline": "On-demand buyurtmalar holati",
-  "onDemandPipelineHint": "Tanlangan davrda yaratilgan {{total}} ta on-demand buyurtma, hozirgi holati bo‘yicha.",
   "onDemandMonthlyChart": "Oylik on-demand buyurtmalar",
-  "onDemandMonthlyHint": "Ustunlar yonma-yon: Sotilgan va Yakunlanmagan — Jamining bir qismi, shuning uchun ular yig‘ilmaydi (bekor qilingan va ombordagilar Jamida bor).",
+  "onDemandMonthlyHint": "Har bir ustun — o‘sha oyda yaratilgan on-demand buyurtmalar. Bo‘laklar yig‘iladi, ustun balandligi esa oylik jami.",
   "onDemandSeriesTotal": "Jami",
   "onDemandSeriesSold": "Sotilgan",
-  "onDemandSeriesUnfinished": "Yakunlanmagan",
   "salesRevenueToday": "Sotuv tushumi (bugun)",
   "salesRevenueTodayUsd": "Sotuv tushumi USD (bugun)",
   "salesRevenueTodayUzs": "Sotuv tushumi UZS (bugun)",
@@ -41,6 +38,8 @@
   "netRevenueSub": "Qaytarimdan keyin: {{refunds}}",
   "returnsRefundSub": "Qaytarim: {{refunds}}",
   "returnsChartHint": "Grafiklar sof donani ko‘rsatadi (har oyda sotuvdan qaytarishlar ayiriladi).",
+  "salesAmountChart": "Sotuv summasi",
+  "salesAmountCount": "Sotuvlar soni",
   "monthlyPerformance": "Oylik natijalar",
   "monthlyHint": "Grafiklarni filtrlash uchun afsona elementini bosing. Oy/yil filtri faqat shu yerda.",
   "weekdayAverages": "Hafta kunlari bo‘yicha o‘rtacha",
@@ -105,5 +104,7 @@
     "top5Products": "Top 5 mahsulot (tanlangan davr)",
     "noSalesInPeriod": "Tanlangan davrda sotuv yo‘q",
     "noSales": "Sotuv yo‘q"
-  }
+  },
+  "onDemandSeriesInProcess": "Jarayonda",
+  "onDemandSeriesCancelled": "Bekor qilingan"
 }

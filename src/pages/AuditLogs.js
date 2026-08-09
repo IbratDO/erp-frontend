@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import apiGetAll from '../utils/fetchAllPages';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
+import FilterPanel from '../components/FilterPanel';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 
@@ -121,8 +122,7 @@ const AuditLogs = () => {
 
       {tab === 'actions' ? (
         <>
-          <div className="form-card filter-card" style={{ marginBottom: 16 }}>
-            <h3 className="filter-card__title">{t('filters.title')}</h3>
+          <FilterPanel title={t('filters.title')} filters={actionFilter} style={{ marginBottom: 16 }}>
             <div className="filter-toolbar">
               <div className="filter-field">
                 <label>{t('filters.action')}</label>
@@ -141,7 +141,7 @@ const AuditLogs = () => {
                 <input type="number" value={actionFilter.object_id} onChange={(e) => setActionFilter({ ...actionFilter, object_id: e.target.value })} placeholder={t('filters.objectIdPlaceholder')} />
               </div>
             </div>
-          </div>
+          </FilterPanel>
 
           <div className="table-card">
             {loading ? <p style={{ padding: 16 }}>{t('actions.loading', { ns: 'common' })}</p> : (
@@ -182,8 +182,7 @@ const AuditLogs = () => {
         </>
       ) : (
         <>
-          <div className="form-card filter-card" style={{ marginBottom: 16 }}>
-            <h3 className="filter-card__title">{t('filters.title')}</h3>
+          <FilterPanel title={t('filters.title')} filters={statusFilter} style={{ marginBottom: 16 }}>
             <div className="filter-toolbar">
               <div className="filter-field">
                 <label>{t('filters.type')}</label>
@@ -198,7 +197,7 @@ const AuditLogs = () => {
                 <input type="number" value={statusFilter.object_id} onChange={(e) => setStatusFilter({ ...statusFilter, object_id: e.target.value })} placeholder={t('filters.objectIdStatusPlaceholder')} />
               </div>
             </div>
-          </div>
+          </FilterPanel>
 
           <div className="table-card">
             {loading ? <p style={{ padding: 16 }}>{t('actions.loading', { ns: 'common' })}</p> : (

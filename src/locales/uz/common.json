@@ -106,6 +106,8 @@
     "sortDesc": "Kamayish"
   },
   "filters": {
+    "show": "Filtrlarni ko‘rsatish",
+    "hide": "Filtrlarni yashirish",
     "title": "Filtrlar",
     "year": "Yil",
     "month": "Oy",
