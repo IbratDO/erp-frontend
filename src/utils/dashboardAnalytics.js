@@ -197,18 +197,21 @@ export function crossFilterSummary(crossFilter) {
  * to the workflow later shows up on its own instead of disappearing.
  */
 /**
- * Sales amount per period, as two independent currency series.
+ * Sales per period: how many were made (`sales`), and what came in (`revenue_usd`/`_uzs`).
  *
- * USD and so'm are kept apart rather than summed, matching what the KPI cards already do:
- * `revenue_usd` and `revenue_uzs` are the money that actually arrived in each currency, and
- * adding them would need a rate the facts do not carry — inventing one here would put a
- * different number on the dashboard than the one the balance sheet reports.
+ * `sales` counts **sale records, not items** — one sale of five shirts is 1 here and 5 in the
+ * "donalar" charts on the same tab. That is what the Sotuvlar soni line plots.
+ *
+ * The revenue figures ride along unused by that chart, kept per currency rather than summed:
+ * they are the money that actually arrived in each, and adding them needs a rate the facts do
+ * not carry. Inventing one would put a number on the dashboard that the balance sheet
+ * disagrees with.
  *
  * Monthly seeds all twelve months so the line reads as a calendar rather than as "the months
  * that happened to have sales". Weekly does not: an empty calendar year is 52 mostly-flat
  * points, so it shows only weeks with activity, like the marketing charts.
  */
-export function buildSalesAmount(facts, granularity = 'monthly') {
+export function buildSalesSeries(facts, granularity = 'monthly') {
   const rows = new Map();
 
   if (granularity === 'monthly') {

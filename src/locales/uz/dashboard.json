@@ -38,8 +38,6 @@
   "netRevenueSub": "Qaytarimdan keyin: {{refunds}}",
   "returnsRefundSub": "Qaytarim: {{refunds}}",
   "returnsChartHint": "Grafiklar sof donani ko‘rsatadi (har oyda sotuvdan qaytarishlar ayiriladi).",
-  "salesAmountChart": "Sotuv summasi",
-  "salesAmountCount": "Sotuvlar soni",
   "monthlyPerformance": "Oylik natijalar",
   "monthlyHint": "Grafiklarni filtrlash uchun afsona elementini bosing. Oy/yil filtri faqat shu yerda.",
   "weekdayAverages": "Hafta kunlari bo‘yicha o‘rtacha",
@@ -106,5 +104,7 @@
     "noSales": "Sotuv yo‘q"
   },
   "onDemandSeriesInProcess": "Jarayonda",
-  "onDemandSeriesCancelled": "Bekor qilingan"
+  "onDemandSeriesCancelled": "Bekor qilingan",
+  "salesCountChart": "Sotuvlar soni",
+  "salesCountSeries": "Sotuvlar"
 }

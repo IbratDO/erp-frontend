@@ -164,7 +164,9 @@
     "advanceNone": "0 — yo‘q",
     "alreadyPaidTitleClient": "Yaratishda to‘langan deb belgilash uchun USD xarajat kiriting yoki bo‘sh qoldirib keyin to‘lang.",
     "alreadyPaidTitleNeedCost": "Yuqorida USD xarajat kiriting yoki belgilamasdan «Buyurtmani to‘lash» dan foydalaning.",
-    "sizeLabel": "o‘lcham {{size}}"
+    "sizeLabel": "o‘lcham {{size}}",
+    "advanceUsd": "Avans USD",
+    "advanceUzs": "Avans so'm"
   },
   "context": {
     "plannedCost": "Rejalashtirilgan xarajat",
@@ -196,7 +198,8 @@
     "returnAdvance": "Mijozga oldindan to‘lovni qaytarish — qayd etilgan oldindan to‘lov:",
     "amount": "Summa",
     "currency": "Valyuta",
-    "advanceHint": "≤ yuqoridagi oldindan to‘lov · tanlangan naqd puldan yechiladi · FX yo‘q"
+    "advanceHint": "≤ yuqoridagi oldindan to‘lov · tanlangan naqd puldan yechiladi · FX yo‘q",
+    "advanceHintMixed": "Aralash avans ikkala valyutada to‘liq qaytariladi."
   },
   "customerForm": {
     "title": "Yangi mijoz qo‘shish",

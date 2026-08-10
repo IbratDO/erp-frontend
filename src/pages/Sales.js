@@ -12,6 +12,7 @@ import {
 } from '../utils/currencyFormat';
 import SaleCompletePayForm from '../components/SaleCompletePayForm';
 import SaleDeliverySettlementForm from '../components/SaleDeliverySettlementForm';
+import SaleChangeFields from '../components/SaleChangeFields';
 import {
   shopDeliverySettlementRequired,
   shopDeliverySettlementRequiredForGroup,
@@ -1029,6 +1030,9 @@ const Sales = () => {
     balance_shortfall_type: '',
     balance_shortfall_amount: '',
     apply_currency_conversion_difference: false,
+    apply_change: false,
+    change_uzs: '',
+    change_usd: '',
   });
 
   /** Completing a whole SaleGroup at once (e.g. several items sold individually from the
@@ -1318,6 +1322,12 @@ const Sales = () => {
         deposit_received: false,
         deposit_amount: '',
         deposit_currency: 'USD',
+        balance_shortfall_type: '',
+        balance_shortfall_amount: '',
+        apply_currency_conversion_difference: false,
+        apply_change: false,
+        change_uzs: '',
+        change_usd: '',
       });
       setShowCompleteFromOrderForm(true);
     }
@@ -1348,6 +1358,9 @@ const Sales = () => {
         balance_shortfall_type: '',
         balance_shortfall_amount: '',
         apply_currency_conversion_difference: false,
+        apply_change: false,
+        change_uzs: '',
+        change_usd: '',
       };
     });
     setCompleteFromOrderGroupData({
@@ -1423,9 +1436,24 @@ const Sales = () => {
             balance_shortfall_type: line.balance_shortfall_type,
             balance_shortfall_amount: line.balance_shortfall_amount,
             apply_currency_conversion_difference: line.apply_currency_conversion_difference,
+            apply_change: line.apply_change,
+            change_uzs: line.change_uzs,
+            change_usd: line.change_usd,
           },
           cfoGroupExchangeRate?.rate ?? null,
         );
+        if (line.apply_change) {
+          const chUzs = parseFloat(line.change_uzs) || 0;
+          const chUsd = parseFloat(line.change_usd) || 0;
+          if (chUzs <= 0 && chUsd <= 0) {
+            showNotification(t('completePay.errChangeAmount'), 'error');
+            return;
+          }
+          if (meta.changePending) {
+            showNotification(t('completePay.errRateLoading'), 'error');
+            return;
+          }
+        }
         if (!isUnderpaidMeta(meta)) continue;
         if (line.balance_shortfall_type === 'discount' && !(parseFloat(line.balance_shortfall_amount) > 0)) {
           showNotification(t('completePay.errDiscountAmount'), 'error');
@@ -1464,6 +1492,16 @@ const Sales = () => {
               : {}),
             ...(l.apply_currency_conversion_difference
               ? { apply_currency_conversion_difference: true }
+              : {}),
+            ...(l.apply_change && !isDelivery
+              ? {
+                ...((parseFloat(l.change_uzs) || 0) > 0
+                  ? { change_uzs: parseFloat(l.change_uzs) }
+                  : {}),
+                ...((parseFloat(l.change_usd) || 0) > 0
+                  ? { change_usd: parseFloat(l.change_usd) }
+                  : {}),
+              }
               : {}),
           };
         }),
@@ -1533,6 +1571,9 @@ const Sales = () => {
             balance_shortfall_amount: completeFromOrderData.balance_shortfall_amount,
             apply_currency_conversion_difference:
               completeFromOrderData.apply_currency_conversion_difference,
+            apply_change: completeFromOrderData.apply_change,
+            change_uzs: completeFromOrderData.change_uzs,
+            change_usd: completeFromOrderData.change_usd,
           },
           exchangeRate: cfoExchangeRate,
           exchangeRateError: cfoExchangeRateError,
@@ -1559,6 +1600,12 @@ const Sales = () => {
             : {}),
           ...(flow.requestData.apply_currency_conversion_difference
             ? { apply_currency_conversion_difference: true }
+            : {}),
+          ...(flow.requestData.change_uzs != null
+            ? { change_uzs: flow.requestData.change_uzs }
+            : {}),
+          ...(flow.requestData.change_usd != null
+            ? { change_usd: flow.requestData.change_usd }
             : {}),
         };
       }
@@ -1588,6 +1635,8 @@ const Sales = () => {
         ...(paymentPayload.apply_currency_conversion_difference
           ? { apply_currency_conversion_difference: true }
           : {}),
+        ...(paymentPayload.change_uzs != null ? { change_uzs: paymentPayload.change_uzs } : {}),
+        ...(paymentPayload.change_usd != null ? { change_usd: paymentPayload.change_usd } : {}),
         ...(cfoActiveLines.length > 0 ? {
           package_lines: cfoActiveLines.map(({ package_type, quantity }) => ({ package_type, quantity })),
         } : {}),
@@ -1707,6 +1756,9 @@ const Sales = () => {
         balance_shortfall_amount: '',
         apply_currency_conversion_difference: false,
         apply_additional_profit: false,
+        apply_change: false,
+        change_uzs: '',
+        change_usd: '',
       });
       setShowSellReservedForm(true);
     }
@@ -1722,6 +1774,7 @@ const Sales = () => {
         sellReservedData.uzs,
         sellReservedData.usd,
         cbuRate,
+        sellReservedData,
       );
       const uzsT = parseFloat(sellReservedData.uzs) || 0;
       const usdT = parseFloat(sellReservedData.usd) || 0;
@@ -1765,11 +1818,30 @@ const Sales = () => {
         showNotification(t('completePay.errShortfall'), 'error');
         return;
       }
+      const changeUzs = sellReservedData.apply_change
+        ? parseFloat(sellReservedData.change_uzs) || 0 : 0;
+      const changeUsd = sellReservedData.apply_change
+        ? parseFloat(sellReservedData.change_usd) || 0 : 0;
+      if (sellReservedData.apply_change) {
+        if (changeUzs <= 0 && changeUsd <= 0) {
+          showNotification(t('completePay.errChangeAmount'), 'error');
+          return;
+        }
+        if (meta.changePending) {
+          showNotification(t('completePay.errRateLoading'), 'error');
+          return;
+        }
+      }
       const payload = {
         uzs: uzsT,
         usd: usdT,
       };
-      if (sellReservedExchangeRate?.rate && (meta.splitCurrency || meta.crossCurrency)) {
+      if (changeUzs > 0) payload.change_uzs = changeUzs;
+      if (changeUsd > 0) payload.change_usd = changeUsd;
+      if (
+        sellReservedExchangeRate?.rate
+        && (meta.splitCurrency || meta.crossCurrency || changeUzs > 0 || changeUsd > 0)
+      ) {
         payload.exchange_rate = sellReservedExchangeRate.rate;
       }
       if (wantDisc) {
@@ -1800,6 +1872,7 @@ const Sales = () => {
         saleId: null, uzs: '', usd: '', balance_shortfall_type: '',
         balance_shortfall_amount: '', apply_currency_conversion_difference: false,
         apply_additional_profit: false,
+        apply_change: false, change_uzs: '', change_usd: '',
       });
       fetchSales();
       showNotification(t('sellReserved.success'), 'success');
@@ -1817,7 +1890,34 @@ const Sales = () => {
     sellReservedData.uzs,
     sellReservedData.usd,
     sellReservedExchangeRate?.rate ?? null,
+    sellReservedData,
   );
+  // Same rule as Complete & Pay: keyed off the gross surplus, so the panel does not vanish the
+  // moment the change entered in it makes the payment read as exact.
+  const sellReservedChangeAvailable = !!sellReservedSaleForForm && (
+    sellReservedData.apply_change
+    || (
+      sellReservedPayMeta.requiredChange != null
+      && sellReservedPayMeta.requiredChange > (sellReservedPayMeta.sc === 'UZS' ? 1 : 0.005)
+    )
+  );
+
+  /** Payment meta for a Complete-from-Order line — one shape for the single form and the group. */
+  const cfoMetaFor = (saleRow, form, isGroupLine = false) =>
+    computePaymentDifferenceMeta(
+      { ...saleRow, selling_price: form.selling_price },
+      {
+        uzs: isGroupLine ? form.uzs : form.now_uzs,
+        usd: isGroupLine ? form.usd : form.now_usd,
+        balance_shortfall_type: form.balance_shortfall_type,
+        balance_shortfall_amount: form.balance_shortfall_amount,
+        apply_currency_conversion_difference: form.apply_currency_conversion_difference,
+        apply_change: form.apply_change,
+        change_uzs: form.change_uzs,
+        change_usd: form.change_usd,
+      },
+      (isGroupLine ? cfoGroupExchangeRate : cfoExchangeRate)?.rate ?? null,
+    );
 
   const renderSaleActionsCell = (sale, groupSales = null) => {
     const actionFor = (status) => handleStatusUpdate(sale.id, status, groupSales || undefined);
@@ -2404,23 +2504,38 @@ const Sales = () => {
                 );
               })()}
               {(() => {
+                // Keyed off the gross surplus, not `isUnderpaidMeta`: once the change covers the
+                // surplus the payment reads as exact, which would pull the panel out from under
+                // the amounts just typed.
+                if (completeFromOrderData.sale_type !== 'bought_from_shop') return null;
+                const saleRow = sales.find((s) => s.id === completeFromOrderData.saleId);
+                if (!saleRow) return null;
+                const meta = cfoMetaFor(saleRow, completeFromOrderData);
+                const tol = meta.sc === 'UZS' ? 1 : 0.005;
+                if (
+                  !completeFromOrderData.apply_change
+                  && !(meta.requiredChange != null && meta.requiredChange > tol)
+                ) return null;
+                return (
+                  <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                    <SaleChangeFields
+                      form={completeFromOrderData}
+                      setForm={setCompleteFromOrderData}
+                      sc={meta.sc}
+                      required={meta.requiredChange}
+                      cbuRate={cfoExchangeRate?.rate ?? null}
+                      t={t}
+                    />
+                  </div>
+                );
+              })()}
+              {(() => {
                 // Paying less than due has to be explained here, or the gap silently becomes
                 // customer debt and never reaches the FX-difference report.
                 if (completeFromOrderData.sale_type !== 'bought_from_shop') return null;
                 const saleRow = sales.find((s) => s.id === completeFromOrderData.saleId);
                 if (!saleRow) return null;
-                const meta = computePaymentDifferenceMeta(
-                  { ...saleRow, selling_price: completeFromOrderData.selling_price },
-                  {
-                    uzs: completeFromOrderData.now_uzs,
-                    usd: completeFromOrderData.now_usd,
-                    balance_shortfall_type: completeFromOrderData.balance_shortfall_type,
-                    balance_shortfall_amount: completeFromOrderData.balance_shortfall_amount,
-                    apply_currency_conversion_difference:
-                      completeFromOrderData.apply_currency_conversion_difference,
-                  },
-                  cfoExchangeRate?.rate ?? null,
-                );
+                const meta = cfoMetaFor(saleRow, completeFromOrderData);
                 if (!isUnderpaidMeta(meta)) return null;
                 return (
                   <div
@@ -2457,6 +2572,7 @@ const Sales = () => {
                     now_uzs: '', now_usd: '', deposit_received: false, deposit_amount: '', deposit_currency: 'USD',
                     balance_shortfall_type: '', balance_shortfall_amount: '',
                     apply_currency_conversion_difference: false,
+                    apply_change: false, change_uzs: '', change_usd: '',
                   });
                 }}
               >
@@ -2627,22 +2743,26 @@ const Sales = () => {
             </div>
             {completeFromOrderGroupData.sale_type === 'bought_from_shop'
               && completeFromOrderGroupData.lines.map((line) => {
-                // Lines settle independently, so each underpaid one is classified on its own
-                // rather than lumping the group's total gap into a single discount.
+                // Lines settle independently, so each one is classified — and given change —
+                // on its own rather than lumping the group's total gap into one figure.
                 const saleRow = sales.find((s) => s.id === line.saleId);
                 if (!saleRow) return null;
-                const meta = computePaymentDifferenceMeta(
-                  { ...saleRow, selling_price: line.selling_price },
-                  {
-                    uzs: line.uzs,
-                    usd: line.usd,
-                    balance_shortfall_type: line.balance_shortfall_type,
-                    balance_shortfall_amount: line.balance_shortfall_amount,
-                    apply_currency_conversion_difference: line.apply_currency_conversion_difference,
-                  },
-                  cfoGroupExchangeRate?.rate ?? null,
-                );
-                if (!isUnderpaidMeta(meta)) return null;
+                const meta = cfoMetaFor(saleRow, line, true);
+                const setLine = (updater) => {
+                  setCompleteFromOrderGroupData((prev) => ({
+                    ...prev,
+                    lines: prev.lines.map((l) => (
+                      l.saleId === line.saleId
+                        ? (typeof updater === 'function' ? updater(l) : { ...l, ...updater })
+                        : l
+                    )),
+                  }));
+                };
+                const tol = meta.sc === 'UZS' ? 1 : 0.005;
+                const showChange = !!line.apply_change
+                  || (meta.requiredChange != null && meta.requiredChange > tol);
+                const showShortfall = isUnderpaidMeta(meta);
+                if (!showChange && !showShortfall) return null;
                 return (
                   <div
                     key={`cfo-group-shortfall-${line.saleId}`}
@@ -2655,21 +2775,24 @@ const Sales = () => {
                     <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: '0.9em' }}>
                       #{line.saleId} — {line.product_detail?.brand} {line.product_detail?.model}
                     </p>
-                    <ShortfallClassificationFields
-                      form={line}
-                      setForm={(updater) => {
-                        setCompleteFromOrderGroupData((prev) => ({
-                          ...prev,
-                          lines: prev.lines.map((l) => (
-                            l.saleId === line.saleId
-                              ? (typeof updater === 'function' ? updater(l) : { ...l, ...updater })
-                              : l
-                          )),
-                        }));
-                      }}
-                      meta={meta}
-                      t={t}
-                    />
+                    {showChange && (
+                      <SaleChangeFields
+                        form={line}
+                        setForm={setLine}
+                        sc={meta.sc}
+                        required={meta.requiredChange}
+                        cbuRate={cfoGroupExchangeRate?.rate ?? null}
+                        t={t}
+                      />
+                    )}
+                    {showShortfall && (
+                      <ShortfallClassificationFields
+                        form={line}
+                        setForm={setLine}
+                        meta={meta}
+                        t={t}
+                      />
+                    )}
                   </div>
                 );
               })}
@@ -2769,6 +2892,18 @@ const Sales = () => {
                   ) : null}
                 </p>
               )}
+              {sellReservedChangeAvailable && (
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <SaleChangeFields
+                    form={sellReservedData}
+                    setForm={setSellReservedData}
+                    sc={sellReservedPayMeta.sc}
+                    required={sellReservedPayMeta.requiredChange}
+                    cbuRate={sellReservedExchangeRate?.rate ?? null}
+                    t={t}
+                  />
+                </div>
+              )}
               {sellReservedPayMeta.needsDiscountChoice && (
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <p style={{ margin: '0 0 10px 0', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
@@ -2843,6 +2978,7 @@ const Sales = () => {
                     saleId: null, uzs: '', usd: '', balance_shortfall_type: '',
                     balance_shortfall_amount: '', apply_currency_conversion_difference: false,
                     apply_additional_profit: false,
+                    apply_change: false, change_uzs: '', change_usd: '',
                   });
                 }}
               >

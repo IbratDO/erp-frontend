@@ -117,6 +117,35 @@ export function paymentAmountInSaleCurrency(uzsStr, usdStr, saleCurrency, cbuRat
   return sc === 'USD' ? usdT : uzsT;
 }
 
+/**
+ * "Qaytim" — change out of the shop's own drawer.
+ *
+ * Offered wherever the customer settles at the counter: a direct shop sale (single or grouped),
+ * a reserved sale being sold, and an on-demand order collected in the shop — including one
+ * carrying an advance, whose remaining-due cap simply applies to the net.
+ *
+ * Not the delivery flow, where the customer pays a courier at their door and the shop is
+ * settled days later; the courier gives any change from their own hand and the shop's drawer is
+ * never in the room. Mirrors the server's `_sale_accepts_change`, so the option never appears
+ * where submitting it would fail.
+ */
+export function saleAcceptsChange(sale) {
+  if (!sale) return false;
+  if (sale.sale_type === 'delivery') return false;
+  return true;
+}
+
+/** Both change legs as one figure in the sale's currency; null when CBU is needed but absent. */
+export function changeAmountInSaleCurrency(uzsStr, usdStr, saleCurrency, cbuRate) {
+  const uzs = parseFloat(uzsStr) || 0;
+  const usd = parseFloat(usdStr) || 0;
+  if (uzs <= 0 && usd <= 0) return 0;
+  const sc = (saleCurrency || 'USD').toUpperCase();
+  const crosses = sc === 'USD' ? uzs > 0 : usd > 0;
+  if (crosses && !cbuRate) return null;
+  return paymentTotalInSaleCurrency(uzs, usd, sc, cbuRate);
+}
+
 function formatAmountForCurrency(amount, currency) {
   const sc = (currency || 'USD').toUpperCase();
   if (sc === 'UZS') {
@@ -151,11 +180,22 @@ export function paymentHasShortfall(due, paid, saleCurrency) {
   return p + PAYMENT_SHORTFALL_TOLERANCE < d;
 }
 
-export function validateAdvanceCompletionPayment(sale, uzsStr, usdStr, sellingPriceOverride, cbuRate) {
+/**
+ * `changeInSc` is change handed back, valued in the sale's currency. It comes off before the
+ * cap for the same reason the server does it: handing over more than the remaining due and
+ * taking the surplus straight back is not an overpayment.
+ */
+export function validateAdvanceCompletionPayment(
+  sale, uzsStr, usdStr, sellingPriceOverride, cbuRate, changeInSc = 0,
+) {
   if (!saleHasOrderAdvance(sale)) {
     return { ok: true };
   }
   const due = computeAdvanceRemainingDue(sale, sellingPriceOverride, cbuRate);
+  // `cap` is what the raw legs are measured against; `due` stays the real remaining balance so
+  // the confirm dialogs below keep quoting the number the customer actually owes.
+  const back = parseFloat(changeInSc) || 0;
+  const cap = due == null ? null : due + back;
   const sc = (sale.sale_currency || 'USD').toUpperCase();
   const uzsT = parseFloat(uzsStr) || 0;
   const usdT = parseFloat(usdStr) || 0;
@@ -171,7 +211,7 @@ export function validateAdvanceCompletionPayment(sale, uzsStr, usdStr, sellingPr
       return { ok: false, error: cp('errRateLoading') };
     }
     const paid = paymentTotalInSaleCurrency(uzsT, usdT, sc, cbuRate);
-    if (paid > due + 0.005) {
+    if (paid > cap + 0.005) {
       return {
         ok: false,
         error: cp('errExceedsDueAdvanceCbu', { amount: formatAmountForCurrency(due, sc) }),
@@ -190,7 +230,7 @@ export function validateAdvanceCompletionPayment(sale, uzsStr, usdStr, sellingPr
   }
 
   if (sc === 'USD') {
-    if (usdT > due + 0.005) {
+    if (usdT > cap + 0.005) {
       return {
         ok: false,
         error: cp('errExceedsDueFormatted', { amount: formatAmountForCurrency(due, sc) }),
@@ -207,7 +247,7 @@ export function validateAdvanceCompletionPayment(sale, uzsStr, usdStr, sellingPr
       };
     }
   } else {
-    if (uzsT > due + 0.005) {
+    if (uzsT > cap + 0.005) {
       return {
         ok: false,
         error: cp('errExceedsDueFormatted', { amount: formatAmountForCurrency(due, sc) }),
@@ -369,6 +409,9 @@ export const emptyPaymentFormState = () => ({
   balance_shortfall_amount: '',
   apply_currency_conversion_difference: false,
   apply_additional_profit: false,
+  apply_change: false,
+  change_uzs: '',
+  change_usd: '',
   completion_notes: '',
 });
 
@@ -470,6 +513,9 @@ export function buildPaymentFormDataFromSale(sale, cbuRate) {
     balance_shortfall_amount: '',
     apply_currency_conversion_difference: false,
     apply_additional_profit: false,
+    apply_change: false,
+    change_uzs: '',
+    change_usd: '',
   };
 }
 
@@ -486,6 +532,7 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
       remainingAfterDiscount: null,
       conversionDifference: null,
       differenceNeedsClassification: false,
+      requiredChange: null,
     };
   }
   const wantDiscount = paymentFormData.balance_shortfall_type === 'discount';
@@ -511,6 +558,11 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
     ...base,
     discountAmount,
     remainingAfterDiscount,
+    // What the customer is owed back, before any change is entered — the number the form
+    // offers to fill the change boxes with. Reads off the *gross* payment on purpose, so it
+    // does not shrink to zero the moment change is typed in.
+    requiredChange:
+      base.paidGross != null ? base.paidGross - (base.due - discountAmount) : null,
     conversionDifference: wantFx ? remainingAfterDiscount : null,
     additionalProfitAmount: apExplained ? remainingAfterDiscount : null,
     differenceNeedsClassification,
@@ -567,7 +619,15 @@ export function computePaymentShortfallMeta(sale, paymentFormData, cbuRate) {
     };
   }
 
-  const paid = paymentAmountInSaleCurrency(paymentFormData.uzs, paymentFormData.usd, sc, cbuRate);
+  const paidGross = paymentAmountInSaleCurrency(paymentFormData.uzs, paymentFormData.usd, sc, cbuRate);
+  // Change comes off before anything else looks at the payment, so shortfall, overpayment and
+  // the classification options all reason about money the shop actually kept.
+  const wantChange = !!paymentFormData.apply_change;
+  const changeInSc = wantChange
+    ? changeAmountInSaleCurrency(paymentFormData.change_uzs, paymentFormData.change_usd, sc, cbuRate)
+    : 0;
+  const changePending = wantChange && changeInSc == null;
+  const paid = paidGross == null || changePending ? paidGross : paidGross - changeInSc;
   const short = paid != null ? due - paid : due;
   const payingOtherCurrency =
     hasAdvance &&
@@ -597,11 +657,21 @@ export function computePaymentShortfallMeta(sale, paymentFormData, cbuRate) {
     overpaymentAmount,
     hasAdvance,
     exceedsRemainingDue,
+    paidGross,
+    changeInSc,
+    changePending,
+    wantChange,
   };
 }
 
-/** Reserved sale: total_amount − deposit; supports combined UZS+USD at CBU rate. */
-export function computeReservedPaymentMeta(sale, uzsStr, usdStr, cbuRate) {
+/**
+ * Reserved sale: total_amount − deposit; supports combined UZS+USD at CBU rate.
+ *
+ * `form` (optional) is the sell-reserved form state, read for its change and discount fields.
+ * As on the Complete & Pay side, change is netted off before anything reads the payment, so
+ * the discount prompt and the surplus confirm only ever see what the shop kept.
+ */
+export function computeReservedPaymentMeta(sale, uzsStr, usdStr, cbuRate, form = null) {
   if (!sale) {
     return {
       needsDiscountChoice: false,
@@ -637,9 +707,19 @@ export function computeReservedPaymentMeta(sale, uzsStr, usdStr, cbuRate) {
     };
   }
 
-  const paid = paymentAmountInSaleCurrency(uzsStr, usdStr, sc, cbuRate);
+  const paidGross = paymentAmountInSaleCurrency(uzsStr, usdStr, sc, cbuRate);
+  const wantChange = !!form?.apply_change;
+  const changeInSc = wantChange
+    ? changeAmountInSaleCurrency(form.change_uzs, form.change_usd, sc, cbuRate)
+    : 0;
+  const changePending = wantChange && changeInSc == null;
+  const paid = paidGross == null || changePending ? paidGross : paidGross - changeInSc;
   const short = paid != null ? due - paid : due;
   const needsDiscountChoice = paymentHasShortfall(due, paid, sc);
+  const discountAmount =
+    form?.balance_shortfall_type === 'discount'
+      ? Math.max(0, parseFloat(form.balance_shortfall_amount) || 0)
+      : 0;
   return {
     needsDiscountChoice,
     needsRate: false,
@@ -647,6 +727,10 @@ export function computeReservedPaymentMeta(sale, uzsStr, usdStr, cbuRate) {
     crossCurrency,
     due,
     paid,
+    paidGross,
+    changeInSc,
+    changePending,
+    requiredChange: paidGross != null ? paidGross - (due - discountAmount) : null,
     short,
     sc,
     uzsT,
@@ -674,13 +758,20 @@ export function buildCompleteSaleRequest(paymentFormData, meta, exchangeRate) {
   if (paymentFormData.apply_additional_profit && !paymentFormData.apply_currency_conversion_difference) {
     requestData.apply_additional_profit = true;
   }
+  const changeUzs = paymentFormData.apply_change ? parseFloat(paymentFormData.change_uzs) || 0 : 0;
+  const changeUsd = paymentFormData.apply_change ? parseFloat(paymentFormData.change_usd) || 0 : 0;
+  if (changeUzs > 0) requestData.change_uzs = changeUzs;
+  if (changeUsd > 0) requestData.change_usd = changeUsd;
   const uzsT = requestData.uzs;
   const usdT = requestData.usd;
   const needsCbu =
     exchangeRate?.rate &&
     ((uzsT > 0 && usdT > 0) ||
       meta?.splitCurrency ||
-      (meta?.crossCurrency && (uzsT > 0 || usdT > 0)));
+      (meta?.crossCurrency && (uzsT > 0 || usdT > 0)) ||
+      // Change crossing the currency line has to be valued at the same rate the server uses.
+      changeUzs > 0 ||
+      changeUsd > 0);
   if (needsCbu) {
     requestData.exchange_rate = exchangeRate.rate;
   }
@@ -703,6 +794,16 @@ export function buildGroupCompleteRequests(groupSales, paymentFormData, meta, ex
   let uzsLeft = uzsIn;
   let usdLeft = usdIn;
 
+  // Change is split by the *same* weights as the payment, not dropped whole onto the last
+  // line. The payment shares carry the group's surplus in proportion to each line's due, so
+  // the matching share of the change is what cancels it; putting it all on one line would
+  // leave that line paying far under its own due and the rest far over.
+  const wantChange = !!paymentFormData.apply_change;
+  const changeUzsIn = wantChange ? parseFloat(paymentFormData.change_uzs) || 0 : 0;
+  const changeUsdIn = wantChange ? parseFloat(paymentFormData.change_usd) || 0 : 0;
+  let changeUzsLeft = changeUzsIn;
+  let changeUsdLeft = changeUsdIn;
+
   const applyGroupDiscount = paymentFormData.balance_shortfall_type === 'discount';
 
   return groupSales.map((sale, idx) => {
@@ -713,11 +814,19 @@ export function buildGroupCompleteRequests(groupSales, paymentFormData, meta, ex
     uzsLeft -= uzsShare;
     usdLeft -= usdShare;
 
+    const changeUzsShare = isLast ? changeUzsLeft : Math.round(changeUzsIn * weight);
+    const changeUsdShare = isLast ? changeUsdLeft : Math.round(changeUsdIn * weight * 100) / 100;
+    changeUzsLeft -= changeUzsShare;
+    changeUsdLeft -= changeUsdShare;
+
     const childForm = {
       ...paymentFormData,
       uzs: uzsShare > 0 ? String(uzsShare) : '',
       usd: usdShare > 0 ? String(usdShare) : '',
       balance_shortfall_type: applyGroupDiscount ? 'discount' : '',
+      apply_change: wantChange && (changeUzsShare > 0 || changeUsdShare > 0),
+      change_uzs: changeUzsShare > 0 ? String(changeUzsShare) : '',
+      change_usd: changeUsdShare > 0 ? String(changeUsdShare) : '',
     };
     const childMeta = isLast ? meta : { ...meta, needs: false, hasOverpayment: false, overpaymentAmount: null };
     return {

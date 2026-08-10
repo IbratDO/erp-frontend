@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AmountInput from './AmountInput';
+import SaleChangeFields from './SaleChangeFields';
 import api from '../utils/api';
 import { formatDisplayAmount } from '../utils/currencyFormat';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -14,6 +15,7 @@ import {
   buildSplitCurrencyConfirmMessage,
   buildAdditionalProfitConfirmMessage,
   saleHasOrderAdvance,
+  saleAcceptsChange,
 } from '../utils/saleCompletePayHelpers';
 
 /**
@@ -72,6 +74,17 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
       ? shortfallMeta.due
       : paymentFormData.final_amount_due ?? finalUnit * qty;
 
+  // The change panel keys off the *gross* surplus, not `shortfallMeta.needs`: once change
+  // covers the surplus the payment reads as exact and `needs` goes false, which would pull the
+  // panel out from under the amounts the user just typed.
+  const changeTol = shortfallMeta.sc === 'UZS' ? 1 : 0.005;
+  const changeAvailable =
+    saleAcceptsChange(sale)
+    && (
+      paymentFormData.apply_change
+      || (shortfallMeta.requiredChange != null && shortfallMeta.requiredChange > changeTol)
+    );
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -84,6 +97,7 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
         paymentFormData.usd,
         undefined,
         cbuRate,
+        meta.changeInSc || 0,
       );
       if (!advanceCheck.ok) {
         showNotification(advanceCheck.error, 'error');
@@ -155,6 +169,19 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
       ) {
         showNotification(t('completePay.errDiscountAmount'), 'error');
         return;
+      }
+
+      if (paymentFormData.apply_change) {
+        const chUzs = parseFloat(paymentFormData.change_uzs) || 0;
+        const chUsd = parseFloat(paymentFormData.change_usd) || 0;
+        if (chUzs <= 0 && chUsd <= 0) {
+          showNotification(t('completePay.errChangeAmount'), 'error');
+          return;
+        }
+        if (meta.changePending) {
+          showNotification(t('completePay.errRateLoading'), 'error');
+          return;
+        }
       }
 
       let effForm = paymentFormData;
@@ -304,6 +331,18 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
                   </>
                 ) : null}
               </p>
+            </div>
+          )}
+          {changeAvailable && (
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <SaleChangeFields
+                form={paymentFormData}
+                setForm={setPaymentFormData}
+                sc={shortfallMeta.sc}
+                required={shortfallMeta.requiredChange}
+                cbuRate={cbuRate}
+                t={t}
+              />
             </div>
           )}
           {shortfallMeta.needs && (

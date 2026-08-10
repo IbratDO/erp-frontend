@@ -164,7 +164,9 @@
     "advanceNone": "0 if none",
     "alreadyPaidTitleClient": "Enter a USD cost per unit to mark paid at creation, or leave blank and pay later.",
     "alreadyPaidTitleNeedCost": "Enter a USD cost per unit above, or leave this unchecked and use Pay for the Order after you know the price.",
-    "sizeLabel": "size {{size}}"
+    "sizeLabel": "size {{size}}",
+    "advanceUsd": "Advance USD",
+    "advanceUzs": "Advance UZS"
   },
   "context": {
     "plannedCost": "Planned cost",
@@ -196,7 +198,8 @@
     "returnAdvance": "Return advance payment to customer — recorded advance:",
     "amount": "Amount",
     "currency": "Currency",
-    "advanceHint": "≤ advance above · deducted from chosen cash · no FX"
+    "advanceHint": "≤ advance above · deducted from chosen cash · no FX",
+    "advanceHintMixed": "A mixed advance is returned in full, in both currencies."
   },
   "customerForm": {
     "title": "Add New Customer",

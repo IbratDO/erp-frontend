@@ -159,6 +159,28 @@ function renderQuantityCell(ordered, received, shortfallStatus, t) {
 }
 
 /** Open pipeline first; finished rows (inventory / sold / cancelled) sink to the bottom. */
+/** Advance paid in both currencies at once. Mirrors `finance_utils.ADVANCE_MIXED`. */
+const ADVANCE_MIXED = 'MIXED';
+
+/** True when an order carries a customer advance, in either currency. */
+const orderHasAdvance = (o) =>
+  (parseFloat(o?.advance_payment_amount) || 0) > 0
+  || (parseFloat(o?.advance_payment_amount_uzs) || 0) > 0;
+
+/**
+ * An advance as text. A mixed one prints both legs rather than one converted figure: what
+ * the customer handed over is two amounts, and a single converted number would move with the
+ * rate even though their money did not.
+ */
+const formatOrderAdvance = (o) => {
+  if ((o?.advance_payment_currency || '') === ADVANCE_MIXED) {
+    return `${formatDisplayAmount(o.advance_payment_amount, 'USD')} + ${formatDisplayAmount(
+      o.advance_payment_amount_uzs, 'UZS',
+    )}`;
+  }
+  return formatDisplayAmount(o?.advance_payment_amount, o?.advance_payment_currency || 'USD');
+};
+
 const ORDER_TERMINAL_STATUSES = new Set(['in_inventory', 'sold', 'cancelled']);
 
 const ORDER_OPEN_STATUS_RANK = {
@@ -538,8 +560,9 @@ const Orders = () => {
     selling_usd_per_unit: '',
     eshop: '',
     client_eshop_notes: '',
+    // Two amounts, no currency: the label is derived server-side from which boxes were used.
     advance_payment_amount: '',
-    advance_payment_currency: 'USD',
+    advance_payment_amount_uzs: '',
   }), []);
   const [showBatchForm, setShowBatchForm] = useState(false);
   const [batchCreating, setBatchCreating] = useState(false);
@@ -1021,29 +1044,32 @@ const Orders = () => {
         return;
       }
       if (isOnDemand) {
-        const advanceAmt = parseFloat(l.advance_payment_amount) || 0;
-        const advanceCcy = l.advance_payment_currency === 'UZS' ? 'UZS' : 'USD';
+        const advanceUsd = parseFloat(l.advance_payment_amount) || 0;
+        const advanceUzs = parseFloat(l.advance_payment_amount_uzs) || 0;
         const sellingTotal = sellingUsd * qty;
-        if (advanceAmt > 0) {
-          if (advanceCcy === 'USD') {
-            if (advanceAmt > sellingTotal + 0.01) {
-              showNotification(
-                t('notifications.advanceExceedsSelling', {
-                  total: formatDisplayAmount(sellingTotal, 'USD'),
-                }),
-                'error',
-              );
-              return;
-            }
-          } else {
-            const ok = window.confirm(
-              t('confirm.advanceUzs', {
-                amount: formatDisplayAmount(advanceAmt, 'UZS'),
-                selling: formatDisplayAmount(sellingTotal, 'USD'),
-              }),
-            );
-            if (!ok) return;
-          }
+        // Both boxes filled: comparing the two legs against the line needs today's rate,
+        // which this page does not hold. A guess could disagree with the server and block a
+        // valid order, so the server is the only judge there and its message surfaces here.
+        const bothCurrencies = advanceUsd > 0 && advanceUzs > 0;
+        if (!bothCurrencies && advanceUsd > 0 && advanceUsd > sellingTotal + 0.01) {
+          showNotification(
+            t('notifications.advanceExceedsSelling', {
+              total: formatDisplayAmount(sellingTotal, 'USD'),
+            }),
+            'error',
+          );
+          return;
+        }
+        if (!bothCurrencies && advanceUzs > 0) {
+          // A som advance against a USD-priced line is allowed but worth a second look,
+          // since the two cannot be compared without a rate.
+          const ok = window.confirm(
+            t('confirm.advanceUzs', {
+              amount: formatDisplayAmount(advanceUzs, 'UZS'),
+              selling: formatDisplayAmount(sellingTotal, 'USD'),
+            }),
+          );
+          if (!ok) return;
         }
       }
     }
@@ -1070,8 +1096,10 @@ const Orders = () => {
         supplier_cost_usd_cash: costUsd * qty,
         supplier_cost_usd_card: 0,
         ...(isOnDemand ? {
+          // No currency is sent: `encode_advance_legs` derives it from the two amounts, so
+          // an order can never carry a label its own columns contradict.
           advance_payment_amount: parseFloat(l.advance_payment_amount) || 0,
-          advance_payment_currency: l.advance_payment_currency || 'USD',
+          advance_payment_amount_uzs: parseFloat(l.advance_payment_amount_uzs) || 0,
           advance_payment_type: 'cash',
         } : {}),
       };
@@ -2479,13 +2507,9 @@ const Orders = () => {
                 {order.customer_detail.telephone && (
                   <div style={{ fontSize: '0.82em', color: '#666' }}>{order.customer_detail.telephone}</div>
                 )}
-                {order.advance_payment_amount > 0 && (
+                {orderHasAdvance(order) && (
                   <div style={{ fontSize: '0.82em', color: '#4caf50' }}>
-                    {t('table.advance', { ns: 'orders' })}{' '}
-                    {formatDisplayAmount(
-                      order.advance_payment_amount,
-                      order.advance_payment_currency || 'USD',
-                    )}
+                    {t('table.advance', { ns: 'orders' })} {formatOrderAdvance(order)}
                   </div>
                 )}
               </div>
@@ -2753,22 +2777,21 @@ const Orders = () => {
             <div className="form-grid">
               {(() => {
                 const invOrder = orders.find((o) => o.id === moveToInventoryData.orderId);
-                if (invOrder && invOrder.advance_payment_amount > 0) {
+                if (invOrder && orderHasAdvance(invOrder)) {
+                  const advanceIsMixed =
+                    (invOrder.advance_payment_currency || '') === ADVANCE_MIXED;
                   return (
                     <>
                       <p style={{ gridColumn: '1 / -1', color: '#555', margin: 0, fontSize: '0.92em' }}>
                         {t('moveForm.returnAdvance')}{' '}
-                        <strong>
-                          {formatDisplayAmount(
-                            invOrder.advance_payment_amount,
-                            invOrder.advance_payment_currency || 'USD',
-                          )}
-                        </strong>
+                        <strong>{formatOrderAdvance(invOrder)}</strong>
                       </p>
                       <div style={{ gridColumn: '1 / -1' }}>
+                        {/* A mixed advance goes back in full, in both currencies — there is
+                            no single amount/currency to override, and the server refuses one. */}
                         <div
                           style={{
-                            display: 'inline-flex',
+                            display: advanceIsMixed ? 'none' : 'inline-flex',
                             flexWrap: 'wrap',
                             gap: '14px',
                             alignItems: 'flex-end',
@@ -2811,7 +2834,7 @@ const Orders = () => {
                           </div>
                         </div>
                         <p style={{ margin: '8px 0 0', fontSize: '0.82em', color: '#666' }}>
-                          {t('moveForm.advanceHint')}
+                          {advanceIsMixed ? t('moveForm.advanceHintMixed') : t('moveForm.advanceHint')}
                         </p>
                       </div>
                     </>
@@ -3558,21 +3581,23 @@ const Orders = () => {
                           {batchShared.order_type === 'on_demand' && (
                           <td className="batch-sale-lines__td--num">
                             <div className="batch-order-lines-advance-cell">
+                              {/* One box per currency, both always shown. There is no mode
+                                  to pick: type what the customer handed over, in whichever
+                                  currencies they used, and the server labels it. */}
                               <AmountInput
                                 className="batch-sale-lines__control"
                                 value={line.advance_payment_amount ?? ''}
                                 onChange={(e) => updateBatchLine(line.key, 'advance_payment_amount', e.target.value)}
-                                placeholder={t('form.advanceNone')}
-                                aria-label={t('form.advanceAmount')}
+                                placeholder={t('form.advanceUsd')}
+                                aria-label={t('form.advanceUsd')}
                               />
-                              <select
-                                value={line.advance_payment_currency || 'USD'}
-                                onChange={(e) => updateBatchLine(line.key, 'advance_payment_currency', e.target.value)}
-                                aria-label={t('form.advanceCurrency')}
-                              >
-                                <option value="USD">USD</option>
-                                <option value="UZS">UZS</option>
-                              </select>
+                              <AmountInput
+                                className="batch-sale-lines__control"
+                                value={line.advance_payment_amount_uzs ?? ''}
+                                onChange={(e) => updateBatchLine(line.key, 'advance_payment_amount_uzs', e.target.value)}
+                                placeholder={t('form.advanceUzs')}
+                                aria-label={t('form.advanceUzs')}
+                              />
                             </div>
                           </td>
                           )}

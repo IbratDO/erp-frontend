@@ -41,12 +41,26 @@ export async function runSalePaymentSubmitFlow({
     return { ok: false };
   }
 
+  if (paymentFormData.apply_change) {
+    const chUzs = parseFloat(paymentFormData.change_uzs) || 0;
+    const chUsd = parseFloat(paymentFormData.change_usd) || 0;
+    if (chUzs <= 0 && chUsd <= 0) {
+      showNotification?.(cp('errChangeAmount'), 'error');
+      return { ok: false };
+    }
+    if (meta.changePending) {
+      showNotification?.(exchangeRateError || cp('errRateLoading'), 'error');
+      return { ok: false };
+    }
+  }
+
   const advanceCheck = validateAdvanceCompletionPayment(
     sale,
     paymentFormData.uzs,
     paymentFormData.usd,
     sellingPriceOverride,
     cbuRate,
+    meta.changeInSc || 0,
   );
   if (!advanceCheck.ok) {
     showNotification?.(advanceCheck.error, 'error');

@@ -20,7 +20,7 @@ import {
   buildNetMonthlyStacked,
   buildNetWeekdayAverages,
   buildOnDemandMonthly,
-  buildSalesAmount,
+  buildSalesSeries,
   CHART_PALETTE,
   filterReturnFacts,
   crossFilterSummary,
@@ -47,7 +47,7 @@ import PenaltyDashboardCard from '../components/PenaltyDashboardCard';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import useManagementKpisData from '../hooks/useManagementKpisData';
-import { formatAppDate, formatAppNumber } from '../utils/localeFormat';
+import { formatAppDate } from '../utils/localeFormat';
 import './Dashboard.css';
 
 function KpiCard({ label, value, sub }) {
@@ -201,13 +201,12 @@ function OnDemandMonthlyChart({ title, hint, data, keys, totalLabel }) {
 }
 
 /**
- * Money taken per period, USD and so'm on their own axes.
+ * How many sales were made per period — a count of sale records, not money and not units.
  *
- * Two axes because these are two currencies, not two measures: a few hundred dollars and a
- * few million so'm on one scale flattens the dollar line into the baseline. Each line is
- * read against the axis on its own side, and the tooltip prints both in full.
+ * Distinct from the "donalar" charts on this tab, which count items: one sale of five shirts
+ * is 1 here and 5 there. A single line on a whole-number axis, since there is one measure.
  */
-function SalesAmountChart({ title, data, granularity, onGranularityChange, labels }) {
+function SalesCountChart({ title, data, granularity, onGranularityChange, labels }) {
   return (
     <MgmtChart
       title={title}
@@ -226,47 +225,25 @@ function SalesAmountChart({ title, data, granularity, onGranularityChange, label
         <LineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
           <XAxis dataKey="period" tick={{ fontSize: 11 }} />
-          <YAxis yAxisId="usd" tick={{ fontSize: 11 }} width={54} />
-          <YAxis
-            yAxisId="uzs"
-            orientation="right"
-            tick={{ fontSize: 11 }}
-            width={64}
-            tickFormatter={(v) => (v >= 1000000 ? `${Math.round(v / 1000000)}M` : formatAppNumber(v))}
-          />
+          <YAxis tick={{ fontSize: 11 }} allowDecimals={false} width={44} />
           <Tooltip
             contentStyle={mgmtTooltipStyle}
             content={({ active, payload, label }) => {
               if (!active || !payload?.length) return null;
-              const p = payload[0]?.payload;
               return (
                 <div style={mgmtTooltipStyle} className="mgmt-tooltip">
                   <div><strong>{label}</strong></div>
-                  <div>{labels.usd}: {formatAppNumber(p?.revenue_usd, {
-                    minimumFractionDigits: 2, maximumFractionDigits: 2,
-                  })}</div>
-                  <div>{labels.uzs}: {formatAppNumber(p?.revenue_uzs)}</div>
-                  <div>{labels.sales}: {p?.sales ?? 0}</div>
+                  <div>{labels.sales}: {payload[0]?.payload?.sales ?? 0}</div>
                 </div>
               );
             }}
           />
           <Legend wrapperStyle={{ fontSize: 11 }} />
           <Line
-            yAxisId="usd"
             type="monotone"
-            dataKey="revenue_usd"
-            name={labels.usd}
+            dataKey="sales"
+            name={labels.sales}
             stroke="#2563eb"
-            strokeWidth={2}
-            dot={false}
-          />
-          <Line
-            yAxisId="uzs"
-            type="monotone"
-            dataKey="revenue_uzs"
-            name={labels.uzs}
-            stroke="#059669"
             strokeWidth={2}
             dot={false}
           />
@@ -299,7 +276,7 @@ const DashboardModern = () => {
   const [cbuRate, setCbuRate] = useState(null);
   const [expensesGranularity, setExpensesGranularity] = useState('monthly');
   const [marketingGranularity, setMarketingGranularity] = useState('weekly');
-  const [salesAmountGranularity, setSalesAmountGranularity] = useState('monthly');
+  const [salesCountGranularity, setSalesCountGranularity] = useState('monthly');
 
   const loadAnalytics = useCallback(async (y) => {
     try {
@@ -386,9 +363,9 @@ const DashboardModern = () => {
   );
   // Built from the same cross-filtered facts as the chart beside it, so clicking a legend
   // narrows both together.
-  const salesAmount = useMemo(
-    () => buildSalesAmount(filteredFacts, salesAmountGranularity),
-    [filteredFacts, salesAmountGranularity],
+  const salesCount = useMemo(
+    () => buildSalesSeries(filteredFacts, salesCountGranularity),
+    [filteredFacts, salesCountGranularity],
   );
 
   const weekdayUsers = useMemo(
@@ -674,17 +651,15 @@ const DashboardModern = () => {
                   activeCross={crossFilter.category}
                 />
               ) : null}
-              <SalesAmountChart
-                title={td('salesAmountChart')}
-                data={salesAmount}
-                granularity={salesAmountGranularity}
-                onGranularityChange={setSalesAmountGranularity}
+              <SalesCountChart
+                title={td('salesCountChart')}
+                data={salesCount}
+                granularity={salesCountGranularity}
+                onGranularityChange={setSalesCountGranularity}
                 labels={{
                   weekly: td('mgmt.weekly'),
                   monthly: td('mgmt.monthly'),
-                  usd: t('currency.usd', { ns: 'common' }),
-                  uzs: t('currency.uzs', { ns: 'common' }),
-                  sales: td('salesAmountCount'),
+                  sales: td('salesCountSeries'),
                 }}
               />
             </div>

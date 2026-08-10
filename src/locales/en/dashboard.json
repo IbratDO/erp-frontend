@@ -40,8 +40,6 @@
   "netRevenueSub": "After refunds: {{refunds}}",
   "returnsRefundSub": "Refunds: {{refunds}}",
   "returnsChartHint": "Charts show net units (sales minus returns in each return month).",
-  "salesAmountChart": "Sales amount",
-  "salesAmountCount": "Number of sales",
   "monthlyPerformance": "Monthly performance",
   "monthlyHint": "Click legend items to filter charts. Month/year filter applies here only.",
   "weekdayAverages": "Weekday averages",
@@ -106,5 +104,7 @@
     "noSales": "No sales"
   },
   "onDemandSeriesInProcess": "In process",
-  "onDemandSeriesCancelled": "Cancelled"
+  "onDemandSeriesCancelled": "Cancelled",
+  "salesCountChart": "Number of sales",
+  "salesCountSeries": "Sales"
 }
