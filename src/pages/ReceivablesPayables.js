@@ -42,6 +42,7 @@ function payableCustomerName(p) {
   if (p.dispatch_detail?.sale_detail?.customer_detail?.name) {
     return p.dispatch_detail.sale_detail.customer_detail.name;
   }
+  if (p.return_refund_detail?.customer_name) return p.return_refund_detail.customer_name;
   return '—';
 }
 
@@ -61,6 +62,7 @@ export function payableKindCode(p) {
   if (p.order) return 'supplier';
   if (p.dispatch) return 'dispatch';
   if (p.package_history) return 'package';
+  if (p.return_refund) return 'returnrefund';
   if (p.finance_record) return 'finance';
   return '';
 }
@@ -69,6 +71,7 @@ export const PAYABLE_KIND_OPTIONS = [
   { value: 'supplier', labelKey: 'payableKinds.supplier' },
   { value: 'dispatch', labelKey: 'payableKinds.dispatch' },
   { value: 'package', labelKey: 'payableKinds.package' },
+  { value: 'returnrefund', labelKey: 'payableKinds.returnRefund' },
   { value: 'finance', labelKey: 'payableKinds.otherExpense' },
   { value: 'customerdeposit', labelKey: 'payableKinds.customerDeposit' },
 ];
@@ -89,6 +92,15 @@ function payableKind(p, t) {
   }
   if (p.package_history) {
     return { kind: t('payableKinds.package'), ref: t('payableRefs.packageHistory', { id: p.package_history }) };
+  }
+  if (p.return_refund) {
+    return {
+      kind: t('payableKinds.returnRefund'),
+      ref: t('payableRefs.returnRefund', {
+        id: p.return_refund,
+        sale: p.return_refund_detail?.sale_id || '—',
+      }),
+    };
   }
   if (p.finance_record) {
     return { kind: t('payableKinds.otherExpense'), ref: t('payableRefs.finance', { id: p.finance_record }) };
@@ -137,6 +149,7 @@ function payableContext(p, tr) {
     const pkgType = p.package_history_detail.package_detail.package_type;
     return pkgType ? tr('payableContext.packageType', { type: pkgType }) : tr('payableContext.packagePurchase');
   }
+  if (p.return_refund) return tr('payableContext.returnRefund');
   return '—';
 }
 
@@ -404,10 +417,14 @@ const ReceivablesPayables = () => {
   };
 
   // A cancelled sale keeps its courier fee: the trip happened, so it is still owed or waived.
+  // A courier fee the delivery settlement steps can no longer reach. Those steps are gated on
+  // the sale being `dispatched`, so anything past that status has nowhere else to be paid from
+  // — cancelled *or* completed. Gating this on `cancelled` alone left a completed sale's unpaid
+  // fee showing here with no action beside it.
   const isStrandedDispatchFee = (payable) =>
     !!payable.dispatch &&
     payable.status === 'pending' &&
-    payable.dispatch_detail?.sale_detail?.status === 'cancelled';
+    payable.dispatch_detail?.sale_detail?.status !== 'dispatched';
 
   const handleDispatchFeeAction = async (payable, endpoint, confirmKey, failKey) => {
     if (!window.confirm(t(confirmKey))) return;
@@ -920,7 +937,9 @@ const ReceivablesPayables = () => {
                               ? t('payablesTable.packagesType', {
                                   type: payable.package_history_detail.package_detail.package_type,
                                 })
-                              : '—'}
+                              : payable.return_refund_detail?.product_name
+                                ? payable.return_refund_detail.product_name
+                                : '—'}
                     </td>
                       <td style={{ fontSize: '0.9rem', maxWidth: '220px' }}>{payableContext(payable, t)}</td>
                     <td style={{ fontWeight: '600', color: isDeposit ? '#5e35b1' : '#dc3545' }}>

@@ -100,20 +100,23 @@
     "supplier": "Yetkazuvchi",
     "dispatch": "Yetkazish",
     "package": "Qadoq",
-    "otherExpense": "Boshqa xarajat"
+    "otherExpense": "Boshqa xarajat",
+    "returnRefund": "Mijozga qaytarim"
   },
   "payableRefs": {
     "order": "Buyurtma #{{id}}",
     "dispatch": "#{{dispatch}} (Sotuv #{{sale}})",
     "packageHistory": "Tarix #{{id}}",
-    "finance": "Moliya #{{id}}"
+    "finance": "Moliya #{{id}}",
+    "returnRefund": "Qaytarish #{{id}} (Sotuv #{{sale}})"
   },
   "payableContext": {
     "customerDeposit": "Talab bo‘yicha oldindan to‘lov — buyurtmadan sotganda yopiladi",
     "onDemandSupplier": "Talab bo‘yicha yetkazuvchi narxi",
     "stockOrder": "Zaxira buyurtmasi (ombor)",
     "packageType": "Qadoq turi {{type}}",
-    "packagePurchase": "Qadoq xaridi"
+    "packagePurchase": "Qadoq xaridi",
+    "returnRefund": "Qaytarilgan mahsulot uchun mijozga qarz"
   },
   "notifications": {
     "amountRequired": "Yig‘ilgan summani kiriting (noldan katta).",
@@ -126,7 +129,7 @@
     "refundDepositFailed": "Mijoz depozitini qaytarib bo‘lmadi.",
     "paid": "To‘landi.",
     "settleFailed": "Kreditorni yakunlab bo‘lmadi.",
-    "confirmPayDispatchFee": "Bekor qilingan sotuv uchun kuryer haqi to‘lansinmi? Pul balansi kamayadi va joriy foyda/zarar shu miqdorda kamayadi.",
+    "confirmPayDispatchFee": "Ushbu sotuv uchun kuryer haqi to‘lansinmi? Pul balansi kamayadi va foyda shu miqdorda kamayadi.",
     "payDispatchFeeFailed": "Kuryer haqini to‘lab bo‘lmadi.",
     "confirmCancelDispatchFee": "Kuryer haqi bekor qilinsinmi? Kuryerga to‘lanmaydi, pul balansi o‘zgarmaydi.",
     "cancelDispatchFeeFailed": "Kuryer haqini bekor qilib bo‘lmadi."
