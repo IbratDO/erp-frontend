@@ -43,6 +43,7 @@ function payableCustomerName(p) {
     return p.dispatch_detail.sale_detail.customer_detail.name;
   }
   if (p.return_refund_detail?.customer_name) return p.return_refund_detail.customer_name;
+  if (p.delivery_change_detail?.customer_name) return p.delivery_change_detail.customer_name;
   return '—';
 }
 
@@ -63,6 +64,7 @@ export function payableKindCode(p) {
   if (p.dispatch) return 'dispatch';
   if (p.package_history) return 'package';
   if (p.return_refund) return 'returnrefund';
+  if (p.delivery_change_sale) return 'courierchange';
   if (p.finance_record) return 'finance';
   return '';
 }
@@ -72,6 +74,7 @@ export const PAYABLE_KIND_OPTIONS = [
   { value: 'dispatch', labelKey: 'payableKinds.dispatch' },
   { value: 'package', labelKey: 'payableKinds.package' },
   { value: 'returnrefund', labelKey: 'payableKinds.returnRefund' },
+  { value: 'courierchange', labelKey: 'payableKinds.courierChange' },
   { value: 'finance', labelKey: 'payableKinds.otherExpense' },
   { value: 'customerdeposit', labelKey: 'payableKinds.customerDeposit' },
 ];
@@ -102,6 +105,12 @@ function payableKind(p, t) {
       }),
     };
   }
+  if (p.delivery_change_sale) {
+    return {
+      kind: t('payableKinds.courierChange'),
+      ref: t('payableRefs.courierChange', { sale: p.delivery_change_sale }),
+    };
+  }
   if (p.finance_record) {
     return { kind: t('payableKinds.otherExpense'), ref: t('payableRefs.finance', { id: p.finance_record }) };
   }
@@ -113,6 +122,37 @@ function formatMoneyAmount(amount, currency) {
   const ccy = String(currency || 'USD').toUpperCase();
   if (ccy === 'UZS') return `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} UZS`;
   return `$${n.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+/**
+ * What a payable owes, as {uzs, usd}.
+ *
+ * A customer refund can be owed in both currencies at once, because the sale it reverses was
+ * paid in both. Supplier, cargo, package and fixed-asset obligations are always single-currency
+ * and carry it in amount/currency, so both shapes are read here rather than at each call site.
+ */
+function payableLegs(p) {
+  const uzs = parseFloat(p?.amount_uzs) || 0;
+  const usd = parseFloat(p?.amount_usd) || 0;
+  if (uzs > 0 || usd > 0) return { uzs, usd };
+  const amount = parseFloat(p?.amount) || 0;
+  return String(p?.currency || 'USD').toUpperCase() === 'UZS'
+    ? { uzs: amount, usd: 0 }
+    : { uzs: 0, usd: amount };
+}
+
+function formatPayableAmount(p) {
+  const { uzs, usd } = payableLegs(p);
+  const parts = [];
+  if (uzs > 0) parts.push(formatMoneyAmount(uzs, 'UZS'));
+  if (usd > 0) parts.push(formatMoneyAmount(usd, 'USD'));
+  return parts.length ? parts.join(' + ') : formatMoneyAmount(0, p?.currency);
+}
+
+function payableCurrencyLabel(p, uzsLabel, usdLabel) {
+  const { uzs, usd } = payableLegs(p);
+  if (uzs > 0 && usd > 0) return `${uzsLabel} + ${usdLabel}`;
+  return uzs > 0 ? uzsLabel : usdLabel;
 }
 
 function receivableCustomerName(rcv) {
@@ -150,6 +190,12 @@ function payableContext(p, tr) {
     return pkgType ? tr('payableContext.packageType', { type: pkgType }) : tr('payableContext.packagePurchase');
   }
   if (p.return_refund) return tr('payableContext.returnRefund');
+  if (p.delivery_change_sale) {
+    const name = p.delivery_change_detail?.courier_name;
+    return name
+      ? tr('payableContext.courierChangeNamed', { name })
+      : tr('payableContext.courierChange');
+  }
   return '—';
 }
 
@@ -197,8 +243,18 @@ const PAYABLE_TABLE_SORT_ACCESSORS = {
   customer: (p) => payableCustomerName(p).toLowerCase(),
   product: (p) => payableProductSortKey(p),
   context: (p) => String(p.order_detail?.order_type || p.dispatch_detail?.dispatch_type || '').toLowerCase(),
-  amount: (p) => parseFloat(p.amount) || 0,
-  currency: (p) => String(p.currency ?? '').toLowerCase(),
+  // Sorted within a currency, as before — the column mixes so'm and dollar rows either way, and
+  // this page has no exchange rate to compare them with. A cross-currency refund sorts on its
+  // dollar leg rather than on whichever half happened to land in `amount`.
+  amount: (p) => {
+    const { uzs, usd } = payableLegs(p);
+    return usd > 0 ? usd : uzs;
+  },
+  currency: (p) => {
+    const { uzs, usd } = payableLegs(p);
+    if (uzs > 0 && usd > 0) return 'uzs+usd';
+    return uzs > 0 ? 'uzs' : 'usd';
+  },
   status: (p) => String(p.status ?? '').toLowerCase(),
   created_at: (p) => new Date(p.created_at).getTime() || 0,
   paid_date: (p) => {
@@ -939,16 +995,18 @@ const ReceivablesPayables = () => {
                                 })
                               : payable.return_refund_detail?.product_name
                                 ? payable.return_refund_detail.product_name
-                                : '—'}
+                                : payable.delivery_change_detail?.product_name
+                                  ? payable.delivery_change_detail.product_name
+                                  : '—'}
                     </td>
                       <td style={{ fontSize: '0.9rem', maxWidth: '220px' }}>{payableContext(payable, t)}</td>
                     <td style={{ fontWeight: '600', color: isDeposit ? '#5e35b1' : '#dc3545' }}>
-                      {formatMoneyAmount(payable.amount, payable.currency)}
+                      {formatPayableAmount(payable)}
                       {isDeposit && (
                         <div style={{ fontSize: '0.78em', color: '#666', fontWeight: 400 }}>{t('payablesTable.prepaidByCustomer')}</div>
                       )}
                     </td>
-                    <td>{payable.currency === 'UZS' ? uzsLabel : usdLabel}</td>
+                    <td>{payableCurrencyLabel(payable, uzsLabel, usdLabel)}</td>
                     <td>
                       <span className={`status-badge ${payable.status}`}>
                         {isDeposit ? t('payablesTable.prepaidStatus') : tStatus(payable.status, 'payable')}
@@ -968,6 +1026,21 @@ const ReceivablesPayables = () => {
                             onClick={() => handleRefundCustomerDeposit(payable)}
                           >
                             {t('payablesTable.returnDeposit')}
+                          </button>
+                        ) : payable.delivery_change_sale && canPayDispatchFee ? (
+                          <button
+                            type="button"
+                            className="btn-edit"
+                            onClick={() =>
+                              handleDispatchFeeAction(
+                                payable,
+                                'reimburse_courier_change',
+                                'notifications.confirmReimburseCourierChange',
+                                'notifications.reimburseCourierChangeFailed'
+                              )
+                            }
+                          >
+                            {t('payablesTable.reimburseCourierChange')}
                           </button>
                         ) : isStrandedDispatchFee(payable) &&
                           (canPayDispatchFee || canCancelDispatchFee) ? (

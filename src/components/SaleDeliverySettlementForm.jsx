@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import api from '../utils/api';
 import AmountInput from './AmountInput';
+import SaleChangeFields from './SaleChangeFields';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
@@ -21,6 +22,8 @@ import {
 } from '../utils/salePaymentFlowHelpers';
 import { buildCombinedSaleForGroup } from '../utils/saleGroupDisplay';
 import ShortfallClassificationFields, {
+  SurplusClassificationFields,
+  isOverpaidMeta,
   isUnderpaidMeta,
 } from './ShortfallClassificationFields';
 
@@ -101,11 +104,21 @@ function step2DefaultFormFor(line, cbuRate) {
   const fd = buildPaymentFormDataFromSale(line, cbuRate);
   const step2FromStep1 = deliveryStep2PaymentFromStep1(line);
   const merged = step2FromStep1 ? { ...fd, uzs: step2FromStep1.uzs, usd: step2FromStep1.usd } : fd;
-  if (line.delivery_step1_shortfall_type === 'discount') {
+  const proposed = line.delivery_step1_shortfall_type;
+  const proposedAmount = String(line.delivery_step1_shortfall_amount ?? '');
+  if (proposed === 'discount' || proposed === 'discount_and_fx') {
     merged.balance_shortfall_type = 'discount';
-    merged.balance_shortfall_amount = String(line.delivery_step1_shortfall_amount ?? '');
-  } else if (line.delivery_step1_shortfall_type === 'fx') {
+    merged.balance_shortfall_amount = proposedAmount;
+  }
+  if (proposed === 'fx' || proposed === 'discount_and_fx' || proposed === 'fx_and_profit') {
     merged.apply_currency_conversion_difference = true;
+  }
+  if (proposed === 'additional_profit' || proposed === 'fx_and_profit') {
+    merged.apply_additional_profit = true;
+  }
+  if (proposed === 'fx_and_profit') {
+    // Here the stored amount is the conversion share, not a discount.
+    merged.currency_conversion_difference_amount = proposedAmount;
   }
   return merged;
 }
@@ -114,21 +127,49 @@ function step2DefaultFormFor(line, cbuRate) {
  * `lines` (no effect/ref), so it never lags behind a reload. */
 function combinedShortfallDefault(linesForGroup) {
   let discountSum = 0;
+  let fxSum = 0;
   let anyDiscountProposed = false;
   let anyFxProposed = false;
+  let anyProfitProposed = false;
+  let anySplitProposed = false;
   for (const line of linesForGroup) {
-    if (line.delivery_step1_shortfall_type === 'discount') {
+    const proposed = line.delivery_step1_shortfall_type;
+    const amount = parseFloat(line.delivery_step1_shortfall_amount) || 0;
+    if (proposed === 'discount' || proposed === 'discount_and_fx') {
       anyDiscountProposed = true;
-      discountSum += parseFloat(line.delivery_step1_shortfall_amount) || 0;
-    } else if (line.delivery_step1_shortfall_type === 'fx') {
+      discountSum += amount;
+    }
+    if (proposed === 'fx' || proposed === 'discount_and_fx') anyFxProposed = true;
+    if (proposed === 'additional_profit') anyProfitProposed = true;
+    if (proposed === 'fx_and_profit') {
       anyFxProposed = true;
+      anyProfitProposed = true;
+      anySplitProposed = true;
+      fxSum += amount;
     }
   }
   return {
     balance_shortfall_type: anyDiscountProposed ? 'discount' : '',
     balance_shortfall_amount: anyDiscountProposed ? String(discountSum) : '',
     apply_currency_conversion_difference: anyFxProposed,
+    apply_additional_profit: anyProfitProposed,
+    // Only carried when a line actually split its surplus; otherwise FX absorbs the whole thing
+    // and a named amount would be a second way to say the same number.
+    currency_conversion_difference_amount: anySplitProposed ? String(fxSum) : '',
   };
+}
+
+/**
+ * True when the courier collected more than the price, so there is something to hand back.
+ *
+ * Reads `requiredChange`, which is measured against the **gross** payment on purpose — it does
+ * not shrink to zero the moment change is typed in, so the panel does not vanish underneath
+ * someone mid-entry.
+ */
+function changeIsPossible(meta) {
+  if (!meta || meta.requiredChange == null || Number.isNaN(meta.requiredChange)) return false;
+  const tol = (meta.sc || 'USD').toUpperCase() === 'UZS' ? 1 : 0.005;
+  return meta.requiredChange > tol;
 }
 
 /** Amber alert quoting exactly what the courier proposed at Step 1, so the shop can't miss it
@@ -136,10 +177,10 @@ function combinedShortfallDefault(linesForGroup) {
 function CourierShortfallAlert({ line, t }) {
   if (!line?.delivery_step1_shortfall_type) return null;
   const sc = (line.sale_currency || 'USD').toUpperCase();
-  const key =
-    line.delivery_step1_shortfall_type === 'fx'
-      ? 'deliverySettlement.step1ShortfallProposedFx'
-      : 'deliverySettlement.step1ShortfallProposedDiscount';
+  const key = {
+    fx: 'deliverySettlement.step1ShortfallProposedFx',
+    additional_profit: 'deliverySettlement.step1ShortfallProposedProfit',
+  }[line.delivery_step1_shortfall_type] || 'deliverySettlement.step1ShortfallProposedDiscount';
   return (
     <div
       style={{
@@ -156,6 +197,211 @@ function CourierShortfallAlert({ line, t }) {
         product: productLabelFor(line, t),
         amount: formatDisplayAmount(parseFloat(line.delivery_step1_shortfall_amount) || 0, sc),
       })}
+    </div>
+  );
+}
+
+/**
+ * What the courier reported at the door, restated at Step 2 before the shop takes his money.
+ *
+ * The two amount boxes below prefill themselves from this, which is not the same as showing it:
+ * a shop counting cash needs to know the gross is the courier's to hand over, that part of it was
+ * his own money, and that the difference comes back to him afterwards. Without that, `$150` in a
+ * box against a `$145` item reads as an error, and the money he fronted goes unnoticed until it
+ * turns up in Kreditorlik with nothing explaining it.
+ */
+function collectionLegs(line) {
+  return {
+    grossUzs: parseFloat(line?.delivery_customer_collected_uzs) || 0,
+    grossUsd: parseFloat(line?.delivery_customer_collected_usd) || 0,
+    changeUzs: parseFloat(line?.delivery_change_given_uzs) || 0,
+    changeUsd: parseFloat(line?.delivery_change_given_usd) || 0,
+  };
+}
+
+function legsLabel(uzs, usd) {
+  return (
+    [
+      uzs > 0 ? formatDisplayAmount(uzs, 'UZS') : null,
+      usd > 0 ? formatDisplayAmount(usd, 'USD') : null,
+    ]
+      .filter(Boolean)
+      .join(' + ') || '—'
+  );
+}
+
+/**
+ * One trip, itemised: what the courier collected against each thing he carried.
+ *
+ * The shop is about to take a single sum for the whole group, and the question it has to answer
+ * before doing so is *"which of these does that money cover?"* — a stack of identical cards
+ * saying only an amount cannot answer it, because nothing on them says which item is which. So
+ * this is a table keyed by the product, totalled at the bottom against the amount boxes.
+ */
+function GroupCollectionSummary({ lines, t }) {
+  const rows = lines.map((line) => ({ line, ...collectionLegs(line) }));
+  if (!rows.some((r) => r.grossUzs > 0 || r.grossUsd > 0)) return null;
+
+  const total = rows.reduce(
+    (acc, r) => ({
+      grossUzs: acc.grossUzs + r.grossUzs,
+      grossUsd: acc.grossUsd + r.grossUsd,
+      changeUzs: acc.changeUzs + r.changeUzs,
+      changeUsd: acc.changeUsd + r.changeUsd,
+    }),
+    { grossUzs: 0, grossUsd: 0, changeUzs: 0, changeUsd: 0 },
+  );
+  const anyChange = total.changeUzs > 0 || total.changeUsd > 0;
+
+  return (
+    <div
+      style={{
+        marginBottom: 12,
+        border: '1px solid #bae6fd',
+        borderRadius: 6,
+        background: '#f0f9ff',
+        overflowX: 'auto',
+      }}
+    >
+      <p style={{ margin: 0, padding: '10px 12px 6px', fontWeight: 600, color: '#075985' }}>
+        {t('deliverySettlement.step2CollectionTitle')}
+      </p>
+      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.88em' }}>
+        <thead>
+          <tr style={{ color: '#075985', textAlign: 'left' }}>
+            <th style={{ padding: '4px 12px', fontWeight: 500 }}>
+              {t('deliverySettlement.step2ItemColumn')}
+            </th>
+            <th style={{ padding: '4px 12px', fontWeight: 500, textAlign: 'right' }}>
+              {t('deliverySettlement.step2CollectedColumn')}
+            </th>
+            {anyChange && (
+              <th style={{ padding: '4px 12px', fontWeight: 500, textAlign: 'right' }}>
+                {t('deliverySettlement.step2ChangeColumn')}
+              </th>
+            )}
+          </tr>
+        </thead>
+        <tbody style={{ color: '#075985', fontVariantNumeric: 'tabular-nums' }}>
+          {rows.map((r) => (
+            <tr key={r.line.id} style={{ borderTop: '1px solid #bae6fd' }}>
+              <td style={{ padding: '6px 12px' }}>{productLabelFor(r.line, t)}</td>
+              <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                {legsLabel(r.grossUzs, r.grossUsd)}
+              </td>
+              {anyChange && (
+                <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                  {legsLabel(r.changeUzs, r.changeUsd)}
+                </td>
+              )}
+            </tr>
+          ))}
+          <tr style={{ borderTop: '2px solid #7dd3fc', fontWeight: 600 }}>
+            <td style={{ padding: '6px 12px' }}>{t('deliverySettlement.step2TotalRow')}</td>
+            <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+              {legsLabel(total.grossUzs, total.grossUsd)}
+            </td>
+            {anyChange && (
+              <td style={{ padding: '6px 12px', textAlign: 'right' }}>
+                {legsLabel(total.changeUzs, total.changeUsd)}
+              </td>
+            )}
+          </tr>
+        </tbody>
+      </table>
+      {anyChange && (
+        <p style={{ margin: 0, padding: '6px 12px 10px', color: '#075985' }}>
+          {t('deliverySettlement.step2ChangeOwedBack', {
+            amount: legsLabel(total.changeUzs, total.changeUsd),
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Hand the courier his change back now, rather than leaving him to chase it in Kreditorlik.
+ *
+ * Only shown when he actually fronted some. The debt is recorded either way — the payable is
+ * written and then settled — so this changes when the money moves, never whether it is recorded.
+ */
+function ReimburseChangeOption({ lines, checked, onChange, t }) {
+  const total = lines.reduce(
+    (acc, line) => {
+      const legs = collectionLegs(line);
+      return { uzs: acc.uzs + legs.changeUzs, usd: acc.usd + legs.changeUsd };
+    },
+    { uzs: 0, usd: 0 },
+  );
+  if (total.uzs <= 0 && total.usd <= 0) return null;
+  return (
+    <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+      <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+        <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
+        <span>
+          {t('deliverySettlement.reimburseChangeNow', {
+            amount: legsLabel(total.uzs, total.usd),
+          })}
+        </span>
+      </label>
+      <small style={{ display: 'block', marginTop: 4, color: '#666' }}>
+        {checked
+          ? t('deliverySettlement.reimburseChangeNowHint')
+          : t('deliverySettlement.reimburseChangeLaterHint')}
+      </small>
+    </div>
+  );
+}
+
+function CourierCollectionSummary({ line, t }) {
+  const grossUzs = parseFloat(line?.delivery_customer_collected_uzs) || 0;
+  const grossUsd = parseFloat(line?.delivery_customer_collected_usd) || 0;
+  if (grossUzs <= 0 && grossUsd <= 0) return null;
+  const changeUzs = parseFloat(line?.delivery_change_given_uzs) || 0;
+  const changeUsd = parseFloat(line?.delivery_change_given_usd) || 0;
+  const hasChange = changeUzs > 0 || changeUsd > 0;
+  const legs = (uzs, usd) =>
+    [
+      uzs > 0 ? formatDisplayAmount(uzs, 'UZS') : null,
+      usd > 0 ? formatDisplayAmount(usd, 'USD') : null,
+    ]
+      .filter(Boolean)
+      .join(' + ');
+
+  return (
+    <div
+      style={{
+        marginBottom: 12,
+        padding: '10px 12px',
+        background: '#f0f9ff',
+        border: '1px solid #bae6fd',
+        borderRadius: 6,
+        fontSize: '0.88em',
+        color: '#075985',
+        lineHeight: 1.6,
+      }}
+    >
+      <p style={{ margin: '0 0 4px', fontWeight: 600 }}>
+        {t('deliverySettlement.step2CollectionTitle')}
+      </p>
+      <div>
+        {t('deliverySettlement.step2CollectedGross', { amount: legs(grossUzs, grossUsd) })}
+      </div>
+      {hasChange && (
+        <>
+          <div>
+            {t('deliverySettlement.step2CourierOwnChange', {
+              amount: legs(changeUzs, changeUsd),
+            })}
+          </div>
+          <div style={{ marginTop: 4, fontWeight: 600 }}>
+            {t('deliverySettlement.step2ChangeOwedBack', {
+              amount: legs(changeUzs, changeUsd),
+            })}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -203,6 +449,9 @@ export default function SaleDeliverySettlementForm({
     apply_currency_conversion_difference: false,
   });
   const [step2CombinedNote, setStep2CombinedNote] = useState('');
+  // Defaults to on: the courier is at the counter and the money is his. Kreditorlik stays the
+  // fallback for the times he has already gone.
+  const [reimburseChange, setReimburseChange] = useState(true);
   const [step3Combined, setStep3Combined] = useState({ uzs: '', usd: '' });
   const cardRef = useRef(null);
   const initedIdsRef = useRef(new Set());
@@ -348,13 +597,11 @@ export default function SaleDeliverySettlementForm({
   // in, so the shop only has to review/adjust one number instead of entering it from scratch.
   useEffect(() => {
     if (!lines.length) return;
-    // Step 2 combining still requires a clean group (no declines) — see showStep2Combined.
-    const noneDeclinedNow = lines.every((l) => !l.delivery_customer_declined_at);
-    const step2Now = noneDeclinedNow
-      ? lines.filter(
-          (l) => l.delivery_customer_paid_at && !l.delivery_shop_remittance_at && !l.delivery_customer_declined_at,
-        )
-      : [];
+    // Refused lines never reach step 2, so filtering them out is all the grouping needs — the
+    // survivors are still one trip with one payment. See showStep2Combined.
+    const step2Now = lines.filter(
+      (l) => l.delivery_customer_paid_at && !l.delivery_shop_remittance_at && !l.delivery_customer_declined_at,
+    );
     if (step2Now.length > 1 && !combinedStep2InitedRef.current) {
       // Compute directly from each line's own raw fields (what the courier actually collected at
       // step 1, or the line's own due as a fallback) — not from step2ByLine, whose own prefill
@@ -414,8 +661,12 @@ export default function SaleDeliverySettlementForm({
   );
   const pendingReturnLines = lines.filter((l) => lineIsDeclinedPending(l));
   const allDone = !step1Lines.length && !step2Lines.length && !step3Lines.length && !pendingReturnLines.length;
-  const noneDeclined = lines.every((l) => !l.delivery_customer_declined_at);
-  const showStep2Combined = noneDeclined && step2Lines.length > 1;
+  // One trip, one payment: the shop hands over what the courier collected for the whole group in
+  // a single go. A line refused at the door never reaches step 2 at all, so it simply is not in
+  // `step2Lines` — it does not make the rest of the group any less of a group, and splitting them
+  // into a form each only asks the shop to do the same job several times. Each item's own figures
+  // are still shown above the shared amount boxes.
+  const showStep2Combined = step2Lines.length > 1;
   // Delivery cost is one real-world trip regardless of per-item accept/decline outcomes — always
   // combine it into one form when more than one line is still pending payment (declined lines
   // never reach step 3 at all, so this naturally already excludes them from the total).
@@ -482,6 +733,40 @@ export default function SaleDeliverySettlementForm({
           );
           return;
         }
+      } else if (isOverpaidMeta(meta)) {
+        const wantFx = !!f.apply_currency_conversion_difference;
+        const wantProfit = !!f.apply_additional_profit;
+        // Splitting the surplus needs the conversion share named, and it cannot exceed the
+        // surplus — the same completeness rule the shortfall side applies to a partial discount.
+        if (wantFx && wantProfit && meta.differenceNeedsClassification) {
+          showNotification?.(
+            t('deliverySettlement.step1SurplusSplitIncomplete', {
+              product: productLabelFor(line, t),
+              amount: formatDisplayAmount(Math.abs(meta.short || 0), sc),
+            }),
+            'error',
+          );
+          return;
+        }
+        // Leaving both boxes unticked is allowed, but it is not a no-op: the item's price moves
+        // to whatever was collected. Doing that silently is how a $145 item quietly became a
+        // $145.81 one. Say the new price out loud and make the courier agree to it.
+        if (!wantFx && !wantProfit) {
+          const surplus = Math.abs(meta.short || 0);
+          const ok = window.confirm(
+            [
+              t('deliverySettlement.step1SurplusConfirm', {
+                product: productLabelFor(line, t),
+                amount: formatDisplayAmount(surplus, sc),
+                before: formatDisplayAmount(parseFloat(line.total_amount) || 0, sc),
+                after: formatDisplayAmount((parseFloat(line.total_amount) || 0) + surplus, sc),
+              }),
+              '',
+              t('deliverySettlement.step1SurplusConfirmHint'),
+            ].join('\n'),
+          );
+          if (!ok) return;
+        }
       }
     }
 
@@ -508,6 +793,11 @@ export default function SaleDeliverySettlementForm({
       for (const { line, uzsT, usdT, f } of toAccept) {
         const sc = line.sale_currency || 'USD';
         const body = { uzs: uzsT, usd: usdT, sale_currency: sc, item_status: 'accepted' };
+        if (f.apply_change) {
+          body.change_uzs = parseFloat(f.change_uzs) || 0;
+          body.change_usd = parseFloat(f.change_usd) || 0;
+          if (exchangeRate?.rate) body.exchange_rate = exchangeRate.rate;
+        }
         if (exchangeRate?.rate && (uzsT > 0 && usdT > 0)) {
           body.exchange_rate = exchangeRate.rate;
         } else if (exchangeRate?.rate && ((sc === 'USD' && uzsT > 0) || (sc === 'UZS' && usdT > 0))) {
@@ -521,6 +811,20 @@ export default function SaleDeliverySettlementForm({
           }
           if (f.apply_currency_conversion_difference) {
             body.apply_currency_conversion_difference = true;
+          }
+        } else if (isOverpaidMeta(meta)) {
+          // Optional here, unlike a shortfall: leaving both unticked still means "the courier
+          // sold it for more", and the price moves to match. Ticking either keeps the price;
+          // ticking both splits the surplus, and the named amount is the conversion share.
+          if (f.apply_currency_conversion_difference) {
+            body.apply_currency_conversion_difference = true;
+            const fxAmt = parseFloat(f.currency_conversion_difference_amount);
+            if (f.apply_additional_profit && Number.isFinite(fxAmt) && fxAmt > 0) {
+              body.currency_conversion_difference_amount = fxAmt;
+            }
+          }
+          if (f.apply_additional_profit) {
+            body.apply_additional_profit = true;
           }
         }
         await api.post(`/sales/${line.id}/delivery_customer_paid/`, body);
@@ -594,6 +898,8 @@ export default function SaleDeliverySettlementForm({
     const body = { ...flow.requestData };
     const trimmedNote = String(noteOverride ?? step2NoteByLine[line.id] ?? '').trim();
     if (trimmedNote) body.delivery_shop_remittance_note = trimmedNote;
+    // Harmless on a line with no change: the backend only settles a payable it actually wrote.
+    if (reimburseChange) body.reimburse_courier_change = true;
     await api.post(`/sales/${line.id}/delivery_shop_received_payment/`, body);
     await maybeAutoCompleteStep3(line);
     return true;
@@ -622,6 +928,9 @@ export default function SaleDeliverySettlementForm({
           balance_shortfall_type: step2Combined.balance_shortfall_type,
           balance_shortfall_amount: step2Combined.balance_shortfall_amount,
           apply_currency_conversion_difference: step2Combined.apply_currency_conversion_difference,
+          apply_additional_profit: step2Combined.apply_additional_profit,
+          currency_conversion_difference_amount:
+            step2Combined.currency_conversion_difference_amount,
         }
       : combinedShortfallDefault(step2Lines);
 
@@ -679,21 +988,41 @@ export default function SaleDeliverySettlementForm({
 
     const dueByLine = step2Lines.map((line) => {
       const due = computeAdvanceRemainingDue(line, null, cbuRate);
-      return { line, due: due != null && !Number.isNaN(due) ? due : 0 };
+      const legs = collectionLegs(line);
+      return {
+        line,
+        due: due != null && !Number.isNaN(due) ? due : 0,
+        collectedUzs: legs.grossUzs,
+        collectedUsd: legs.grossUsd,
+      };
     });
     const totalDue = dueByLine.reduce((s, x) => s + x.due, 0);
     const totalUzs = resolved.uzs || 0;
     const totalUsd = resolved.usd || 0;
     const shortfallTotal = resolved.balance_shortfall_amount || 0;
+    // Each line is capped at what the courier reported collecting *for that line*, so the split
+    // has to follow the collection, not the price. They are not proportional the moment he hands
+    // change back on one item: a $250 collection against a $240 item makes every other line's
+    // share of the group total come out above its own cap, and the shop is told it is remitting
+    // more than the courier took when it is remitting exactly what he took. Only fall back to the
+    // due ratio for a line with nothing recorded, which is the case that has no cap either.
+    const collectedUzsSum = dueByLine.reduce((s, x) => s + x.collectedUzs, 0);
+    const collectedUsdSum = dueByLine.reduce((s, x) => s + x.collectedUsd, 0);
+    const splitByCollection =
+      dueByLine.every((x) => x.collectedUzs > 0 || x.collectedUsd > 0) &&
+      Math.abs(collectedUzsSum - totalUzs) <= 1 &&
+      Math.abs(collectedUsdSum - totalUsd) <= 0.01;
 
     let done = 0;
     try {
-      for (const { line, due } of dueByLine) {
+      for (const { line, due, collectedUzs, collectedUsd } of dueByLine) {
         const ratio = totalDue > 0 ? due / totalDue : 1 / dueByLine.length;
-        const body = {
-          uzs: totalUzs > 0 ? Math.round(totalUzs * ratio * 100) / 100 : 0,
-          usd: totalUsd > 0 ? Math.round(totalUsd * ratio * 100) / 100 : 0,
-        };
+        const body = splitByCollection
+          ? { uzs: collectedUzs, usd: collectedUsd }
+          : {
+              uzs: totalUzs > 0 ? Math.round(totalUzs * ratio * 100) / 100 : 0,
+              usd: totalUsd > 0 ? Math.round(totalUsd * ratio * 100) / 100 : 0,
+            };
         if (resolved.balance_shortfall_type === 'discount') {
           body.balance_shortfall_type = 'discount';
           body.balance_shortfall_amount = Math.round(shortfallTotal * ratio * 100) / 100;
@@ -705,6 +1034,7 @@ export default function SaleDeliverySettlementForm({
           body.apply_additional_profit = true;
         }
         if (resolved.exchange_rate) body.exchange_rate = resolved.exchange_rate;
+        if (reimburseChange) body.reimburse_courier_change = true;
         const trimmedNote = String(step2CombinedNote || '').trim();
         if (trimmedNote) body.delivery_shop_remittance_note = trimmedNote;
         await api.post(`/sales/${line.id}/delivery_shop_received_payment/`, body);
@@ -1037,6 +1367,32 @@ export default function SaleDeliverySettlementForm({
                   </div>
                 </div>
                 {!isDeclined && <PaymentDueNote meta={meta} t={t} />}
+                {/*
+                  Qaytim at the door. The courier funds it himself, so the shop takes the whole
+                  amount he collected and reimburses this separately — the panel is the counter
+                  sale's, because the arithmetic a person has to follow is identical.
+                */}
+                {/*
+                  Only when the customer actually handed over more than the price. Offering it
+                  on every delivery invited change out of a payment that had none to give back,
+                  and left the option sitting there on the ordinary exact-payment case where it
+                  can only ever be a mistake.
+                */}
+                {!isDeclined && changeIsPossible(meta) && (
+                  <SaleChangeFields
+                    form={form}
+                    setForm={(fn) =>
+                      setStep1ByLine((prev) => ({
+                        ...prev,
+                        [line.id]: typeof fn === 'function' ? fn(prev[line.id] || {}) : fn,
+                      }))
+                    }
+                    sc={line.sale_currency || 'USD'}
+                    required={meta.requiredChange}
+                    cbuRate={cbuRate}
+                    t={t}
+                  />
+                )}
                 {!isDeclined && isUnderpaidMeta(meta) && (
                   <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
                     <p style={{ margin: '0 0 6px', fontSize: '0.88em', color: '#b45309' }}>
@@ -1051,6 +1407,28 @@ export default function SaleDeliverySettlementForm({
                         }))
                       }
                       meta={meta}
+                      t={t}
+                    />
+                  </div>
+                )}
+                {/*
+                  The mirror case, which used to have nowhere to go: more money came in than the
+                  price. Handing back change worth slightly less than was owed lands here, and
+                  that surplus is not what the goods sold for.
+                */}
+                {!isDeclined && isOverpaidMeta(meta) && (
+                  <div style={{ marginTop: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <p style={{ margin: '0 0 6px', fontSize: '0.88em', color: '#b45309' }}>
+                      {t('deliverySettlement.step1SurplusOptional')}
+                    </p>
+                    <SurplusClassificationFields
+                      form={form}
+                      setForm={(fn) =>
+                        setStep1ByLine((prev) => ({
+                          ...prev,
+                          [line.id]: typeof fn === 'function' ? fn(prev[line.id] || {}) : fn,
+                        }))
+                      }
                       t={t}
                     />
                   </div>
@@ -1132,6 +1510,7 @@ export default function SaleDeliverySettlementForm({
                   <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: '0.92em' }}>
                     {t('deliverySettlement.step2GroupTotalTitle', { count: step2Lines.length })}
                   </p>
+                  <GroupCollectionSummary lines={step2Lines} t={t} />
                   {step2Lines
                     .filter((line) => line.delivery_step1_price_before_adjustment != null)
                     .map((line) => (
@@ -1218,6 +1597,12 @@ export default function SaleDeliverySettlementForm({
                         t={t}
                       />
                     </div>
+                    <ReimburseChangeOption
+                      lines={step2Lines}
+                      checked={reimburseChange}
+                      onChange={setReimburseChange}
+                      t={t}
+                    />
                     <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                       <label>{t('deliverySettlement.noteOptional')}</label>
                       <textarea
@@ -1251,6 +1636,7 @@ export default function SaleDeliverySettlementForm({
                     <p style={{ margin: '0 0 8px', fontWeight: 600, fontSize: '0.92em' }}>
                       {t('deliverySettlement.step1ItemHeading', { id: line.id, product: productLabelFor(line, t) })}
                     </p>
+                    <CourierCollectionSummary line={line} t={t} />
                     {line.delivery_step1_price_before_adjustment != null && (
                       <p style={{ margin: '0 0 10px', fontSize: '0.85em', color: '#b45309' }}>
                         {t('deliverySettlement.step1PriceAdjustedNotice', {
@@ -1304,6 +1690,12 @@ export default function SaleDeliverySettlementForm({
                           />
                         </div>
                       )}
+                      <ReimburseChangeOption
+                        lines={[line]}
+                        checked={reimburseChange}
+                        onChange={setReimburseChange}
+                        t={t}
+                      />
                       <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                         <label>{t('deliverySettlement.noteOptional')}</label>
                         <textarea

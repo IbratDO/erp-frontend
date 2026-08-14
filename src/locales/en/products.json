@@ -32,6 +32,8 @@
     "selectCategoryType": "Select category type",
     "selectCategory": "Select category",
     "addNewCategory": "+ Add new category…",
+    "addNewCategoryType": "+ Add new category type…",
+    "categoryTypePlaceholder": "e.g. Sports, Casual, Bags",
     "categoryPlaceholder": "e.g. Shoes, T-Shirt, Cap",
     "selectBrand": "Select a brand",
     "addNewBrand": "+ Add new brand…",

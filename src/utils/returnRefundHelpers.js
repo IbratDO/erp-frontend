@@ -7,43 +7,79 @@ import {
   paymentHasShortfall,
   uzsToUsd,
   usdToUzs,
-  saleEffectiveUnitPrice,
 } from './saleCompletePayHelpers';
 import { formatDisplayAmount } from './currencyFormat';
 import i18n from '../i18n';
 
 const tr = (key, opts) => i18n.t(key, { ns: 'returns', ...opts });
 
-/** Refund due at mark-refunded: stored sold price from return creation, else legacy sale unit price. */
-export function computeReturnRefundDue(returnItem) {
-  const qty = parseInt(returnItem?.quantity, 10) || 0;
+/**
+ * Refund owed on a return, as the pair of amounts it is actually owed in.
+ *
+ * A return reverses a sale that was often settled in both currencies at once, so the obligation
+ * is a pair. Three sources, in order: the legs stored when the return was recorded; the legacy
+ * single amount, for rows written before the split; and finally what the customer paid on the
+ * sale itself.
+ */
+export function computeReturnRefundDueLegs(returnItem) {
+  const legUzs = parseFloat(returnItem?.sold_price_uzs);
+  const legUsd = parseFloat(returnItem?.sold_price_usd);
+  const uzs = Number.isFinite(legUzs) && legUzs > 0 ? legUzs : 0;
+  const usd = Number.isFinite(legUsd) && legUsd > 0 ? legUsd : 0;
+  if (uzs > 0 || usd > 0) return { uzs, usd };
+
   const storedTotal = parseFloat(returnItem?.sold_price);
   const storedCurrency = String(returnItem?.sold_price_currency || '').toUpperCase();
   if (
     returnItem?.sold_price != null &&
     returnItem.sold_price !== '' &&
     Number.isFinite(storedTotal) &&
-    storedTotal >= 0 &&
+    storedTotal > 0 &&
     (storedCurrency === 'USD' || storedCurrency === 'UZS')
   ) {
-    const unitPrice = qty > 0 ? storedTotal / qty : NaN;
-    return { amount: storedTotal, currency: storedCurrency, unitPrice };
+    return storedCurrency === 'UZS' ? { uzs: storedTotal, usd: 0 } : { uzs: 0, usd: storedTotal };
   }
+
   const sale = returnItem?.sale_detail;
-  if (!sale || qty <= 0) {
-    return { amount: null, currency: 'USD', unitPrice: NaN };
+  const qty = parseInt(returnItem?.quantity, 10) || 0;
+  const legs = sale?.paid_legs;
+  if (legs && qty > 0) {
+    const soldQty = parseInt(sale?.quantity, 10) || 0;
+    const factor = soldQty > 0 && qty < soldQty ? qty / soldQty : 1;
+    const paidUzs = (Number(legs.uzs) || 0) * factor;
+    const paidUsd = (Number(legs.usd) || 0) * factor;
+    if (paidUzs > 0 || paidUsd > 0) {
+      return {
+        uzs: paidUzs > 0 ? Math.round(paidUzs) : 0,
+        usd: paidUsd > 0 ? parseFloat(paidUsd.toFixed(2)) : 0,
+      };
+    }
   }
-  const currency = (sale.sale_currency || 'USD').toUpperCase();
-  if (sale.selling_price == null || sale.selling_price === '') {
+  return { uzs: 0, usd: 0 };
+}
+
+/**
+ * LEGACY single-currency view of the same obligation, for the confirmation dialogs that still
+ * phrase the refund as one figure. Cross-currency dues report in dollars.
+ */
+export function computeReturnRefundDue(returnItem) {
+  const qty = parseInt(returnItem?.quantity, 10) || 0;
+  const { uzs, usd } = computeReturnRefundDueLegs(returnItem);
+  if (uzs <= 0 && usd <= 0) {
+    const sale = returnItem?.sale_detail;
+    const currency = (sale?.sale_currency || 'USD').toUpperCase();
     return { amount: null, currency, unitPrice: NaN };
   }
-  const unitPrice = saleEffectiveUnitPrice(sale);
-  if (!Number.isFinite(unitPrice)) {
-    return { amount: null, currency, unitPrice: NaN };
+  if (uzs > 0 && usd <= 0) {
+    return { amount: uzs, currency: 'UZS', unitPrice: qty > 0 ? uzs / qty : NaN };
   }
-  const raw = unitPrice * qty;
-  const amount = currency === 'UZS' ? Math.round(raw) : parseFloat(raw.toFixed(2));
-  return { amount, currency, unitPrice };
+  if (usd > 0 && uzs <= 0) {
+    return { amount: usd, currency: 'USD', unitPrice: qty > 0 ? usd / qty : NaN };
+  }
+  // Both legs live: there is no honest single-currency figure without a rate, so the caller is
+  // handed the pair as well and must use it. `amount` is deliberately null rather than one leg,
+  // which would understate the debt to anything that read it on its own.
+  return { amount: null, currency: 'USD', unitPrice: NaN, uzs, usd };
 }
 
 function formatAmountForCurrency(amount, currency) {
@@ -71,9 +107,17 @@ export function computeRefundPaidInDueCurrency(uzsT, usdT, dueCurrency, cbuRate)
  * Refund validation meta. Underpayment vs sold_price due is allowed when the user confirms partial refund.
  */
 export function computeReturnRefundMeta(returnItem, refundFormData, cbuRate) {
+  const dueLegs = computeReturnRefundDueLegs(returnItem);
   const dueInfo = computeReturnRefundDue(returnItem);
-  const due = dueInfo.amount;
-  const sc = dueInfo.currency || 'USD';
+  // A debt owed in both currencies has no single-currency size until a rate is known. Expressed
+  // in dollars for the comparison below — the comparison only; the legs are what is settled.
+  const crossCurrencyDue = dueLegs.uzs > 0 && dueLegs.usd > 0;
+  const sc = crossCurrencyDue ? 'USD' : dueInfo.currency || 'USD';
+  const due = crossCurrencyDue
+    ? cbuRate && cbuRate > 0
+      ? dueLegs.usd + dueLegs.uzs / cbuRate
+      : null
+    : dueInfo.amount;
   const uzsT = parseFloat(refundFormData?.uzs) || 0;
   const usdT = parseFloat(refundFormData?.usd) || 0;
 
@@ -145,7 +189,33 @@ export function buildReturnRefundRequest(refundFormData, exchangeRate, options =
     requestData.accept_partial_refund = true;
     requestData.accept_split_underpayment = true;
   }
+  // How a difference between what is owed and what is being paid is accounted for. Sent only
+  // when the cashier ticked something, so a refund that settles exactly still posts a clean body.
+  const diff = options.difference;
+  if (diff?.pl) {
+    requestData.apply_refund_pl = true;
+    if (String(diff.plAmount ?? '').trim() !== '') {
+      requestData.refund_pl_amount = diff.plAmount;
+    }
+  }
+  if (diff?.fx) {
+    requestData.apply_refund_currency_conversion_difference = true;
+  }
   return requestData;
+}
+
+/** Signed gap between what is owed and what is being paid; positive = paying less than owed. */
+export function refundSettlementGap(meta) {
+  if (meta?.due == null || meta?.paid == null) return null;
+  if (Number.isNaN(meta.due) || Number.isNaN(meta.paid)) return null;
+  return meta.due - meta.paid;
+}
+
+export function refundGapIsSignificant(meta) {
+  const gap = refundSettlementGap(meta);
+  if (gap == null) return false;
+  const tol = (meta.sc || 'USD').toUpperCase() === 'UZS' ? 1 : 0.005;
+  return Math.abs(gap) > tol;
 }
 
 /**

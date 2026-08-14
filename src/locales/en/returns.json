@@ -25,17 +25,12 @@
     "soldPrice": "Sold price",
     "refundAmount": "Refund amount",
     "refundCurrency": "Refund currency",
-    "enterRefund": "Enter refund to customer",
     "submit": "Create Return",
     "saleRequired": "Sale",
     "quantityLabel": "Quantity",
-    "saleAmountDue": "Sale amount due:",
-    "perUnit": "({{amount}} / unit)",
-    "useFullSaleAmount": "Use full sale amount",
-    "refundAmountHint": "Amount owed to the customer. Payables and P&L use this value when the return is created (can be less than the sale amount due).",
-    "selectSaleForDue": "Select a sale and quantity to see the sale amount due.",
-    "refundExceedsDueInline": "Refund amount cannot exceed sale amount due ({{amount}}).",
-    "placeholderUpTo": "Up to {{amount}}",
+    "refundAmountHint": "What the customer gets back, in the currencies they paid in. Prefilled with the money actually received for these units — edit either field if you are refunding less, or settling out of the other currency.",
+    "selectSaleForDue": "Select a sale and quantity to see what the customer paid.",
+    "refundExceedsDueInline": "Refund is worth more than the customer paid ({{amount}}).",
     "originalSaleQty": "Original sale qty:",
     "alreadyOnReturns": "Already on return records:",
     "canStillReturn": "You can still return:",
@@ -45,7 +40,8 @@
     "productsReturnable": "Products with returnable sales",
     "productsReturnableInCategory": "Products with returnable sales in {{category}}",
     "filteredBy": "Filtered by:",
-    "saleOption": "Sale #{{id}} — {{brand}} {{model}}{{customer}}"
+    "saleOption": "Sale #{{id}} — {{brand}} {{model}}{{customer}}",
+    "customerPaid": "Customer paid:"
   },
   "reasons": {
     "defective": "Defective",
@@ -64,7 +60,14 @@
     "uzsRefund": "UZS refund",
     "usdRefund": "USD refund",
     "notesOptional": "Notes (optional)",
-    "recordRefund": "Record refund"
+    "recordRefund": "Record refund",
+    "payingLessBy": "Paying back {{amount}} less than is owed",
+    "payingMoreBy": "Paying back {{amount}} more than is owed",
+    "classifyHint": "Choose where this difference is recorded. Tick both to split it.",
+    "takeToProfitLoss": "Record as profit/loss",
+    "takeToConversionDifference": "Record as currency conversion difference",
+    "profitLossShare": "To profit/loss ({{currency}})",
+    "remainderGoesToConversion": "{{amount}} goes to currency conversion difference."
   },
   "filters": {
     "title": "Filters",
@@ -139,7 +142,9 @@
     "refundAmountRequired": "Please enter at least one refund amount.",
     "markedRefunded": "Return marked as refunded.",
     "markFailed": "Error marking return as refunded",
-    "exchangeRateFailed": "Could not load CBU exchange rate."
+    "exchangeRateFailed": "Could not load CBU exchange rate.",
+    "classifyRefundDifference": "The refund differs from the amount owed. Tick where the difference is recorded.",
+    "refundPlAmountRequired": "Enter how much of the difference goes to profit/loss."
   },
   "confirm": {
     "continue": "Continue?",

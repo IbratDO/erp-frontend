@@ -40,7 +40,8 @@
     "packagesWithUnits": "Qadoqlar ({{units}} dona)",
     "goodsWithCourier": "Kuryerdagi mahsulot (qaytarilishi kutilmoqda)",
     "prepaidExpenses": "Oldindan to‘langan xarajatlar",
-    "fixedAssetsOnBooks": "Asosiy vositalar (balansda)"
+    "fixedAssetsOnBooks": "Asosiy vositalar (balansda)",
+    "courierCash": "Kuryerlardagi pul (olingan, topshirilmagan)"
   },
   "liabilities": {
     "title": "Majburiyatlar",

@@ -25,17 +25,12 @@
     "soldPrice": "Sotilgan narx",
     "refundAmount": "Qaytarish summasi",
     "refundCurrency": "Qaytarish valyutasi",
-    "enterRefund": "Mijozga qaytarishni kiriting",
     "submit": "Qaytarish yaratish",
     "saleRequired": "Sotuv",
     "quantityLabel": "Miqdor",
-    "saleAmountDue": "Sotuv bo‘yicha qarz:",
-    "perUnit": "({{amount}} / dona)",
-    "useFullSaleAmount": "To‘liq sotuv summasi",
-    "refundAmountHint": "Mijozga qaytariladigan summa. Qaytarish yaratilganda kreditorlik va foyda/zarar shu qiymat asosida hisoblanadi (sotuv qarzidan kam bo‘lishi mumkin).",
-    "selectSaleForDue": "Sotuv qarzini ko‘rish uchun sotuv va miqdorni tanlang.",
-    "refundExceedsDueInline": "Qaytarish summasi sotuv qarzidan oshmasligi kerak ({{amount}}).",
-    "placeholderUpTo": "{{amount}} gacha",
+    "refundAmountHint": "Mijozga qaytariladigan summa — u to‘lagan valyutalarda. Shu dona uchun haqiqatda olingan pul avtomatik qo‘yiladi; kamroq qaytarsangiz yoki boshqa valyutada bersangiz, maydonlarni o‘zgartiring.",
+    "selectSaleForDue": "Mijoz qancha to‘laganini ko‘rish uchun sotuv va miqdorni tanlang.",
+    "refundExceedsDueInline": "Qaytarish summasi mijoz to‘laganidan ko‘p ({{amount}}).",
     "originalSaleQty": "Asl sotuv miqdori:",
     "alreadyOnReturns": "Qaytarish yozuvlarida:",
     "canStillReturn": "Yana qaytarish mumkin:",
@@ -45,7 +40,8 @@
     "productsReturnable": "Qaytariladigan sotuvlari bor mahsulotlar",
     "productsReturnableInCategory": "«{{category}}» da qaytariladigan mahsulotlar",
     "filteredBy": "Filtr:",
-    "saleOption": "Sotuv #{{id}} — {{brand}} {{model}}{{customer}}"
+    "saleOption": "Sotuv #{{id}} — {{brand}} {{model}}{{customer}}",
+    "customerPaid": "Mijoz to‘lagan:"
   },
   "reasons": {
     "defective": "Nuqsonli",
@@ -64,7 +60,14 @@
     "uzsRefund": "UZS qaytarish",
     "usdRefund": "USD qaytarish",
     "notesOptional": "Izoh (ixtiyoriy)",
-    "recordRefund": "Qaytarishni qayd etish"
+    "recordRefund": "Qaytarishni qayd etish",
+    "payingLessBy": "Qarzdan {{amount}} kam qaytarilmoqda",
+    "payingMoreBy": "Qarzdan {{amount}} ko‘p qaytarilmoqda",
+    "classifyHint": "Bu farq qayerga yozilishini tanlang. Ikkalasini belgilasangiz, farq bo‘linadi.",
+    "takeToProfitLoss": "Foyda/zararga yozish",
+    "takeToConversionDifference": "Konversion farq qilib yozish",
+    "profitLossShare": "Foyda/zararga ({{currency}})",
+    "remainderGoesToConversion": "{{amount}} konversion farqqa yoziladi."
   },
   "filters": {
     "title": "Filtrlar",
@@ -139,7 +142,9 @@
     "refundAmountRequired": "Kamida bitta qaytarish summasini kiriting.",
     "markedRefunded": "Qaytarish qaytarilgan deb belgilandi.",
     "markFailed": "Qaytarilgan deb belgilab bo‘lmadi",
-    "exchangeRateFailed": "MB kursini yuklab bo‘lmadi."
+    "exchangeRateFailed": "MB kursini yuklab bo‘lmadi.",
+    "classifyRefundDifference": "Qaytarish summasi qarzdan farq qiladi. Farq qayerga yozilishini belgilang.",
+    "refundPlAmountRequired": "Farqning qancha qismi foyda/zararga yozilishini kiriting."
   },
   "confirm": {
     "continue": "Davom etasizmi?",

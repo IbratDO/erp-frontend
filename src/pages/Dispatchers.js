@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import CourierAccountBand from '../components/CourierAccountBand';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
 import SaleCompletePayForm from '../components/SaleCompletePayForm';
@@ -815,6 +816,8 @@ const Dispatchers = () => {
                     <strong>{t('detail.notes')}</strong> {dispatcherDetail.dispatcher.notes || '—'}
                   </p>
                 </div>
+
+                <CourierAccountBand account={dispatcherDetail.summary?.account} t={t} />
 
                 <div className="form-card" style={{ marginBottom: '16px', backgroundColor: '#f9f9f9' }}>
                   <h3 style={{ marginTop: 0 }}>{t('detail.summary')}</h3>

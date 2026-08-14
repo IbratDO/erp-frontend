@@ -15,10 +15,13 @@ import FormSearchableSelect from '../components/FormSearchableSelect';
 import FilterSearchableSelect from '../components/FilterSearchableSelect';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
+import {
+  categoryTypeLabel,
+  productCategoryTypeOptions,
+  useProductCategoryTypes,
+} from '../utils/productCategoryTypes';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
-
-const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
 /** All active inventory filters except Layer No (used both to filter the table and to build the Layer No dropdown's own options). */
 function matchesInventoryFiltersExceptLayer(item, filters) {
@@ -36,9 +39,6 @@ function matchesInventoryFiltersExceptLayer(item, filters) {
   }
   return true;
 }
-
-const categoryTypeLabel = (value, t) =>
-  value ? t(`categoryTypes.${value}`, { defaultValue: '' }) : '';
 
 /** Landed unit cost for one FIFO layer row (supplier + cargo per unit). */
 function layerLandedCostCells(layer) {
@@ -106,12 +106,13 @@ const INVENTORY_SORT_ACCESSORS = {
 const Inventory = () => {
   const { t, tStatus, monthOptions } = useAppTranslation(['inventory', 'common', 'status']);
   const { hasPermission } = usePermissions();
-  const productCategoryTypes = useMemo(
-    () => PRODUCT_CATEGORY_TYPE_VALUES.map((value) => ({ value, label: t(`categoryTypes.${value}`) })),
-    [t],
-  );
   const canAddInventory = hasPermission('inventory.create');
   const [inventory, setInventory] = useState([]);
+  const knownCategoryTypes = useProductCategoryTypes();
+  const productCategoryTypes = useMemo(
+    () => productCategoryTypeOptions(inventory, t, undefined, knownCategoryTypes),
+    [inventory, t, knownCategoryTypes],
+  );
   const [filteredInventory, setFilteredInventory] = useState([]);
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);

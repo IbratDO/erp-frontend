@@ -108,6 +108,10 @@ const BalanceSheet = () => {
   // Declined delivery items the courier still holds, and the margin on goods already sold but
   // not yet paid for. Both absent on responses from an older backend, hence the ?? 0.
   const goodsWithCourier = assets?.current?.goods_with_courier?.total_usd ?? 0;
+  // Cash a customer has already paid that is still in a courier's pocket. It used to sit inside
+  // Debitorlik, which read as the customer still owing it — the same money, filed under a name
+  // that was no longer true.
+  const courierCash = assets?.current?.courier_cash?.total_usd ?? 0;
   const expectedProfit = equity?.expected_profit_usd ?? 0;
 
   const faNonCurrent =
@@ -253,6 +257,13 @@ const BalanceSheet = () => {
                     <SectionHeader number={1} title={t('assets.sections.money')} />
                     <LineRow label={t('assets.cash')} value={formatUsd(cashUsd)} indent={1} />
                     <LineRow label={t('assets.bank')} value={formatUsd(bankUsd)} indent={1} />
+                    {courierCash > 0.005 && (
+                      <LineRow
+                        label={t('assets.courierCash')}
+                        value={formatUsd(courierCash)}
+                        indent={1}
+                      />
+                    )}
 
                     <SectionHeader number={2} title={t('assets.sections.receivables')} />
                     <LineRow

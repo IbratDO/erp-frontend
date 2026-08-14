@@ -14,11 +14,18 @@ import { getCachedProducts } from '../utils/catalogCache';
 import {
   numOrZero,
   plannedSellingSummary,
+  plannedSellingUzsSummary,
   plannedSupplierPerUnit,
+  plannedSupplierUzsPerUnit,
   plannedSupplierTotal,
   plannedSupplierPaymentTotals,
 } from '../utils/orderPlannedPricing';
 import './TablePage.css';
+import {
+  categoryTypeLabel as sharedCategoryTypeLabel,
+  productCategoryTypeOptions,
+  useProductCategoryTypes,
+} from '../utils/productCategoryTypes';
 import SortableTh from '../components/SortableTh';
 import { usePermissions } from '../hooks/usePermissions';
 import ProductCatalogFilterFields from '../components/ProductCatalogFilterFields';
@@ -33,10 +40,8 @@ import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
 
-const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
-
 const categoryTypeLabel = (value, t) =>
-  value ? t(`categoryTypes.${value}`, { ns: 'orders', defaultValue: '' }) : '';
+  sharedCategoryTypeLabel(value, (key, opts) => t(key, { ns: 'orders', ...opts }));
 
 const orderTypeShortLabel = (orderType, t) => {
   if (orderType === 'stock') return t('types.stock_short', { ns: 'orders' });
@@ -435,7 +440,15 @@ const ORDER_SORT_ACCESSORS = {
   qty: (o) => parseInt(o.ordered_quantity, 10) || 0,
   weight: (o) => parseFloat(o.weight) || 0,
   selling_price_unit: (o) => orderSellingUsdPerUnitForSort(o),
+  selling_price_unit_uzs: (o) => {
+    const qi = Math.max(parseInt(o.ordered_quantity, 10) || 1, 1);
+    return (numOrZero(o.selling_uzs_cash) + numOrZero(o.selling_uzs_card)) / qi;
+  },
   cost_per_unit: (o) => orderCostPerUnitForSort(o),
+  cost_per_unit_uzs: (o) => {
+    const qi = Math.max(parseInt(o.ordered_quantity, 10) || 1, 1);
+    return (numOrZero(o.supplier_cost_uzs_cash) + numOrZero(o.supplier_cost_uzs_card)) / qi;
+  },
   total_cost: (o) => parseFloat(o.cost_total) || 0,
   order_uzs: (o) =>
     (parseFloat(o.order_payment_uzs_cash) || 0) + (parseFloat(o.order_payment_uzs_card) || 0),
@@ -461,14 +474,6 @@ const Orders = () => {
   const { t, tStatus, monthOptions } = useAppTranslation(['orders', 'common', 'status', 'sales']);
   const uzsLabel = t('currency.uzs', { ns: 'common' });
 
-  const productCategoryTypes = useMemo(
-    () =>
-      PRODUCT_CATEGORY_TYPE_VALUES.map((value) => ({
-        value,
-        label: t(`categoryTypes.${value}`, { ns: 'orders' }),
-      })),
-    [t],
-  );
 
   const regionChoices = useMemo(
     () =>
@@ -531,6 +536,17 @@ const Orders = () => {
     }
   }, [user, refreshUser]);
   const [orders, setOrders] = useState([]);
+  const knownCategoryTypes = useProductCategoryTypes();
+  const productCategoryTypes = useMemo(
+    () =>
+      productCategoryTypeOptions(
+        orders,
+        (key, opts) => t(key, { ns: 'orders', ...opts }),
+        undefined,
+        knownCategoryTypes,
+      ),
+    [orders, t, knownCategoryTypes],
+  );
   const [filteredOrders, setFilteredOrders] = useState([]);
   const [balances, setBalances] = useState([]);
   const [balancesLoaded, setBalancesLoaded] = useState(false);
@@ -557,7 +573,9 @@ const Orders = () => {
     product: '',
     ordered_quantity: '1',
     cost_usd_per_unit: '',
+    cost_uzs_per_unit: '',
     selling_usd_per_unit: '',
+    selling_uzs_per_unit: '',
     eshop: '',
     client_eshop_notes: '',
     // Two amounts, no currency: the label is derived server-side from which boxes were used.
@@ -1030,9 +1048,13 @@ const Orders = () => {
         showNotification(t('notifications.selectProductQty'), 'error');
         return;
       }
-      const sellingUsd = parseFloat(l.selling_usd_per_unit) || 0;
-      if (!(sellingUsd > 0)) {
-        showNotification(t('notifications.sellingPriceRequired'), 'error');
+      // Selling price is a plan, not a commitment - plenty of stock is ordered before anyone
+      // decides what it will go for, and the real price is set at the sale. Cost is different:
+      // the money is being spent now, so one of the two currencies has to say how much.
+      const costUsd = parseFloat(l.cost_usd_per_unit) || 0;
+      const costUzs = parseFloat(l.cost_uzs_per_unit) || 0;
+      if (!(costUsd > 0) && !(costUzs > 0)) {
+        showNotification(t('notifications.costRequired'), 'error');
         return;
       }
       if (!String(l.eshop || '').trim()) {
@@ -1044,6 +1066,7 @@ const Orders = () => {
         return;
       }
       if (isOnDemand) {
+        const sellingUsd = parseFloat(l.selling_usd_per_unit) || 0;
         const advanceUsd = parseFloat(l.advance_payment_amount) || 0;
         const advanceUzs = parseFloat(l.advance_payment_amount_uzs) || 0;
         const sellingTotal = sellingUsd * qty;
@@ -1081,17 +1104,21 @@ const Orders = () => {
     const items = withProduct.map((l) => {
       const qty = parseInt(l.ordered_quantity, 10) || 0;
       const sellingUsd = parseFloat(l.selling_usd_per_unit) || 0;
+      const sellingUzs = parseFloat(l.selling_uzs_per_unit) || 0;
       const costUsd = parseFloat(l.cost_usd_per_unit) || 0;
+      const costUzs = parseFloat(l.cost_uzs_per_unit) || 0;
+      // Both legs travel; a line paid partly in each is one order, not two. The model already
+      // keeps the four buckets apart, so nothing here has to convert anything.
       return {
         product: parseInt(l.product, 10),
         ordered_quantity: qty,
         eshop: l.eshop || '',
         client_eshop_notes: isClientEshopSlug(l.eshop) ? String(l.client_eshop_notes || '').trim() : '',
-        selling_uzs_cash: 0,
+        selling_uzs_cash: sellingUzs * qty,
         selling_uzs_card: 0,
         selling_usd_cash: sellingUsd * qty,
         selling_usd_card: 0,
-        supplier_cost_uzs_cash: 0,
+        supplier_cost_uzs_cash: costUzs * qty,
         supplier_cost_uzs_card: 0,
         supplier_cost_usd_cash: costUsd * qty,
         supplier_cost_usd_card: 0,
@@ -2326,6 +2353,8 @@ const Orders = () => {
   // group row's buttons are a convenience for doing the same thing to all of them at once.
   const renderOrderRow = (order, rowKey, extraClassName) => {
     const plannedSellingLabel = plannedSellingSummary(order);
+    const plannedSellingUzsLabel = plannedSellingUzsSummary(order);
+    const plannedSupplierUzsLabel = plannedSupplierUzsPerUnit(order);
     const plannedSupplierTotalLabel = plannedSupplierTotal(order);
     const eshopLabel = formatEshopDisplay(order.eshop, t);
     const cargoPool = cargoPoolTotals(order, orders);
@@ -2542,7 +2571,21 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        <td title={plannedSellingUzsLabel || ''}>
+          {plannedSellingUzsLabel ? (
+            <span>{plannedSellingUzsLabel}</span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
         <td>{plannedSupplierPerUnit(order)}</td>
+        <td>
+          {plannedSupplierUzsLabel ? (
+            <span>{plannedSupplierUzsLabel}</span>
+          ) : (
+            <span style={{ color: '#bbb' }}>—</span>
+          )}
+        </td>
         <td title={plannedSupplierTotalLabel || ''}>
           {plannedSupplierTotalLabel ? (
             <span>{plannedSupplierTotalLabel}</span>
@@ -3460,6 +3503,8 @@ const Orders = () => {
                     <col className="batch-col-qty" />
                     <col className="batch-col-price" />
                     <col className="batch-col-price" />
+                    <col className="batch-col-price" />
+                    <col className="batch-col-price" />
                     <col className="batch-col-eshop" />
                     {batchShared.order_type === 'on_demand' && <col className="batch-col-advance" />}
                     <col className="batch-col-row" />
@@ -3471,7 +3516,9 @@ const Orders = () => {
                       <th scope="col">{t('batch.product', { ns: 'orders' })}</th>
                       <th className="batch-sale-lines__th--num">{t('batch.qty', { ns: 'orders' })}</th>
                       <th className="batch-sale-lines__th--num">{t('batch.costUsd', { ns: 'orders' })}</th>
+                      <th className="batch-sale-lines__th--num">{t('batch.costUzs', { ns: 'orders' })}</th>
                       <th className="batch-sale-lines__th--num">{t('batch.sellingUsd', { ns: 'orders' })}</th>
+                      <th className="batch-sale-lines__th--num">{t('batch.sellingUzs', { ns: 'orders' })}</th>
                       <th scope="col">{t('form.eshop')} <span style={{ color: '#e53e3e' }}>*</span></th>
                       {batchShared.order_type === 'on_demand' && (
                         <th className="batch-sale-lines__th--num">{t('form.advanceAmount')}</th>
@@ -3548,10 +3595,30 @@ const Orders = () => {
                           <td className="batch-sale-lines__td--num">
                             <AmountInput
                               className="batch-sale-lines__control"
+                              step="1"
+                              value={line.cost_uzs_per_unit ?? ''}
+                              onChange={(e) => updateBatchLine(line.key, 'cost_uzs_per_unit', e.target.value)}
+                              placeholder="0"
+                              aria-label={t('batch.costUzs', { ns: 'orders' })}
+                            />
+                          </td>
+                          <td className="batch-sale-lines__td--num">
+                            <AmountInput
+                              className="batch-sale-lines__control"
                               value={line.selling_usd_per_unit ?? ''}
                               onChange={(e) => updateBatchLine(line.key, 'selling_usd_per_unit', e.target.value)}
                               placeholder="0.00"
                               aria-label={t('batch.sellingUsd', { ns: 'orders' })}
+                            />
+                          </td>
+                          <td className="batch-sale-lines__td--num">
+                            <AmountInput
+                              className="batch-sale-lines__control"
+                              step="1"
+                              value={line.selling_uzs_per_unit ?? ''}
+                              onChange={(e) => updateBatchLine(line.key, 'selling_uzs_per_unit', e.target.value)}
+                              placeholder="0"
+                              aria-label={t('batch.sellingUzs', { ns: 'orders' })}
                             />
                           </td>
                           <td>
@@ -3885,7 +3952,9 @@ const Orders = () => {
               <SortableTh columnId="qty" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.qty', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="weight" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.weight', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="selling_price_unit" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.sellingPerUnit', { ns: 'orders' })}</SortableTh>
+              <SortableTh columnId="selling_price_unit_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.sellingPerUnitUzs', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="cost_per_unit" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.costPerUnit', { ns: 'orders' })}</SortableTh>
+              <SortableTh columnId="cost_per_unit_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.costPerUnitUzs', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="total_cost" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.totalCost', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="order_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderUzs', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="order_usd" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderUsd', { ns: 'orders' })}</SortableTh>

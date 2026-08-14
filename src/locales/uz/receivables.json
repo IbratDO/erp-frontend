@@ -81,7 +81,8 @@
     "footerSupplier": "Yetkazuvchi / kuryer / qadoq (kutilmoqda)",
     "footerDeposits": "Mijoz depozitlari (on-demand, hali sotilmagan)",
     "payDispatchFee": "Kuryer haqini to‘lash",
-    "cancelDispatchFee": "Kuryer haqini bekor qilish"
+    "cancelDispatchFee": "Kuryer haqini bekor qilish",
+    "reimburseCourierChange": "Qaytarish"
   },
   "saleTypes": {
     "bought_from_shop": "Do‘kon",
@@ -101,14 +102,16 @@
     "dispatch": "Yetkazish",
     "package": "Qadoq",
     "otherExpense": "Boshqa xarajat",
-    "returnRefund": "Mijozga qaytarim"
+    "returnRefund": "Mijozga qaytarim",
+    "courierChange": "Kuryer qaytimi"
   },
   "payableRefs": {
     "order": "Buyurtma #{{id}}",
     "dispatch": "#{{dispatch}} (Sotuv #{{sale}})",
     "packageHistory": "Tarix #{{id}}",
     "finance": "Moliya #{{id}}",
-    "returnRefund": "Qaytarish #{{id}} (Sotuv #{{sale}})"
+    "returnRefund": "Qaytarish #{{id}} (Sotuv #{{sale}})",
+    "courierChange": "Sotuv #{{sale}}"
   },
   "payableContext": {
     "customerDeposit": "Talab bo‘yicha oldindan to‘lov — buyurtmadan sotganda yopiladi",
@@ -116,7 +119,9 @@
     "stockOrder": "Zaxira buyurtmasi (ombor)",
     "packageType": "Qadoq turi {{type}}",
     "packagePurchase": "Qadoq xaridi",
-    "returnRefund": "Qaytarilgan mahsulot uchun mijozga qarz"
+    "returnRefund": "Qaytarilgan mahsulot uchun mijozga qarz",
+    "courierChange": "Kuryer eshik oldida bergan qaytim",
+    "courierChangeNamed": "{{name}} — eshik oldida bergan qaytim"
   },
   "notifications": {
     "amountRequired": "Yig‘ilgan summani kiriting (noldan katta).",
@@ -132,6 +137,8 @@
     "confirmPayDispatchFee": "Ushbu sotuv uchun kuryer haqi to‘lansinmi? Pul balansi kamayadi va foyda shu miqdorda kamayadi.",
     "payDispatchFeeFailed": "Kuryer haqini to‘lab bo‘lmadi.",
     "confirmCancelDispatchFee": "Kuryer haqi bekor qilinsinmi? Kuryerga to‘lanmaydi, pul balansi o‘zgarmaydi.",
-    "cancelDispatchFeeFailed": "Kuryer haqini bekor qilib bo‘lmadi."
+    "cancelDispatchFeeFailed": "Kuryer haqini bekor qilib bo‘lmadi.",
+    "confirmReimburseCourierChange": "Kuryerga mijozga bergan qaytimini qaytarilsinmi?",
+    "reimburseCourierChangeFailed": "Kuryerga qaytim qaytarilmadi."
   }
 }

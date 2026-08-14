@@ -104,5 +104,18 @@
   "confirm": {
     "deleteBts": "BTS hamkor qatorini o‘chirasizmi? BTS (kompaniya) yuk tashishlari tizimda qoladi; Amallar ustunidagi «BTS ni tiklash» tugmasi bilan qatorni qayta qo‘shishingiz mumkin.",
     "deleteDispatcher": "Ushbu dostavshikni o‘chirasizmi? Tayinlangan yuk tashishlar bo‘sh qoladi."
+  },
+  "account": {
+    "title": "Yetkazib beruvchi hisobi",
+    "goodsOut": "Qo'lidagi mahsulotlar",
+    "goodsComingBack": "Qaytadigan mahsulotlar",
+    "cashHeld": "Qo'lidagi pul",
+    "ofWhichHisOwn": "shundan {{amount}} o'zining qaytimi",
+    "owedChange": "Biz qarzdormiz — qaytim",
+    "owedFee": "Biz qarzdormiz — yetkazish haqi",
+    "itemsWithCost": "{{count}} dona · {{amount}}",
+    "showRows": "{{count}} tasini ko'rish",
+    "hideRows": "Yashirish",
+    "saleRef": "Sotuv #{{id}}"
   }
 }

@@ -546,9 +546,21 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
   const wantFx = !!paymentFormData.apply_currency_conversion_difference;
   const wantAdditionalProfit = !!paymentFormData.apply_additional_profit;
   const isOverpay = remainingAfterDiscount > tol;
-  // FX wins if both are somehow set; additional profit only ever explains a genuine surplus.
+  // A surplus can be both at once — part rate arithmetic, part money the shop kept. The
+  // conversion difference names its share and additional profit takes the rest, so the split is
+  // only complete once that amount is present and covers no more than the surplus itself.
+  const splitSurplus = wantFx && wantAdditionalProfit && isOverpay;
+  const namedFx = parseFloat(paymentFormData.currency_conversion_difference_amount);
+  const splitFxValid =
+    splitSurplus &&
+    Number.isFinite(namedFx) &&
+    namedFx > 0 &&
+    namedFx <= remainingAfterDiscount + tol;
+  // Additional profit alone only ever explains a genuine surplus.
   const apExplained = !wantFx && wantAdditionalProfit && isOverpay;
-  const unexplained = (wantFx || apExplained) ? 0 : remainingAfterDiscount;
+  const fxExplained = wantFx && !splitSurplus;
+  const explained = fxExplained || apExplained || splitFxValid;
+  const unexplained = explained ? 0 : remainingAfterDiscount;
   const differenceNeedsClassification = Math.abs(unexplained) > tol;
   // Reachable only for overpayment with nothing selected yet (advance sales stay hard-blocked).
   const needsAdditionalProfitConfirm =
@@ -563,8 +575,17 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
     // does not shrink to zero the moment change is typed in.
     requiredChange:
       base.paidGross != null ? base.paidGross - (base.due - discountAmount) : null,
-    conversionDifference: wantFx ? remainingAfterDiscount : null,
-    additionalProfitAmount: apExplained ? remainingAfterDiscount : null,
+    conversionDifference: splitFxValid
+      ? namedFx
+      : fxExplained
+        ? remainingAfterDiscount
+        : null,
+    additionalProfitAmount: splitFxValid
+      ? remainingAfterDiscount - namedFx
+      : apExplained
+        ? remainingAfterDiscount
+        : null,
+    splitSurplus,
     differenceNeedsClassification,
     needsAdditionalProfitConfirm,
     // Surplus classified as FX or additional profit is not a generic overpayment confirm.
@@ -754,8 +775,13 @@ export function buildCompleteSaleRequest(paymentFormData, meta, exchangeRate) {
   }
   if (paymentFormData.apply_currency_conversion_difference) {
     requestData.apply_currency_conversion_difference = true;
+    // Only meaningful alongside additional profit, where it says how the surplus divides.
+    const fxAmt = parseFloat(paymentFormData.currency_conversion_difference_amount);
+    if (paymentFormData.apply_additional_profit && Number.isFinite(fxAmt) && fxAmt > 0) {
+      requestData.currency_conversion_difference_amount = fxAmt;
+    }
   }
-  if (paymentFormData.apply_additional_profit && !paymentFormData.apply_currency_conversion_difference) {
+  if (paymentFormData.apply_additional_profit) {
     requestData.apply_additional_profit = true;
   }
   const changeUzs = paymentFormData.apply_change ? parseFloat(paymentFormData.change_uzs) || 0 : 0;

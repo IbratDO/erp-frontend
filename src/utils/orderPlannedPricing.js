@@ -29,6 +29,22 @@ export function plannedSellingUsdPerUnit(order) {
   return null;
 }
 
+/** Planned soum selling per unit as a display string; '' when the line has none. */
+export function plannedSellingUzsSummary(order) {
+  const per = plannedSellingUzsPerUnit(order);
+  if (per == null) return '';
+  return `${per.toLocaleString(undefined, { maximumFractionDigits: 0 })} UZS/u`;
+}
+
+/** Planned soum supplier cost per unit as a display string; '' when the line has none. */
+export function plannedSupplierUzsPerUnit(order) {
+  if (!order) return '';
+  const qi = Math.max(parseInt(order.ordered_quantity, 10) || 1, 1);
+  const uzs = numOrZero(order.supplier_cost_uzs_cash) + numOrZero(order.supplier_cost_uzs_card);
+  if (uzs <= 0) return '';
+  return `${(uzs / qi).toLocaleString(undefined, { maximumFractionDigits: 0 })} UZS/u`;
+}
+
 /** Numeric planned UZS selling per unit (for forms); null if none. */
 export function plannedSellingUzsPerUnit(order) {
   if (!order) return null;
@@ -46,29 +62,35 @@ export function plannedSupplierUnitParts(order) {
   const usdTot = parseFloat(order.cost_total) || 0;
   const usdPu = parseFloat(order.cost_per_unit);
   const usdBuckets = numOrZero(order.supplier_cost_usd_card) + numOrZero(order.supplier_cost_usd_cash);
-  if (usdTot > 0 && uzs <= 0 && !Number.isNaN(usdPu)) {
-    return { uzsPerUnit: null, usdPerUnit: usdPu };
-  }
-  if (uzs > 0 && usdTot <= 0) {
-    return {
-      uzsPerUnit: uzs / qi,
-      usdPerUnit: usdBuckets > 0 ? usdBuckets / qi : null,
-    };
-  }
-  return { uzsPerUnit: null, usdPerUnit: null };
+  // Both legs, independently. Either may be null; a line carrying both is not an error.
+  const usdPerUnit =
+    usdBuckets > 0
+      ? usdBuckets / qi
+      : usdTot > 0 && !Number.isNaN(usdPu) && usdPu > 0
+        ? usdPu
+        : null;
+  return {
+    uzsPerUnit: uzs > 0 ? uzs / qi : null,
+    usdPerUnit,
+  };
 }
 
+/**
+ * Planned supplier cost per unit, in dollars.
+ *
+ * The soum leg has a column of its own now, so this one answers only for dollars. It used to
+ * refuse to answer at all unless the line was in exactly one currency (`usdTot > 0 && uzs <= 0`),
+ * which meant an order paid partly in each showed a dash in both price columns — the one case
+ * where a person most wants to see the split.
+ */
 export function plannedSupplierPerUnit(order) {
   if (!order) return '—';
-  const qi = parseInt(order.ordered_quantity, 10) || 1;
-  const uzs = numOrZero(order.supplier_cost_uzs_cash) + numOrZero(order.supplier_cost_uzs_card);
+  const qi = Math.max(parseInt(order.ordered_quantity, 10) || 1, 1);
+  const usdBuckets = numOrZero(order.supplier_cost_usd_cash) + numOrZero(order.supplier_cost_usd_card);
+  if (usdBuckets > 0) return `$${(usdBuckets / qi).toFixed(2)}`;
   const usdTot = parseFloat(order.cost_total) || 0;
   const usdPu = parseFloat(order.cost_per_unit) || 0;
-  if (usdTot > 0 && uzs <= 0 && !Number.isNaN(usdPu)) return `$${usdPu.toFixed(2)}`;
-  if (uzs > 0 && usdTot <= 0) {
-    const per = uzs / qi;
-    return `${per.toLocaleString(undefined, { maximumFractionDigits: 0 })} UZS/u`;
-  }
+  if (usdTot > 0 && !Number.isNaN(usdPu) && usdPu > 0) return `$${usdPu.toFixed(2)}`;
   return '—';
 }
 

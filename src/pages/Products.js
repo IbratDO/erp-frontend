@@ -12,11 +12,11 @@ import ProductCatalogFilterFields from '../components/ProductCatalogFilterFields
 import FilterPanel from '../components/FilterPanel';
 import { matchesProductCatalogFilters, getCascadedFilterOptions, getCascadedDateOptions } from '../utils/productFilterUtils';
 import './TablePage.css';
-
-const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
-
-const categoryTypeLabel = (value, t) =>
-  value ? t(`categoryTypes.${value}`, { defaultValue: '' }) : '';
+import {
+  categoryTypeLabel,
+  productCategoryTypeOptions,
+  useProductCategoryTypes,
+} from '../utils/productCategoryTypes';
 
 const PRODUCTS_SORT_ACCESSORS = {
   id: (p) => Number(p.id) || 0,
@@ -118,14 +118,15 @@ const Products = () => {
   const { t, monthOptions } = useAppTranslation(['products', 'common']);
   const { hasPermission } = usePermissions();
 
-  const productCategoryTypes = useMemo(
-    () => PRODUCT_CATEGORY_TYPE_VALUES.map((value) => ({ value, label: t(`categoryTypes.${value}`) })),
-    [t],
-  );
   const canCreate = hasPermission('products.create');
   const canUpdate = hasPermission('products.update');
   const canDelete = hasPermission('products.delete');
   const [products, setProducts] = useState([]);
+  const knownCategoryTypes = useProductCategoryTypes();
+  const productCategoryTypes = useMemo(
+    () => productCategoryTypeOptions(products, t, undefined, knownCategoryTypes),
+    [products, t, knownCategoryTypes],
+  );
   const [filteredProducts, setFilteredProducts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [notification, setNotification] = useState({ message: '', type: '', visible: false });
@@ -591,19 +592,16 @@ const Products = () => {
                   {t('categoryType')}{' '}
                   {!editingProduct && <span style={{ color: '#e53e3e' }}>*</span>}
                 </label>
-                <select
+                <FormSearchableSelect
                   value={formData.category_type}
-                  onChange={(e) => setFormData({ ...formData, category_type: e.target.value })}
-                  required={!editingProduct}
-                >
-                  {editingProduct ? <option value="">{t('form.none')}</option> : null}
-                  {!editingProduct ? <option value="">{t('form.selectCategoryType')}</option> : null}
-                  {productCategoryTypes.map((t) => (
-                    <option key={t.value} value={t.value}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(v) => setFormData({ ...formData, category_type: v })}
+                  options={productCategoryTypes}
+                  emptyLabel={editingProduct ? t('form.none') : t('form.selectCategoryType')}
+                  placeholder={t('form.categoryTypePlaceholder')}
+                  allowFreeText
+                  freeTextApplyLabel={t('form.addNewCategoryType') + ': "{{query}}"'}
+                  aria-label={t('categoryType')}
+                />
               </div>
               <div className="form-group">
                 <label>

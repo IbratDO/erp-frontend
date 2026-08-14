@@ -43,6 +43,10 @@ import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
 import { usePermissions } from '../hooks/usePermissions';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
+import {
+  productCategoryTypeOptions,
+  useProductCategoryTypes,
+} from '../utils/productCategoryTypes';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
 import PageTitle from '../components/PageTitle';
@@ -57,8 +61,6 @@ import {
   sumSalesDiscountTotals,
   saleDiscountTotalAmount,
 } from '../utils/saleGroupDisplay';
-
-const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
 function formatBatchCreateError(data, t) {
   if (!data) return t('notifications.errBatchCreate');
@@ -352,14 +354,6 @@ const Sales = () => {
   const { t, tStatus, monthOptions } = useAppTranslation(['sales', 'common', 'status']);
   const { hasPermission, hasAnyPermission } = usePermissions();
 
-  const productCategoryTypes = useMemo(
-    () =>
-      PRODUCT_CATEGORY_TYPE_VALUES.map((value) => ({
-        value,
-        label: t(`categoryTypes.${value}`),
-      })),
-    [t],
-  );
 
   const regionChoices = useMemo(
     () =>
@@ -412,6 +406,11 @@ const Sales = () => {
     'sales.delivery_pay_dispatch_fee',
   ]);
   const [sales, setSales] = useState([]);
+  const knownCategoryTypes = useProductCategoryTypes();
+  const productCategoryTypes = useMemo(
+    () => productCategoryTypeOptions(sales, t, undefined, knownCategoryTypes),
+    [sales, t, knownCategoryTypes],
+  );
   const [filteredSales, setFilteredSales] = useState([]);
   const [products, setProducts] = useState([]);
   const [inventory, setInventory] = useState([]);

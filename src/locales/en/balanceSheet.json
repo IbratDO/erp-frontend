@@ -40,7 +40,8 @@
     "packagesWithUnits": "Packages ({{units}} units)",
     "goodsWithCourier": "Goods with courier (awaiting return)",
     "prepaidExpenses": "Prepaid expenses",
-    "fixedAssetsOnBooks": "Fixed assets (on the books)"
+    "fixedAssetsOnBooks": "Fixed assets (on the books)",
+    "courierCash": "Cash with courier (collected, not handed in)"
   },
   "liabilities": {
     "title": "Liabilities",

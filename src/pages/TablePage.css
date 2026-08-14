@@ -1375,3 +1375,131 @@ input.batch-sale-lines__control[type='number']::-webkit-outer-spin-button {
     min-width: 0;
   }
 }
+
+/* Returns — the money the customer actually paid, shown but not editable while the return is
+   being recorded. Reads as a value, not as an empty box inviting a number. */
+.returns-readonly-amount {
+  padding: 8px 10px;
+  border: 1px solid #d7dde4;
+  border-radius: 6px;
+  background: #f4f6f8;
+  color: #333;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+}
+
+/* Returns — where a refund settled for other than the amount owed gets booked. The two options
+   are deliberately the same width and stacked, so neither reads as the default. */
+.returns-refund-difference {
+  margin: 4px 0 16px;
+  padding: 12px 14px;
+  border: 1px solid #ffd8a8;
+  border-radius: 6px;
+  background: #fff8ef;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.returns-refund-difference__head strong {
+  color: #b45309;
+}
+
+.returns-refund-difference__hint {
+  margin-top: 2px;
+  font-size: 0.85em;
+  color: #6b7280;
+}
+
+.returns-refund-difference__option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid #e6d5bd;
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.returns-refund-difference__option input {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.returns-refund-difference__amount {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-left: 26px;
+}
+
+.returns-refund-difference__amount label {
+  font-size: 0.85em;
+  color: #6b7280;
+}
+
+.returns-refund-difference__amount small {
+  color: #6b7280;
+}
+
+/* Courier account — what he is holding and what we owe him, above his delivery list. Five cards
+   because the questions are genuinely different: goods out, goods coming back, cash carried, and
+   the two debts. Collapsing them into one figure is what made a shop and a courier disagree. */
+.courier-account__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.courier-account-card {
+  border: 1px solid #e2e8f0;
+  border-left: 3px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: #fff;
+}
+
+.courier-account-card--info { border-left-color: #3b82f6; }
+.courier-account-card--warn { border-left-color: #f59e0b; }
+.courier-account-card--debt { border-left-color: #dc2626; }
+
+.courier-account-card__title {
+  font-size: 0.82em;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.courier-account-card__value {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.courier-account-card__sub {
+  margin-top: 2px;
+  font-size: 0.8em;
+  color: #b45309;
+}
+
+.courier-account-card__toggle {
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #2563eb;
+  font-size: 0.8em;
+  cursor: pointer;
+}
+
+.courier-account-card__rows {
+  margin: 6px 0 0;
+  padding-left: 16px;
+  font-size: 0.8em;
+  color: #475569;
+}

@@ -81,7 +81,8 @@
     "footerSupplier": "Supplier / courier / package (pending)",
     "footerDeposits": "Customer deposits (on-demand, not sold yet)",
     "payDispatchFee": "Pay courier fee",
-    "cancelDispatchFee": "Cancel courier fee"
+    "cancelDispatchFee": "Cancel courier fee",
+    "reimburseCourierChange": "Reimburse"
   },
   "saleTypes": {
     "bought_from_shop": "Shop",
@@ -101,14 +102,16 @@
     "dispatch": "Dispatch",
     "package": "Package",
     "otherExpense": "Other expense",
-    "returnRefund": "Customer refund"
+    "returnRefund": "Customer refund",
+    "courierChange": "Courier change"
   },
   "payableRefs": {
     "order": "Order #{{id}}",
     "dispatch": "#{{dispatch}} (Sale #{{sale}})",
     "packageHistory": "History #{{id}}",
     "finance": "Finance #{{id}}",
-    "returnRefund": "Return #{{id}} (Sale #{{sale}})"
+    "returnRefund": "Return #{{id}} (Sale #{{sale}})",
+    "courierChange": "Sale #{{sale}}"
   },
   "payableContext": {
     "customerDeposit": "On-demand prepayment — cleared when you sell from this order",
@@ -116,7 +119,9 @@
     "stockOrder": "Stock order (inventory)",
     "packageType": "Package type {{type}}",
     "packagePurchase": "Package purchase",
-    "returnRefund": "Refund owed to the customer for a returned item"
+    "returnRefund": "Refund owed to the customer for a returned item",
+    "courierChange": "Change the courier gave at the door",
+    "courierChangeNamed": "{{name}} — change given at the door"
   },
   "notifications": {
     "amountRequired": "Enter the amount collected (greater than zero).",
@@ -132,6 +137,8 @@
     "confirmPayDispatchFee": "Pay the courier fee for this sale? Money Balance will decrease and profit will fall by the same amount.",
     "payDispatchFeeFailed": "Could not pay the courier fee.",
     "confirmCancelDispatchFee": "Cancel this courier fee? The courier will not be paid and Money Balance is unchanged.",
-    "cancelDispatchFeeFailed": "Could not cancel the courier fee."
+    "cancelDispatchFeeFailed": "Could not cancel the courier fee.",
+    "confirmReimburseCourierChange": "Pay the courier back the change he gave the customer at the door?",
+    "reimburseCourierChangeFailed": "Could not reimburse the courier."
   }
 }

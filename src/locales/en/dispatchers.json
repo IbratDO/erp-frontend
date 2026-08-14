@@ -104,5 +104,18 @@
   "confirm": {
     "deleteBts": "Delete the BTS partner line? BTS (company) dispatches stay in the system; you can add this row back with “Restore BTS” in the Actions column.",
     "deleteDispatcher": "Delete this dispatcher? Assigned dispatches will be unassigned."
+  },
+  "account": {
+    "title": "Courier account",
+    "goodsOut": "Goods out for delivery",
+    "goodsComingBack": "Refused, coming back",
+    "cashHeld": "Cash held",
+    "ofWhichHisOwn": "of which {{amount}} is his own change",
+    "owedChange": "We owe — change",
+    "owedFee": "We owe — delivery fee",
+    "itemsWithCost": "{{count}} item(s) · {{amount}}",
+    "showRows": "Show {{count}}",
+    "hideRows": "Hide",
+    "saleRef": "Sale #{{id}}"
   }
 }

@@ -32,6 +32,8 @@
     "selectCategoryType": "Kategoriya turini tanlang",
     "selectCategory": "Kategoriyani tanlang",
     "addNewCategory": "+ Yangi kategoriya…",
+    "addNewCategoryType": "+ Yangi kategoriya turi…",
+    "categoryTypePlaceholder": "masalan, Sport, Kundalik, Sumka",
     "categoryPlaceholder": "masalan, Poyabzal, Futbolka, Kepka",
     "selectBrand": "Brendni tanlang",
     "addNewBrand": "+ Yangi brend…",

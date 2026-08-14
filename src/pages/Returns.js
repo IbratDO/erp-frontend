@@ -12,41 +12,30 @@ import { useClientTableSort, compareForSort } from '../utils/tableSort';
 import { usePermissions } from '../hooks/usePermissions';
 import {
   computeReturnRefundDue,
+  computeReturnRefundDueLegs,
   computeReturnRefundMeta,
   buildReturnRefundRequest,
+  refundGapIsSignificant,
+  refundSettlementGap,
   buildReturnCrossCurrencyConfirmMessage,
   buildReturnCombinedRefundConfirmMessage,
 } from '../utils/returnRefundHelpers';
-import { uzsToUsd, usdToUzs, saleEffectiveUnitPrice } from '../utils/saleCompletePayHelpers';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime } from '../utils/localeFormat';
 import i18n from '../i18n';
 import './TablePage.css';
+import {
+  categoryTypeLabel as sharedCategoryTypeLabel,
+  productCategoryTypeValues,
+  useProductCategoryTypes,
+} from '../utils/productCategoryTypes';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
-
-const PRODUCT_CATEGORY_TYPE_VALUES = ['sports', 'casual'];
 
 function returnProductPickerLabel(p, tr) {
   if (!p) return '';
   return tr('productPicker', { brand: p.brand, model: p.model, size: p.size, color: p.color });
-}
-
-function getSaleUnitPrice(sale) {
-  if (!sale || sale.selling_price == null || sale.selling_price === '') return NaN;
-  return saleEffectiveUnitPrice(sale);
-}
-
-function getSaleCurrency(sale) {
-  return sale?.sale_currency || 'USD';
-}
-
-function formatAutoSoldPrice(unitPrice, quantity, currency) {
-  const qty = parseInt(quantity, 10) || 0;
-  if (!Number.isFinite(unitPrice) || qty <= 0) return '';
-  const total = unitPrice * qty;
-  return currency === 'UZS' ? String(Math.round(total)) : total.toFixed(2);
 }
 
 function formatSoldPriceForApi(amount, currency) {
@@ -56,11 +45,46 @@ function formatSoldPriceForApi(amount, currency) {
   return ccy === 'UZS' ? String(Math.round(n)) : n.toFixed(2);
 }
 
+/**
+ * What the customer actually handed over for `quantity` units, per currency.
+ *
+ * Served by the API as `paid_legs` rather than worked out here: "what came in" has to net off the
+ * change given back and count the order advance and the reserved deposit, and restating those
+ * three rules in the browser is how the page and the balance sheet drift apart.
+ *
+ * This is the money that arrived, not the list price. The two differ whenever part of the price
+ * was written off — a discount, or an accepted currency difference — and refunding the price
+ * there hands back money the shop never received.
+ */
+function salePaidLegs(sale, quantity) {
+  const legs = sale?.paid_legs;
+  if (!legs) return { uzs: 0, usd: 0 };
+  let uzs = Number(legs.uzs) || 0;
+  let usd = Number(legs.usd) || 0;
+  const soldQty = parseInt(sale?.quantity, 10) || 0;
+  const qty = parseInt(quantity, 10) || 0;
+  if (soldQty > 0 && qty > 0 && qty < soldQty) {
+    uzs = (uzs * qty) / soldQty;
+    usd = (usd * qty) / soldQty;
+  }
+  return { uzs: uzs > 0 ? Math.round(uzs) : 0, usd: usd > 0 ? parseFloat(usd.toFixed(2)) : 0 };
+}
+
+function formatLegsDisplay(uzs, usd) {
+  const parts = [];
+  if (Number(uzs) > 0) parts.push(formatDisplayAmount(Number(uzs), 'UZS'));
+  if (Number(usd) > 0) parts.push(formatDisplayAmount(Number(usd), 'USD'));
+  return parts.length ? parts.join(' + ') : '—';
+}
+
 function extractReturnApiError(data) {
   if (!data || typeof data !== 'object') return null;
   if (typeof data.detail === 'string' && data.detail.trim()) return data.detail;
   if (typeof data.error === 'string' && data.error.trim()) return data.error;
-  for (const key of ['sold_price', 'sold_price_currency', 'sale', 'quantity', 'product', 'notes']) {
+  for (const key of [
+    'sold_price_uzs', 'sold_price_usd', 'sold_price', 'sold_price_currency',
+    'sale', 'quantity', 'product', 'notes',
+  ]) {
     const val = data[key];
     if (Array.isArray(val) && val[0]) return String(val[0]);
     if (typeof val === 'string' && val.trim()) return val;
@@ -68,36 +92,9 @@ function extractReturnApiError(data) {
   return null;
 }
 
-function computeReturnDue(returnItem) {
-  const sale = returnItem?.sale_detail;
-  const qty = parseInt(returnItem?.quantity, 10) || 0;
-  if (!sale || qty <= 0) {
-    return { amount: null, currency: 'USD', unitPrice: NaN };
-  }
-  const currency = getSaleCurrency(sale);
-  const unitPrice = getSaleUnitPrice(sale);
-  if (!Number.isFinite(unitPrice)) {
-    return { amount: null, currency, unitPrice: NaN };
-  }
-  const raw = unitPrice * qty;
-  const amount = currency === 'UZS' ? Math.round(raw) : parseFloat(raw.toFixed(2));
-  return { amount, currency, unitPrice };
-}
-
 function computeFormReturnDue(sale, quantity) {
-  if (!sale) return { amount: null, currency: 'USD', unitPrice: NaN };
-  return computeReturnDue({ sale_detail: sale, quantity });
-}
-
-function refundAmountExceedsDue(refundAmount, refundCurrency, due) {
-  if (due.amount == null || !Number.isFinite(due.amount)) return false;
-  const refundCcy = String(refundCurrency || 'USD').toUpperCase();
-  const dueCcy = String(due.currency || 'USD').toUpperCase();
-  if (refundCcy !== dueCcy) return false;
-  const refund = parseFloat(refundAmount);
-  if (!Number.isFinite(refund)) return false;
-  const tol = refundCcy === 'UZS' ? 0.5 : 0.01;
-  return refund > due.amount + tol;
+  if (!sale) return { uzs: 0, usd: 0 };
+  return salePaidLegs(sale, quantity);
 }
 
 function formatRefundAmounts(uzs, usd) {
@@ -123,10 +120,15 @@ function confirmReturnRefund(returnItem, uzsEntered, usdEntered, meta) {
   const customerLine = returnItem?.customer_detail?.name
     ? `\n${tr('confirm.customerLine', { name: returnItem.customer_detail.name })}`
     : '';
+  // Both legs when the sale was settled in both, so the dialog names the real debt rather than
+  // a dash (there is no single-currency figure for it) or one leg standing in for two.
+  const dueLegs = computeReturnRefundDueLegs(returnItem);
   const dueLine =
-    due.amount != null
-      ? formatDisplayAmount(due.amount, due.currency)
-      : '—';
+    dueLegs.uzs > 0 && dueLegs.usd > 0
+      ? formatLegsDisplay(dueLegs.uzs, dueLegs.usd)
+      : due.amount != null
+        ? formatDisplayAmount(due.amount, due.currency)
+        : '—';
   const unitDetail = Number.isFinite(due.unitPrice)
     ? tr('confirm.unitDetail', {
         unit: formatDisplayAmount(due.unitPrice, due.currency),
@@ -185,12 +187,15 @@ const RETURNS_SORT_ACCESSORS = {
 
 const Returns = () => {
   const { t, monthOptions } = useAppTranslation(['returns', 'common', 'status', 'products']);
-  const categoryTypeLabel = (value) =>
-    value ? t(`categoryTypes.${value}`, { defaultValue: value }) : '';
+  const categoryTypeLabel = (value) => sharedCategoryTypeLabel(value, t);
   const { hasPermission } = usePermissions();
   const canMarkRefunded = hasPermission('returns.mark_refunded');
   const canCreateReturn = hasPermission('returns.create');
+  const knownCategoryTypes = useProductCategoryTypes();
   const [returns, setReturns] = useState([]);
+  const returnCategoryTypes = productCategoryTypeValues(
+    returns, (r) => r?.product_detail?.category_type, knownCategoryTypes,
+  );
   const [filteredReturns, setFilteredReturns] = useState([]);
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
@@ -220,8 +225,8 @@ const Returns = () => {
     sale: '',
     customer: '',
     quantity: '',
-    sold_price: '',
-    sold_price_currency: 'USD',
+    sold_price_uzs: '',
+    sold_price_usd: '',
     reason: 'customer_request',
     notes: '',
   });
@@ -231,8 +236,12 @@ const Returns = () => {
     usd: '',
   });
   const [showRefundForm, setShowRefundForm] = useState(false);
-  /** When true, sale/qty changes do not overwrite the refund amount field. */
-  const [refundAmountTouched, setRefundAmountTouched] = useState(false);
+  /** How the cashier is accounting for a refund settled for other than the amount owed. */
+  const [refundDifference, setRefundDifference] = useState({
+    pl: false,
+    fx: false,
+    plAmount: '',
+  });
   const [exchangeRate, setExchangeRate] = useState(null);
   const [exchangeRateError, setExchangeRateError] = useState(null);
 
@@ -244,7 +253,6 @@ const Returns = () => {
     if (!showForm) {
       setProductSearch('');
       setProductDropdownOpen(false);
-      setRefundAmountTouched(false);
     }
   }, [showForm]);
 
@@ -303,6 +311,9 @@ const Returns = () => {
     () => computeReturnRefundMeta(refundReturnItem, refundFormData, cbuRate),
     [refundReturnItem, refundFormData, cbuRate],
   );
+  // Signed: positive means the shop is paying back less than it owes.
+  const refundGap = refundSettlementGap(refundMeta) ?? 0;
+  const refundGapNeedsClassification = refundGapIsSignificant(refundMeta);
 
   const fetchReturns = async () => {
     try {
@@ -475,9 +486,7 @@ const Returns = () => {
       if (customer && !matches.some((s) => s.customer === cid)) customer = '';
       if (product && !matches.some((s) => s.product === pid)) product = '';
       if (sale && !matches.some((s) => s.id === parseInt(sale, 10))) sale = '';
-      const pricingCleared = sale
-        ? {}
-        : { sold_price: '', sold_price_currency: 'USD' };
+      const pricingCleared = sale ? {} : { sold_price_uzs: '', sold_price_usd: '' };
       return { ...merged, customer, product, sale, ...pricingCleared };
     },
     [formData, formCategory, returnableSales],
@@ -520,22 +529,20 @@ const Returns = () => {
 
   const applySuggestedRefundAmount = useCallback((sale, quantity) => {
     if (!sale) return {};
-    const currency = getSaleCurrency(sale);
-    const unitPrice = getSaleUnitPrice(sale);
-    const autoTotal = formatAutoSoldPrice(unitPrice, quantity, currency);
-    if (!autoTotal) return { sold_price_currency: currency };
+    const legs = salePaidLegs(sale, quantity);
+    // A leg the customer paid nothing in stays blank rather than showing a zero, so the form
+    // reads as "this is what was taken" instead of offering two amounts to fill in.
     return {
-      sold_price: autoTotal,
-      sold_price_currency: currency,
+      sold_price_uzs: legs.uzs > 0 ? String(legs.uzs) : '',
+      sold_price_usd: legs.usd > 0 ? legs.usd.toFixed(2) : '',
     };
   }, []);
 
+  // No "has the user typed here" guard any more: the create-form amounts are read-only, so the
+  // suggestion is the value and always follows the sale and quantity.
   const mergeSuggestedRefund = useCallback(
-    (patch, sale, quantity) => {
-      if (refundAmountTouched) return patch;
-      return { ...patch, ...applySuggestedRefundAmount(sale, quantity) };
-    },
-    [refundAmountTouched, applySuggestedRefundAmount],
+    (patch, sale, quantity) => ({ ...patch, ...applySuggestedRefundAmount(sale, quantity) }),
+    [applySuggestedRefundAmount],
   );
 
   const formReturnDue = useMemo(() => {
@@ -543,10 +550,7 @@ const Returns = () => {
     return computeFormReturnDue(sale, formData.quantity);
   }, [resolveSaleForPricing, formData.quantity]);
 
-  const refundAmountOverDue = useMemo(
-    () => refundAmountExceedsDue(formData.sold_price, formData.sold_price_currency, formReturnDue),
-    [formData.sold_price, formData.sold_price_currency, formReturnDue],
-  );
+  const formReturnDuePresent = formReturnDue.uzs > 0 || formReturnDue.usd > 0;
 
   const fetchProducts = async () => {
     try {
@@ -591,24 +595,20 @@ const Returns = () => {
       showNotification(t('notifications.invalidQuantity'), 'error');
       return;
     }
-    const refundTotal = parseFloat(String(formData.sold_price ?? '').trim());
-    if (!Number.isFinite(refundTotal) || refundTotal <= 0) {
-      showNotification(t('notifications.invalidRefundGreaterZero'), 'error');
-      return;
-    }
-    const refundAmountApi = formatSoldPriceForApi(refundTotal, formData.sold_price_currency);
-    if (!refundAmountApi) {
+    const refundUzs = parseFloat(String(formData.sold_price_uzs ?? '').trim()) || 0;
+    const refundUsd = parseFloat(String(formData.sold_price_usd ?? '').trim()) || 0;
+    if (refundUzs < 0 || refundUsd < 0) {
       showNotification(t('notifications.invalidRefund'), 'error');
       return;
     }
-    if (refundAmountOverDue) {
-      showNotification(
-        t('notifications.refundExceedsDue', {
-          refund: formatDisplayAmount(parseFloat(formData.sold_price), formData.sold_price_currency),
-          due: formatDisplayAmount(formReturnDue.amount, formReturnDue.currency),
-        }),
-        'error',
-      );
+    if (refundUzs <= 0 && refundUsd <= 0) {
+      showNotification(t('notifications.invalidRefundGreaterZero'), 'error');
+      return;
+    }
+    const refundUzsApi = formatSoldPriceForApi(refundUzs, 'UZS');
+    const refundUsdApi = formatSoldPriceForApi(refundUsd, 'USD');
+    if (refundUzsApi == null || refundUsdApi == null) {
+      showNotification(t('notifications.invalidRefund'), 'error');
       return;
     }
     if (formData.sale) {
@@ -637,8 +637,8 @@ const Returns = () => {
         reason: formData.reason,
         notes: String(formData.notes || '').trim(),
         sale: parseInt(formData.sale, 10),
-        sold_price: refundAmountApi,
-        sold_price_currency: formData.sold_price_currency,
+        sold_price_uzs: refundUzsApi,
+        sold_price_usd: refundUsdApi,
       };
       if (formData.customer) {
         payload.customer = parseInt(formData.customer, 10);
@@ -656,8 +656,8 @@ const Returns = () => {
         sale: '',
         customer: '',
         quantity: '',
-        sold_price: '',
-        sold_price_currency: 'USD',
+        sold_price_uzs: '',
+        sold_price_usd: '',
         reason: 'customer_request',
         notes: '',
       });
@@ -675,12 +675,16 @@ const Returns = () => {
 
   const handleMarkRefunded = (returnId) => {
     const returnItem = returns.find((r) => r.id === returnId);
-    const due = computeReturnRefundDue(returnItem);
+    // Prefilled with the legs actually owed, so a refund on a cross-currency sale opens with
+    // both amounts rather than one of them and a blank.
+    const due = computeReturnRefundDueLegs(returnItem);
     setRefundFormData({
       returnId,
-      uzs: due.currency === 'UZS' && due.amount != null ? String(due.amount) : '',
-      usd: due.currency === 'USD' && due.amount != null ? String(due.amount) : '',
+      uzs: due.uzs > 0 ? String(due.uzs) : '',
+      usd: due.usd > 0 ? String(due.usd) : '',
     });
+    // Cleared per return, or the next one inherits the last one's ticks.
+    setRefundDifference({ pl: false, fx: false, plAmount: '' });
     setShowRefundForm(true);
   };
 
@@ -708,8 +712,22 @@ const Returns = () => {
     const isCombinedRefund = uzs > 0 && usd > 0;
     let acceptPartialRefund = false;
 
+    // A difference between what is owed and what is being handed over has to be accounted for.
+    // The checkboxes replace the old "are you sure" dialogs: a confirmation only recorded that
+    // somebody clicked, while this records where the money went.
+    const gapNeedsClassification = refundGapIsSignificant(meta);
+    if (gapNeedsClassification && !refundDifference.pl && !refundDifference.fx) {
+      showNotification(t('notifications.classifyRefundDifference'), 'error');
+      return;
+    }
+    if (refundDifference.pl && refundDifference.fx
+        && String(refundDifference.plAmount ?? '').trim() === '') {
+      showNotification(t('notifications.refundPlAmountRequired'), 'error');
+      return;
+    }
+
     if (isCombinedRefund && meta.splitCurrency) {
-      if (meta.needs) {
+      if (meta.needs && !gapNeedsClassification) {
         acceptPartialRefund = true;
       }
       if (
@@ -746,7 +764,7 @@ const Returns = () => {
           return;
         }
       }
-      if (meta.needs) {
+      if (meta.needs && !gapNeedsClassification) {
         acceptPartialRefund = true;
         if (
           !window.confirm(
@@ -762,7 +780,10 @@ const Returns = () => {
         ) {
           return;
         }
-      } else if (meta.hasOverpayment && meta.due != null && meta.overpaymentAmount != null) {
+      } else if (
+        !gapNeedsClassification
+        && meta.hasOverpayment && meta.due != null && meta.overpaymentAmount != null
+      ) {
         const dueLabel = formatDisplayAmount(meta.due, meta.sc);
         const paidLabel = formatDisplayAmount(meta.paid, meta.sc);
         const excessLabel = formatDisplayAmount(meta.overpaymentAmount, meta.sc);
@@ -801,10 +822,12 @@ const Returns = () => {
       }
       const requestData = buildReturnRefundRequest(refundFormData, exchangeRate, {
         acceptPartialRefund,
+        difference: gapNeedsClassification ? refundDifference : null,
       });
       await api.post(`/returns/${refundFormData.returnId}/mark_refunded/`, requestData);
       setShowRefundForm(false);
       setRefundFormData({ returnId: null, uzs: '', usd: '' });
+      setRefundDifference({ pl: false, fx: false, plAmount: '' });
       showNotification(t('notifications.markedRefunded'), 'success');
       fetchReturns();
     } catch (error) {
@@ -897,8 +920,8 @@ const Returns = () => {
                             ...prev,
                             customer: customerId,
                             sale: '',
-                            sold_price: '',
-                            sold_price_currency: 'USD',
+                            sold_price_uzs: '',
+                            sold_price_usd: '',
                           }),
                         );
                       }}
@@ -946,8 +969,8 @@ const Returns = () => {
                               ...prev,
                               product: '',
                               sale: '',
-                              sold_price: '',
-                              sold_price_currency: 'USD',
+                              sold_price_uzs: '',
+                              sold_price_usd: '',
                             },
                             nextCat,
                           ),
@@ -1049,8 +1072,8 @@ const Returns = () => {
                                           ...prev,
                                           product: String(product.id),
                                           sale: '',
-                                          sold_price: '',
-                                          sold_price_currency: 'USD',
+                                          sold_price_uzs: '',
+                                          sold_price_usd: '',
                                         },
                                         nextCategory,
                                       ),
@@ -1139,8 +1162,7 @@ const Returns = () => {
                         ),
                       );
                     }
-                    setRefundAmountTouched(false);
-                  }}
+                                }}
                   options={newReturnEligibleSales.map((sale) => ({
                     value: String(sale.id),
                     label: t('form.saleOption', {
@@ -1212,7 +1234,7 @@ const Returns = () => {
                   );
                 })()}
               </div>
-              {formReturnDue.amount != null && !Number.isNaN(formReturnDue.amount) && (
+              {formReturnDuePresent && (
                 <div
                   className="form-group"
                   style={{ gridColumn: '1 / -1', marginBottom: 0 }}
@@ -1225,15 +1247,8 @@ const Returns = () => {
                       fontSize: '0.9em',
                     }}
                   >
-                    <strong>{t('form.saleAmountDue')}</strong>{' '}
-                    {formatDisplayAmount(formReturnDue.amount, formReturnDue.currency)}
-                    {Number.isFinite(formReturnDue.unitPrice) && (
-                      <span style={{ color: '#666', marginLeft: '8px' }}>
-                        {t('form.perUnit', {
-                          amount: formatDisplayAmount(formReturnDue.unitPrice, formReturnDue.currency),
-                        })}
-                      </span>
-                    )}
+                    <strong>{t('form.customerPaid')}</strong>{' '}
+                    {formatLegsDisplay(formReturnDue.uzs, formReturnDue.usd)}
                   </div>
                 </div>
               )}
@@ -1242,80 +1257,41 @@ const Returns = () => {
                   <label>
                     {t('form.refundAmount')} <span style={{ color: '#e53e3e' }}>*</span>
                   </label>
+                  {/*
+                    Two fields, one per currency, and both read-only. A sale is routinely settled
+                    in both at once, so a single field could only ever show one of them — the form
+                    had to convert, and the figure it offered was the list price rather than the
+                    money that actually arrived.
+
+                    Not editable here on purpose: what the customer paid is a fact of the sale,
+                    not a decision to be made while recording the return. Deciding how much
+                    actually goes back — and where any difference is booked — belongs to
+                    "Qaytarildi deb belgilash", where the cash really moves.
+                  */}
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'stretch', flexWrap: 'wrap' }}>
-                    <AmountInput
-                      step={formData.sold_price_currency === 'UZS' ? '1' : '0.01'}
-                      min={formData.sold_price_currency === 'UZS' ? '1' : '0.01'}
-                      required
-                      value={formData.sold_price}
-                      onChange={(e) => {
-                        setRefundAmountTouched(true);
-                        setFormData({ ...formData, sold_price: e.target.value });
-                      }}
-                      placeholder={
-                        formReturnDue.amount != null
-                          ? t('form.placeholderUpTo', { amount: formReturnDue.amount })
-                          : t('form.enterRefund')
-                      }
-                      style={{ flex: '1 1 160px' }}
-                    />
-                    <select
-                      value={formData.sold_price_currency}
-                      onChange={(e) => {
-                        const nextCurrency = e.target.value;
-                        setRefundAmountTouched(true);
-                        setFormData((prev) => {
-                          const prevCurrency = prev.sold_price_currency;
-                          if (prevCurrency === nextCurrency) return prev;
-                          const amountNum = parseFloat(prev.sold_price);
-                          if (!Number.isFinite(amountNum) || !cbuRate) {
-                            return { ...prev, sold_price_currency: nextCurrency };
-                          }
-                          const converted =
-                            nextCurrency === 'UZS'
-                              ? usdToUzs(amountNum, cbuRate)
-                              : uzsToUsd(amountNum, cbuRate);
-                          return {
-                            ...prev,
-                            sold_price_currency: nextCurrency,
-                            sold_price: formatSoldPriceForApi(converted, nextCurrency) ?? prev.sold_price,
-                          };
-                        });
-                      }}
-                      style={{ width: '96px', flexShrink: 0 }}
-                    >
-                      <option value="USD">{t('currency.usd', { ns: 'common' })}</option>
-                      <option value="UZS">{t('currency.uzs', { ns: 'common' })}</option>
-                    </select>
-                    {formReturnDue.amount != null && (
-                      <button
-                        type="button"
-                        className="btn-edit"
-                        style={{ flexShrink: 0, whiteSpace: 'nowrap' }}
-                        onClick={() => {
-                          const sale = resolveSaleForPricing();
-                          const pricing = applySuggestedRefundAmount(sale, formData.quantity);
-                          setRefundAmountTouched(false);
-                          setFormData((prev) => ({ ...prev, ...pricing }));
-                        }}
-                      >
-                        {t('form.useFullSaleAmount')}
-                      </button>
-                    )}
+                    <div style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <small style={{ color: '#666' }}>{t('currency.uzs', { ns: 'common' })}</small>
+                      <div className="returns-readonly-amount">
+                        {formReturnDue.uzs > 0
+                          ? formatDisplayAmount(formReturnDue.uzs, 'UZS')
+                          : '—'}
+                      </div>
+                    </div>
+                    <div style={{ flex: '1 1 160px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <small style={{ color: '#666' }}>{t('currency.usd', { ns: 'common' })}</small>
+                      <div className="returns-readonly-amount">
+                        {formReturnDue.usd > 0
+                          ? formatDisplayAmount(formReturnDue.usd, 'USD')
+                          : '—'}
+                      </div>
+                    </div>
                   </div>
                   <small style={{ color: '#666', marginTop: '6px', display: 'block' }}>
                     {t('form.refundAmountHint')}
                   </small>
-                  {(formReturnDue.amount == null || Number.isNaN(formReturnDue.amount)) && (
+                  {!formReturnDuePresent && (
                     <small style={{ color: '#888', marginTop: '4px', display: 'block' }}>
                       {t('form.selectSaleForDue')}
-                    </small>
-                  )}
-                  {refundAmountOverDue && formReturnDue.amount != null && (
-                    <small style={{ color: '#e65100', marginTop: '6px', display: 'block', fontWeight: 500 }}>
-                      {t('form.refundExceedsDueInline', {
-                        amount: formatDisplayAmount(formReturnDue.amount, formReturnDue.currency),
-                      })}
                     </small>
                   )}
                 </div>
@@ -1382,7 +1358,14 @@ const Returns = () => {
             >
               <div>
                 <strong>{t('markRefundedModal.refundDue')}</strong>{' '}
-                {formatDisplayAmount(refundMeta.due, refundMeta.sc)}
+                {/* The legs, not their converted total: this is what the customer is owed. */}
+                {(() => {
+                  const dueLegs = computeReturnRefundDueLegs(refundReturnItem);
+                  if (dueLegs.uzs > 0 || dueLegs.usd > 0) {
+                    return formatLegsDisplay(dueLegs.uzs, dueLegs.usd);
+                  }
+                  return formatDisplayAmount(refundMeta.due, refundMeta.sc);
+                })()}
               </div>
               {refundMeta.paid != null && (parseFloat(refundFormData.uzs) || parseFloat(refundFormData.usd)) ? (
                 <div style={{ marginTop: 6 }}>
@@ -1418,6 +1401,74 @@ const Returns = () => {
                   onChange={(e) => setRefundFormData({ ...refundFormData, usd: e.target.value })} />
               </div>
             </div>
+            {/*
+              Shown only when the two sides differ. The cashier says where the difference goes
+              instead of confirming a dialog: a confirmation recorded that somebody clicked, this
+              records which line of the books the money landed on.
+            */}
+            {refundGapNeedsClassification && (
+              <div className="returns-refund-difference">
+                <div className="returns-refund-difference__head">
+                  <strong>
+                    {refundGap > 0
+                      ? t('refundForm.payingLessBy', {
+                          amount: formatDisplayAmount(Math.abs(refundGap), refundMeta.sc),
+                        })
+                      : t('refundForm.payingMoreBy', {
+                          amount: formatDisplayAmount(Math.abs(refundGap), refundMeta.sc),
+                        })}
+                  </strong>
+                  <div className="returns-refund-difference__hint">
+                    {t('refundForm.classifyHint')}
+                  </div>
+                </div>
+                <label className="returns-refund-difference__option">
+                  <input
+                    type="checkbox"
+                    checked={refundDifference.pl}
+                    onChange={(e) =>
+                      setRefundDifference((prev) => ({ ...prev, pl: e.target.checked }))
+                    }
+                  />
+                  <span>{t('refundForm.takeToProfitLoss')}</span>
+                </label>
+                <label className="returns-refund-difference__option">
+                  <input
+                    type="checkbox"
+                    checked={refundDifference.fx}
+                    onChange={(e) =>
+                      setRefundDifference((prev) => ({ ...prev, fx: e.target.checked }))
+                    }
+                  />
+                  <span>{t('refundForm.takeToConversionDifference')}</span>
+                </label>
+                {refundDifference.pl && refundDifference.fx && (
+                  <div className="returns-refund-difference__amount">
+                    <label>
+                      {t('refundForm.profitLossShare', { currency: refundMeta.sc })}
+                    </label>
+                    <AmountInput
+                      placeholder={Math.abs(refundGap).toFixed(2)}
+                      value={refundDifference.plAmount}
+                      onChange={(e) =>
+                        setRefundDifference((prev) => ({ ...prev, plAmount: e.target.value }))
+                      }
+                    />
+                    <small>
+                      {t('refundForm.remainderGoesToConversion', {
+                        amount: formatDisplayAmount(
+                          Math.max(
+                            Math.abs(refundGap) - (parseFloat(refundDifference.plAmount) || 0),
+                            0,
+                          ),
+                          refundMeta.sc,
+                        ),
+                      })}
+                    </small>
+                  </div>
+                )}
+              </div>
+            )}
             <div className="form-actions">
               <button type="submit" className="btn-primary">
                 {t('table.markRefunded')}
@@ -1428,6 +1479,7 @@ const Returns = () => {
                 onClick={() => {
                   setShowRefundForm(false);
                   setRefundFormData({ returnId: null, uzs: '', usd: '' });
+                  setRefundDifference({ pl: false, fx: false, plAmount: '' });
                 }}
               >
                 {t('actions.cancel', { ns: 'common' })}
@@ -1448,9 +1500,9 @@ const Returns = () => {
               onChange={(e) => setFilters({ ...filters, category_type: e.target.value })}
             >
               <option value="">{t('filters.allTypes')}</option>
-              {PRODUCT_CATEGORY_TYPE_VALUES.map((value) => (
+              {returnCategoryTypes.map((value) => (
                 <option key={value} value={value}>
-                  {t(`categoryTypes.${value}`)}
+                  {categoryTypeLabel(value)}
                 </option>
               ))}
             </select>
