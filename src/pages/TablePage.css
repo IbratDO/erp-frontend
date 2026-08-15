@@ -1503,3 +1503,76 @@ input.batch-sale-lines__control[type='number']::-webkit-outer-spin-button {
   font-size: 0.8em;
   color: #475569;
 }
+
+/*
+ * Detail pane beside a list (Mijozlar -> pick a customer).
+ *
+ * The pane stacks four tables under a summary, so on a customer with any history it ran far
+ * past the bottom of the window and took the page with it — the list on the left scrolled out
+ * of view, and getting from the last table back to the next customer meant scrolling the whole
+ * document up again. Giving the pane its own scroll keeps the two halves independent: the list
+ * stays put while the history moves.
+ *
+ * The heading stays outside `.data-table-scroll` (see above) so you can still tell which table
+ * you are inside once its rows start moving under a stuck header.
+ */
+.detail-pane {
+  max-height: min(78vh, 52rem);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
+}
+
+/*
+ * Each table inside the pane gets a shorter box than a full-page one. Four tables sharing a
+ * pane cannot each take 65vh — one long purchase history would push the three below it out of
+ * reach, which is the problem this is meant to solve rather than move.
+ */
+.detail-pane .data-table-scroll {
+  max-height: min(32vh, 22rem);
+  margin-bottom: 24px;
+}
+
+/*
+ * Title and Close stay put, so you can shut the pane from the bottom of a long history without
+ * scrolling back up for the button.
+ */
+.detail-pane-header {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: white;
+  padding: 4px 0 10px;
+}
+
+/*
+ * Section headings stick under it, each one pushed up by the next, so it is always clear which
+ * table you are looking at once its rows start moving under the stuck column header.
+ *
+ * Direct children only: the summary card has its own heading, and it sits on a grey panel where
+ * a white sticky band would look like a rendering fault.
+ */
+.detail-pane > h3 {
+  position: sticky;
+  top: 2.6rem;
+  z-index: 3;
+  background: white;
+  margin: 20px 0 10px;
+  padding: 6px 0;
+}
+
+@media (max-width: 900px) {
+  /* Stacked layout: the pane is the page, so let the document scroll instead. */
+  .detail-pane {
+    max-height: none;
+    overflow: visible;
+  }
+  .detail-pane .data-table-scroll {
+    max-height: min(60vh, 26rem);
+  }
+  .detail-pane-header,
+  .detail-pane > h3 {
+    position: static;
+  }
+}

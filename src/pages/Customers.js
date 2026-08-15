@@ -27,6 +27,7 @@ const CUSTOMER_SORT_ACCESSORS = {
   instagram: (c) => String(c.instagram ?? '').toLowerCase(),
   region: (c) => String(c.region ?? '').toLowerCase(),
   total_sales: (c) => parseInt(c.sales_count, 10) || 0,
+  returned: (c) => parseInt(c.returned_count, 10) || 0,
   on_credit: (c) => parseFloat(c.on_credit_outstanding) || 0,
 };
 
@@ -221,12 +222,14 @@ const Customers = () => {
 
   const customerListTotals = useMemo(() => {
     let totalSalesCount = 0;
+    let returnedCount = 0;
     let onCreditSum = 0;
     for (const c of filteredCustomers) {
       totalSalesCount += parseInt(c.sales_count, 10) || 0;
+      returnedCount += parseInt(c.returned_count, 10) || 0;
       onCreditSum += parseFloat(c.on_credit_outstanding) || 0;
     }
-    return { totalSalesCount, onCreditSum };
+    return { totalSalesCount, returnedCount, onCreditSum };
   }, [filteredCustomers]);
 
   const handleSubmit = async (e) => {
@@ -414,6 +417,7 @@ const Customers = () => {
                 <SortableTh columnId="instagram" sortCol={customerListSort.sortCol} sortDir={customerListSort.sortDir} onSort={customerListSort.onHeaderClick}>{t('table.instagram')}</SortableTh>
                 <SortableTh columnId="region" sortCol={customerListSort.sortCol} sortDir={customerListSort.sortDir} onSort={customerListSort.onHeaderClick}>{t('table.region')}</SortableTh>
                 <SortableTh columnId="total_sales" sortCol={customerListSort.sortCol} sortDir={customerListSort.sortDir} onSort={customerListSort.onHeaderClick}>{t('table.totalSales')}</SortableTh>
+                <SortableTh columnId="returned" sortCol={customerListSort.sortCol} sortDir={customerListSort.sortDir} onSort={customerListSort.onHeaderClick}>{t('table.returned')}</SortableTh>
                 <SortableTh columnId="on_credit" sortCol={customerListSort.sortCol} sortDir={customerListSort.sortDir} onSort={customerListSort.onHeaderClick}>{t('table.onCredit')}</SortableTh>
                 <th>{t('table.actions')}</th>
               </tr>
@@ -421,7 +425,7 @@ const Customers = () => {
             <tbody>
               {filteredCustomers.length === 0 ? (
                 <tr>
-                <td colSpan="7" style={{ textAlign: 'center' }}>
+                <td colSpan="8" style={{ textAlign: 'center' }}>
                   {t('table.noCustomers')}
                 </td>
                 </tr>
@@ -454,6 +458,11 @@ const Customers = () => {
                         : '-'}
                     </td>
                     <td>{t('table.salesCount', { count: customer.sales_count || 0 })}</td>
+                    <td>
+                      {parseInt(customer.returned_count, 10) > 0
+                        ? t('table.salesCount', { count: customer.returned_count })
+                        : '—'}
+                    </td>
                     <td style={{ fontSize: '0.9em' }}>
                       {parseFloat(customer.on_credit_outstanding || 0) > 0
                         ? customer.on_credit_outstanding
@@ -491,6 +500,11 @@ const Customers = () => {
                   {t('table.salesCount', { count: customerListTotals.totalSalesCount })}
                 </td>
                 <td style={{ fontWeight: 600 }}>
+                  {customerListTotals.returnedCount > 0
+                    ? t('table.salesCount', { count: customerListTotals.returnedCount })
+                    : '—'}
+                </td>
+                <td style={{ fontWeight: 600 }}>
                   {customerListTotals.onCreditSum > 0
                     ? customerListTotals.onCreditSum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
                     : '—'}
@@ -504,8 +518,8 @@ const Customers = () => {
 
         {/* Customer History */}
         {selectedCustomer && customerHistory && (
-          <div className="table-card" style={{ flex: '1' }}>
-            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div className="table-card detail-pane" style={{ flex: '1' }}>
+            <div className="detail-pane-header" style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h2>{t('history.title', { name: selectedCustomer.name })}</h2>
               <button
                 className="btn-edit"
@@ -572,7 +586,8 @@ const Customers = () => {
             {customerHistory.pending_receivables && customerHistory.pending_receivables.length > 0 && (
               <>
                 <h3 style={{ marginTop: '20px', marginBottom: '10px' }}>{t('history.receivablesTitle')}</h3>
-                <table className="data-table" style={{ marginBottom: '30px' }}>
+                <div className="data-table-scroll">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <SortableTh columnId="sale_id" sortCol={receivableSort.sortCol} sortDir={receivableSort.sortDir} onSort={receivableSort.onHeaderClick}>{t('history.saleNum')}</SortableTh>
@@ -590,6 +605,7 @@ const Customers = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </>
             )}
 
@@ -597,7 +613,8 @@ const Customers = () => {
             {customerHistory.orders && customerHistory.orders.length > 0 && (
               <>
                 <h3 style={{ marginTop: '20px', marginBottom: '10px' }}>{t('history.ordersTitle')}</h3>
-                <table className="data-table" style={{ marginBottom: '30px' }}>
+                <div className="data-table-scroll">
+                <table className="data-table">
                   <thead>
                     <tr>
                       <SortableTh columnId="created_at" sortCol={historyOrdersSort.sortCol} sortDir={historyOrdersSort.sortDir} onSort={historyOrdersSort.onHeaderClick}>{t('table.date', { ns: 'common' })}</SortableTh>
@@ -640,11 +657,13 @@ const Customers = () => {
                     ))}
                   </tbody>
                 </table>
+                </div>
               </>
             )}
 
             {/* Purchase History */}
             <h3 style={{ marginTop: '20px', marginBottom: '10px' }}>{t('history.purchasesTitle')}</h3>
+            <div className="data-table-scroll">
             <table className="data-table">
               <thead>
                 <tr>
@@ -660,7 +679,7 @@ const Customers = () => {
               <tbody>
                 {customerHistory.sales.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center' }}>
+                    <td colSpan="8" style={{ textAlign: 'center' }}>
                       {t('history.noPurchases')}
                     </td>
                   </tr>
@@ -687,9 +706,11 @@ const Customers = () => {
                 )}
               </tbody>
             </table>
+                </div>
 
             {/* Transaction History */}
             <h3 style={{ marginTop: '30px', marginBottom: '10px' }}>{t('history.transactionsTitle')}</h3>
+            <div className="data-table-scroll">
             <table className="data-table">
               <thead>
                 <tr>
@@ -729,6 +750,7 @@ const Customers = () => {
                 )}
               </tbody>
             </table>
+                </div>
           </div>
         )}
       </div>
