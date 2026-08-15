@@ -12,6 +12,11 @@ export const PAYMENT_SHORTFALL_TOLERANCE = 0.005;
 
 export function saleHasOrderAdvance(sale) {
   if (!sale) return false;
+  // A synthetic group sale carries only the *first* line's fields, so asking it directly would
+  // miss an advance taken against any other line and skip the cap entirely.
+  if (sale.isSaleGroup && Array.isArray(sale.groupSales)) {
+    return sale.groupSales.some((line) => saleHasOrderAdvance(line));
+  }
   const advance = parseFloat(sale.advance_payment_received) || 0;
   return advance > 0 && (sale.sale_type === 'from_order' || sale.order != null);
 }
@@ -166,7 +171,19 @@ export function computeAdvanceRemainingDue(sale, sellingPriceOverride, cbuRate) 
     const qty = parseFloat(sale.quantity) || 0;
     total = saleEffectiveUnitPrice(sale) * qty;
   }
-  const advance = advanceAmountInSaleCurrency(sale, cbuRate);
+  // Each line keeps its own advance, so the group's is their sum — reading it off the synthetic
+  // sale would take the first line's and call it the whole group's.
+  let advance;
+  if (sale.isSaleGroup && Array.isArray(sale.groupSales)) {
+    advance = 0;
+    for (const line of sale.groupSales) {
+      const one = advanceAmountInSaleCurrency(line, cbuRate);
+      if (one == null) return null;
+      advance += one;
+    }
+  } else {
+    advance = advanceAmountInSaleCurrency(sale, cbuRate);
+  }
   if (advance == null) return null;
   return Math.max(0, (Number.isFinite(total) ? total : 0) - advance);
 }
@@ -184,9 +201,18 @@ export function paymentHasShortfall(due, paid, saleCurrency) {
  * `changeInSc` is change handed back, valued in the sale's currency. It comes off before the
  * cap for the same reason the server does it: handing over more than the remaining due and
  * taking the surplus straight back is not an overpayment.
+ *
+ * `surplusClassified` says the shop has already named what the excess is — a conversion
+ * difference, extra profit, or a split of the two. The cap used to hard-block *any* overpayment
+ * on an advance sale, which predates both of those options and the courier's door-side change.
+ * It meant a soum payment against a dollar price could never be settled once an advance existed:
+ * the rate gap is a genuine surplus, the shop had ticked "Konversiya farqi" to say so, and the
+ * form rejected it anyway. Non-advance sales already relax the same way (see
+ * `exceedsRemainingDue` in `computePaymentDifferenceMeta`); an unexplained surplus is still
+ * blocked here, and completeness is still enforced downstream.
  */
 export function validateAdvanceCompletionPayment(
-  sale, uzsStr, usdStr, sellingPriceOverride, cbuRate, changeInSc = 0,
+  sale, uzsStr, usdStr, sellingPriceOverride, cbuRate, changeInSc = 0, surplusClassified = false,
 ) {
   if (!saleHasOrderAdvance(sale)) {
     return { ok: true };
@@ -195,7 +221,9 @@ export function validateAdvanceCompletionPayment(
   // `cap` is what the raw legs are measured against; `due` stays the real remaining balance so
   // the confirm dialogs below keep quoting the number the customer actually owes.
   const back = parseFloat(changeInSc) || 0;
-  const cap = due == null ? null : due + back;
+  // A named surplus has somewhere to go, so it is not measured against the cap. Infinity rather
+  // than a skipped branch, so the split/cross-currency confirmations below still run.
+  const cap = due == null ? null : (surplusClassified ? Infinity : due + back);
   const sc = (sale.sale_currency || 'USD').toUpperCase();
   const uzsT = parseFloat(uzsStr) || 0;
   const usdT = parseFloat(usdStr) || 0;

@@ -61,6 +61,8 @@ export async function runSalePaymentSubmitFlow({
     sellingPriceOverride,
     cbuRate,
     meta.changeInSc || 0,
+    !!paymentFormData.apply_currency_conversion_difference
+      || !!paymentFormData.apply_additional_profit,
   );
   if (!advanceCheck.ok) {
     showNotification?.(advanceCheck.error, 'error');

@@ -11,10 +11,14 @@ import {
   deliveryStep2PaymentFromStep1,
   computeAdvanceRemainingDue,
   computePaymentDifferenceMeta,
+  paymentAmountInSaleCurrency,
   emptyPaymentFormState,
   paymentNeedsCbuConversion,
   shopDeliverySettlementActiveStep,
   lineIsDeclinedPending,
+  saleHasOrderAdvance,
+  getAdvanceCurrency,
+  advanceAmountInSaleCurrency,
 } from '../utils/saleCompletePayHelpers';
 import {
   runSalePaymentSubmitFlow,
@@ -93,6 +97,63 @@ function DeliveryPaymentAmountFields({ form, setForm, meta, t, disabled = false,
   );
 }
 
+/**
+ * The advance already taken against this item, shown to the courier at the door.
+ *
+ * Without it the courier sees only a figure to collect and no reason for it, which is exactly
+ * the situation where he asks the customer for the list price and the customer — who has already
+ * paid part of it — argues. The three numbers together answer that on the spot: what the goods
+ * cost, what was paid up front, and what is left to hand over.
+ *
+ * Renders nothing when there is no advance, which is most deliveries.
+ */
+function AdvanceOnRecordNote({ line, cbuRate, t }) {
+  const advanceRaw = parseFloat(line?.advance_payment_received) || 0;
+  if (!saleHasOrderAdvance(line) || advanceRaw <= 0) return null;
+  const sc = (line.sale_currency || 'USD').toUpperCase();
+  const advanceCcy = getAdvanceCurrency(line);
+  const advanceInSc = advanceAmountInSaleCurrency(line, cbuRate);
+  const total = parseFloat(line.total_amount) || 0;
+  const remaining = computeAdvanceRemainingDue(line, null, cbuRate);
+
+  return (
+    <div
+      style={{
+        marginBottom: 10,
+        padding: '8px 12px',
+        background: '#ecfdf5',
+        border: '1px solid #6ee7b7',
+        borderRadius: 6,
+        fontSize: '0.88em',
+        color: '#065f46',
+        lineHeight: 1.6,
+      }}
+    >
+      <p style={{ margin: '0 0 2px', fontWeight: 600 }}>
+        {t('deliverySettlement.step1AdvanceTitle')}
+      </p>
+      <div>
+        {t('deliverySettlement.step1AdvanceTaken', {
+          amount: formatDisplayAmount(advanceRaw, advanceCcy),
+        })}
+        {advanceCcy !== sc && advanceInSc != null
+          ? ` · ${formatDisplayAmount(advanceInSc, sc)}`
+          : ''}
+      </div>
+      <div>{t('deliverySettlement.step1AdvanceListTotal', {
+        amount: formatDisplayAmount(total, sc),
+      })}</div>
+      <div style={{ marginTop: 2, fontWeight: 600 }}>
+        {remaining == null
+          ? t('deliverySettlement.loadingCbu')
+          : t('deliverySettlement.step1AdvanceRemaining', {
+              amount: formatDisplayAmount(remaining, sc),
+            })}
+      </div>
+    </div>
+  );
+}
+
 // Shortfall classification lives in its own component so Complete-from-Order can present the
 // same Discount / Conversion-difference choice this form does.
 
@@ -104,6 +165,7 @@ function step2DefaultFormFor(line, cbuRate) {
   const fd = buildPaymentFormDataFromSale(line, cbuRate);
   const step2FromStep1 = deliveryStep2PaymentFromStep1(line);
   const merged = step2FromStep1 ? { ...fd, uzs: step2FromStep1.uzs, usd: step2FromStep1.usd } : fd;
+  applyCourierChangeToStep2Form(merged, collectionLegs(line));
   const proposed = line.delivery_step1_shortfall_type;
   const proposedAmount = String(line.delivery_step1_shortfall_amount ?? '');
   if (proposed === 'discount' || proposed === 'discount_and_fx') {
@@ -174,13 +236,31 @@ function changeIsPossible(meta) {
 
 /** Amber alert quoting exactly what the courier proposed at Step 1, so the shop can't miss it
  * even though the checkbox/amount below are already pre-filled from the same proposal. */
-function CourierShortfallAlert({ line, t }) {
+function CourierShortfallAlert({ line, cbuRate, t }) {
   if (!line?.delivery_step1_shortfall_type) return null;
   const sc = (line.sale_currency || 'USD').toUpperCase();
+  const proposed = line.delivery_step1_shortfall_type;
+  // A conversion difference goes either way, and the message used to say "under-collected"
+  // regardless — so a courier who brought back *more* than the price was reported as having
+  // brought back less. Every other option implies its own direction; only this one has to be
+  // measured. Net of his own change, because that is his money and not the customer's payment.
+  let fxKey = 'deliverySettlement.step1ShortfallProposedFx';
+  if (proposed === 'fx') {
+    const legs = collectionLegs(line);
+    const kept = paymentAmountInSaleCurrency(
+      legs.grossUzs - legs.changeUzs, legs.grossUsd - legs.changeUsd, sc, cbuRate,
+    );
+    const due = computeAdvanceRemainingDue(line, null, cbuRate);
+    const tol = sc === 'UZS' ? 1 : 0.005;
+    if (kept != null && due != null && kept - due > tol) {
+      fxKey = 'deliverySettlement.step1ShortfallProposedFxOver';
+    }
+  }
   const key = {
-    fx: 'deliverySettlement.step1ShortfallProposedFx',
+    fx: fxKey,
+    fx_and_profit: 'deliverySettlement.step1ShortfallProposedFxOver',
     additional_profit: 'deliverySettlement.step1ShortfallProposedProfit',
-  }[line.delivery_step1_shortfall_type] || 'deliverySettlement.step1ShortfallProposedDiscount';
+  }[proposed] || 'deliverySettlement.step1ShortfallProposedDiscount';
   return (
     <div
       style={{
@@ -217,6 +297,45 @@ function collectionLegs(line) {
     changeUzs: parseFloat(line?.delivery_change_given_uzs) || 0,
     changeUsd: parseFloat(line?.delivery_change_given_usd) || 0,
   };
+}
+
+/**
+ * Put the courier's door-side change into a Step 2 form's change fields, purely so the payment
+ * arithmetic sees it.
+ *
+ * The shop is taking the **gross** the courier collected, and part of it is money he fronted out
+ * of his own pocket. `_validate_and_set_sale_completion_shortfall` nets exactly this off before
+ * classifying, so a form that does not is measuring a different number than the server: a $100
+ * collection with $15 handed back against an $85 item read as $15 of surplus looking for a
+ * home, and the advance cap rejected the remittance outright.
+ *
+ * Only the measurement uses these — `stripFormChangeLegs` takes them off the request, because
+ * the server derives the same pair from the sale itself and must not be told twice.
+ */
+function applyCourierChangeToStep2Form(form, legs) {
+  if (!legs || (legs.changeUzs <= 0 && legs.changeUsd <= 0)) return form;
+  form.apply_change = true;
+  form.change_uzs = legs.changeUzs > 0 ? String(legs.changeUzs) : '';
+  form.change_usd = legs.changeUsd > 0 ? String(legs.changeUsd) : '';
+  return form;
+}
+
+/** The whole trip's door-side change, for the collapsed group form. */
+function courierChangeTotals(linesForGroup) {
+  let changeUzs = 0;
+  let changeUsd = 0;
+  for (const line of linesForGroup || []) {
+    const legs = collectionLegs(line);
+    changeUzs += legs.changeUzs;
+    changeUsd += legs.changeUsd;
+  }
+  return { changeUzs, changeUsd };
+}
+
+/** Drop the measurement-only change legs before posting. See `applyCourierChangeToStep2Form`. */
+function stripFormChangeLegs(body) {
+  const { apply_change: _a, change_uzs: _u, change_usd: _d, ...rest } = body;
+  return rest;
 }
 
 function legsLabel(uzs, usd) {
@@ -895,7 +1014,7 @@ export default function SaleDeliverySettlementForm({
       allowDiscount: true,
     });
     if (!flow.ok) return false;
-    const body = { ...flow.requestData };
+    const body = stripFormChangeLegs({ ...flow.requestData });
     const trimmedNote = String(noteOverride ?? step2NoteByLine[line.id] ?? '').trim();
     if (trimmedNote) body.delivery_shop_remittance_note = trimmedNote;
     // Harmless on a line with no change: the backend only settles a payable it actually wrote.
@@ -969,12 +1088,15 @@ export default function SaleDeliverySettlementForm({
       );
       return;
     }
-    const combinedForm = {
-      ...emptyPaymentFormState(),
-      uzs: step2Combined.uzs,
-      usd: step2Combined.usd,
-      ...getCombinedShortfallForm(),
-    };
+    const combinedForm = applyCourierChangeToStep2Form(
+      {
+        ...emptyPaymentFormState(),
+        uzs: step2Combined.uzs,
+        usd: step2Combined.usd,
+        ...getCombinedShortfallForm(),
+      },
+      courierChangeTotals(step2Lines),
+    );
     const flow = await runSalePaymentSubmitFlow({
       sale: combinedSale,
       paymentFormData: combinedForm,
@@ -1339,6 +1461,7 @@ export default function SaleDeliverySettlementForm({
                     product: productLabelFor(line, t),
                   })}
                 </p>
+                {!isDeclined && <AdvanceOnRecordNote line={line} cbuRate={cbuRate} t={t} />}
                 <div className="settlement-line-row">
                   <DeliveryPaymentAmountFields
                     form={form}
@@ -1591,7 +1714,10 @@ export default function SaleDeliverySettlementForm({
                         }}
                         meta={computePaymentDifferenceMeta(
                           buildCombinedSaleForGroup(step2Lines),
-                          { ...step2Combined, ...getCombinedShortfallForm() },
+                          applyCourierChangeToStep2Form(
+                            { ...step2Combined, ...getCombinedShortfallForm() },
+                            courierChangeTotals(step2Lines),
+                          ),
                           cbuRate,
                         )}
                         t={t}
@@ -1676,7 +1802,7 @@ export default function SaleDeliverySettlementForm({
                       />
                       {meta.needs && (
                         <div className="form-group" style={{ gridColumn: '1 / -1' }}>
-                          <CourierShortfallAlert line={line} t={t} />
+                          <CourierShortfallAlert line={line} cbuRate={cbuRate} t={t} />
                           <ShortfallClassificationFields
                             form={form}
                             setForm={(fn) =>
