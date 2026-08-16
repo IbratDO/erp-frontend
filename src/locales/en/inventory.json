@@ -29,13 +29,25 @@
     "category": "Category",
     "product": "Product",
     "selectProduct": "Select a product",
-    "sellingPriceUsd": "Selling price per unit (USD)",
-    "costPerUnitUsd": "Cost per unit (USD)",
+    "sellingPrice": "Selling price per unit",
+    "sellingCurrency": "Selling currency",
+    "costPerUnit": "Cost per unit",
+    "costUsdLabel": "In dollars",
+    "costUzsLabel": "In so'm",
     "usdPerUnit": "USD / unit",
-    "lineTotalUsd": "= ${{amount}} line total",
+    "uzsPerUnit": "UZS / unit",
+    "frozenRate": "The so'm cost is fixed at ${{amount}} using today's rate and will not move again.",
+    "origin": "Where from",
+    "selectOrigin": "Select a country",
+    "enterOrigin": "Type a country name",
+    "addOrigin": "Add",
+    "originHint": "(shared with the Orders page)",
     "status": "Status",
     "locationOptional": "Location (optional)",
-    "create": "Create"
+    "create": "Create",
+    "soum": "so'm",
+    "sellingLine": "{{qty}} × {{unit}} = {{total}} line total",
+    "costLine": "{{qty}} × {{unit}} = {{total}} leaves the till"
   },
   "table": {
     "categoryType": "Category type",
@@ -49,14 +61,15 @@
     "landedCostUzs": "Landed cost (UZS) / unit",
     "landedCostUsd": "Landed cost (USD) / unit",
     "sellingPerUnit": "Selling price / unit",
-    "location": "Location",
+    "location": "Where from",
     "updated": "Updated",
-    "total": "Total"
+    "total": "Total",
+    "frozenAt": "fixed at {{rate}}"
   },
   "notifications": {
     "errQuantity": "Please enter a valid quantity (at least 1).",
-    "errSellingPrice": "Enter a selling price per unit in USD.",
-    "errSupplierCost": "Enter a unit supplier cost in USD.",
+    "errSellingPrice": "Enter a selling price per unit.",
+    "errSupplierCost": "Enter the unit cost in so'm, in dollars, or in both.",
     "errSave": "Error saving inventory item"
   }
 }

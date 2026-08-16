@@ -40,12 +40,27 @@ export function productCostCells(p) {
   };
 }
 
-function formatProductSellingUsd(product) {
+/**
+ * The product's own quoted price, as a number plus the currency it is quoted in.
+ *
+ * `Product.selling_price` used to be dollars by definition. Stock added on the Inventory page
+ * can be priced in so'm, so the number alone no longer says what it is worth — read together
+ * with `selling_price_currency` or a 1 400 000 so'm price reads as $1,400,000.
+ */
+function productSellingQuote(product) {
   const sp = parseFloat(product?.selling_price);
-  if (product?.selling_price != null && product.selling_price !== '' && !Number.isNaN(sp) && sp > 0) {
-    return `$${sp.toFixed(2)}`;
+  if (product?.selling_price == null || product.selling_price === '' || Number.isNaN(sp) || sp <= 0) {
+    return null;
   }
-  return null;
+  return { amount: sp, currency: product.selling_price_currency === 'UZS' ? 'UZS' : 'USD' };
+}
+
+function formatProductSellingUsd(product) {
+  const quote = productSellingQuote(product);
+  if (!quote) return null;
+  return quote.currency === 'UZS'
+    ? `${quote.amount.toLocaleString(undefined, { maximumFractionDigits: 0 })} so'm`
+    : `$${quote.amount.toFixed(2)}`;
 }
 
 /** Distinct selling price labels for one SKU (inventory layers + product record). */
@@ -77,14 +92,14 @@ export function collectProductSellingPriceLabels(product, inventoryRows) {
   });
 }
 
-/** Numeric USD selling price for one inventory layer. */
+/** Numeric USD selling price for one inventory layer. Null when the price is quoted in so'm. */
 export function layerSellingUsdNum(layer, product) {
   const fromOrder = plannedSellingUsdPerUnit(layer?.stocking_order);
   if (fromOrder != null && fromOrder > 0) return fromOrder;
-  const sp = parseFloat(product?.selling_price);
-  if (product?.selling_price != null && product.selling_price !== '' && !Number.isNaN(sp) && sp > 0) {
-    return sp;
-  }
+  const quote = productSellingQuote(product);
+  // A so'm price is not a dollar figure and there is no rate here to make it one. Callers
+  // print `formatProductSellingUsd` instead, which shows the price in its own currency.
+  if (quote && quote.currency === 'USD') return quote.amount;
   return null;
 }
 
@@ -97,6 +112,8 @@ export function layerSalePickerLabel(product, layer) {
   const price =
     (summary ? summary.replace(/\/u$/, '') : null) ||
     (usdNum != null ? `$${usdNum.toFixed(2)}` : null) ||
+    // Falls through to here when the price is quoted in so'm, which has no dollar figure.
+    formatProductSellingUsd(product) ||
     '—';
   const qty = Number(layer.quantity) || 0;
   const layerNo = layer.batch_id != null ? `Layer #${layer.batch_id}` : 'Layer';
@@ -126,10 +143,15 @@ export function resolveLayerListPrice(layer, product, saleCur, rate) {
       if (uzs != null && uzs > 0) return hasRate ? Math.round((uzs / r) * 100) / 100 : uzs;
     }
   }
-  const sp = parseFloat(product?.selling_price);
-  if (product?.selling_price != null && product.selling_price !== '' && !Number.isNaN(sp) && sp > 0) {
-    // Product.selling_price is stored in USD; convert when selling in UZS.
-    return saleCur === 'UZS' && hasRate ? Math.round(sp * r) : sp;
+  const quote = productSellingQuote(product);
+  if (quote) {
+    // The product's price now carries its own currency, so the conversion runs both ways —
+    // a so'm price offered for a dollar sale has to come down, not be reused as dollars.
+    if (quote.currency === saleCur) return quote.amount;
+    if (!hasRate) return quote.amount;
+    return saleCur === 'UZS'
+      ? Math.round(quote.amount * r)
+      : Math.round((quote.amount / r) * 100) / 100;
   }
   return null;
 }

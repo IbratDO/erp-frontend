@@ -29,13 +29,25 @@
     "category": "Kategoriya",
     "product": "Mahsulot",
     "selectProduct": "Mahsulotni tanlang",
-    "sellingPriceUsd": "Sotuv narxi (dona, USD)",
-    "costPerUnitUsd": "Tannarx (dona, USD)",
+    "sellingPrice": "Sotuv narxi (dona)",
+    "sellingCurrency": "Sotuv valyutasi",
+    "costPerUnit": "Tannarx (dona)",
+    "costUsdLabel": "Dollarda",
+    "costUzsLabel": "So‘mda",
     "usdPerUnit": "USD / dona",
-    "lineTotalUsd": "= ${{amount}} qator jami",
+    "uzsPerUnit": "UZS / dona",
+    "frozenRate": "So‘mdagi tannarx bugungi kurs bo‘yicha ${{amount}} ga qotiriladi va keyin o‘zgarmaydi.",
+    "origin": "Qayerdan",
+    "selectOrigin": "Davlatni tanlang",
+    "enterOrigin": "Davlat nomini kiriting",
+    "addOrigin": "Qo‘shish",
+    "originHint": "(Buyurtmalar sahifasi bilan umumiy)",
     "status": "Holat",
     "locationOptional": "Joylashuv (ixtiyoriy)",
-    "create": "Yaratish"
+    "create": "Yaratish",
+    "soum": "so‘m",
+    "sellingLine": "{{qty}} × {{unit}} = {{total}} qator jami",
+    "costLine": "{{qty}} × {{unit}} = {{total}} kassadan yechiladi"
   },
   "table": {
     "categoryType": "Kategoriya turi",
@@ -49,14 +61,15 @@
     "landedCostUzs": "Yetkazilgan tannarx (UZS) / dona",
     "landedCostUsd": "Yetkazilgan tannarx (USD) / dona",
     "sellingPerUnit": "Sotuv narxi / dona",
-    "location": "Joylashuv",
+    "location": "Qayerdan",
     "updated": "Yangilangan",
-    "total": "Jami"
+    "total": "Jami",
+    "frozenAt": "{{rate}} kursida qotirilgan"
   },
   "notifications": {
     "errQuantity": "To‘g‘ri miqdorni kiriting (kamida 1).",
-    "errSellingPrice": "Sotuv narxini (dona, USD) kiriting.",
-    "errSupplierCost": "Yetkazib beruvchi tannarxini (dona, USD) kiriting.",
+    "errSellingPrice": "Sotuv narxini (dona) kiriting.",
+    "errSupplierCost": "Tannarxni so‘mda, dollarda yoki ikkalasida kiriting.",
     "errSave": "Ombor yozuvini saqlashda xatolik"
   }
 }
