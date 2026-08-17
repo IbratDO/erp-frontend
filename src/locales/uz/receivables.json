@@ -25,7 +25,13 @@
     "allYears": "Barcha yillar",
     "month": "Oy",
     "allMonths": "Barcha oylar",
-    "clearAll": "Hammasini tozalash"
+    "clearAll": "Hammasini tozalash",
+    "scope": "Ko‘rinish",
+    "scopeOpen": "Faqat ochiq qarzlar",
+    "scopeAll": "Barchasi",
+    "grouping": "Guruhlash",
+    "groupByCustomer": "Mijoz bo‘yicha",
+    "flatList": "Oddiy ro‘yxat"
   },
   "collect": {
     "title": "To‘lovni qabul qilish — debitor #{{id}}",
@@ -56,7 +62,14 @@
     "saleRef": "#{{id}}",
     "financeRef": "Moliya #{{id}}",
     "collect": "Qabul qilish",
-    "footerPending": "Kutilayotgan qoldiq"
+    "footerPending": "Kutilayotgan qoldiq",
+    "dueDate": "To‘lov sanasi",
+    "overdueBy": "{{days}} kun kechikkan",
+    "dueToday": "bugun",
+    "dueInDays": "{{days}} kun qoldi",
+    "groupCount": "({{open}} ta ochiq / {{total}} ta jami)",
+    "settleAll": "Hammasini yopish",
+    "settling": "Yopilmoqda…"
   },
   "payablesTable": {
     "title": "Kreditorlik",
@@ -139,6 +152,9 @@
     "confirmCancelDispatchFee": "Kuryer haqi bekor qilinsinmi? Kuryerga to‘lanmaydi, pul balansi o‘zgarmaydi.",
     "cancelDispatchFeeFailed": "Kuryer haqini bekor qilib bo‘lmadi.",
     "confirmReimburseCourierChange": "Kuryerga mijozga bergan qaytimini qaytarilsinmi?",
-    "reimburseCourierChangeFailed": "Kuryerga qaytim qaytarilmadi."
+    "reimburseCourierChangeFailed": "Kuryerga qaytim qaytarilmadi.",
+    "confirmSettleCustomer": "{{customer}} ning {{count}} ta qarzi to‘liq yopilsinmi? Jami: {{amount}}.",
+    "settleCustomerDone": "{{customer}}: {{done}} ta qarz yopildi.",
+    "settleCustomerPartial": "{{total}} tadan {{done}} tasi yopildi. Xatoliklar: {{errors}}"
   }
 }

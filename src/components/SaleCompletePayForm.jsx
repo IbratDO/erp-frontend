@@ -14,6 +14,7 @@ import {
   buildCrossCurrencyAdvanceConfirmMessage,
   buildSplitCurrencyConfirmMessage,
   buildAdditionalProfitConfirmMessage,
+  buildCreditConfirmMessage,
   saleHasOrderAdvance,
   saleAcceptsChange,
 } from '../utils/saleCompletePayHelpers';
@@ -78,6 +79,10 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
   // covers the surplus the payment reads as exact and `needs` goes false, which would pull the
   // panel out from under the amounts the user just typed.
   const changeTol = shortfallMeta.sc === 'UZS' ? 1 : 0.005;
+  // Credit is offered only against a genuine shortfall. There is nothing to owe on a surplus,
+  // and the server would reject it, so the box should not be there to tick.
+  const creditAvailable = shortfallMeta.short != null && shortfallMeta.short > changeTol;
+  const onCredit = !!paymentFormData.apply_credit;
   const changeAvailable =
     saleAcceptsChange(sale)
     && (
@@ -171,6 +176,23 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
         return;
       }
 
+      const wantsCredit = !!paymentFormData.apply_credit;
+      if (wantsCredit) {
+        if (meta.creditWithNothingOwing) {
+          showNotification(t('completePay.errCreditNothingOwing'), 'error');
+          return;
+        }
+        if (meta.sharesExceedGap) {
+          showNotification(t('completePay.errSharesExceedGap'), 'error');
+          return;
+        }
+        if (meta.creditDueDateMissing) {
+          showNotification(t('completePay.errCreditDueDate'), 'error');
+          return;
+        }
+        if (!window.confirm(buildCreditConfirmMessage(meta, paymentFormData.credit_due_date))) return;
+      }
+
       if (paymentFormData.apply_change) {
         const chUzs = parseFloat(paymentFormData.change_uzs) || 0;
         const chUsd = parseFloat(paymentFormData.change_usd) || 0;
@@ -184,11 +206,16 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
         }
       }
 
-      let effForm = paymentFormData;
-      let effMeta = meta;
+      // Ticked credit, then raised the payment until nothing was owing. The box has already
+      // gone from the form, so drop the stale flag rather than sending a debt of nothing.
+      const staleCredit = wantsCredit && !creditAvailable;
+      let effForm = staleCredit
+        ? { ...paymentFormData, apply_credit: false, credit_amount: '', credit_due_date: '' }
+        : paymentFormData;
+      let effMeta = staleCredit ? computePaymentDifferenceMeta(sale, effForm, cbuRate) : meta;
       if (meta.needsAdditionalProfitConfirm) {
         if (!window.confirm(buildAdditionalProfitConfirmMessage(meta, exchangeRate))) return;
-        effForm = { ...paymentFormData, apply_additional_profit: true };
+        effForm = { ...effForm, apply_additional_profit: true };
         effMeta = computePaymentDifferenceMeta(sale, effForm, cbuRate);
       }
 
@@ -348,7 +375,7 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
           {shortfallMeta.needs && (
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <p style={{ margin: '0 0 10px 0', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
-                {t('completePay.shortfallHint')}
+                {creditAvailable ? t('completePay.shortfallHintCredit') : t('completePay.shortfallHint')}
               </p>
               <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
                 <input
@@ -422,6 +449,74 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
                     currency: shortfallMeta.sc,
                   })}
                 </p>
+              )}
+
+            </div>
+          )}
+
+          {/*
+            Outside the shortfall block on purpose. That block only appears once money has been
+            typed and come up short, which is exactly the case a credit sale is not: the customer
+            takes the goods and hands over nothing, so there is no shortfall to react to. Credit
+            is a choice made up front, so it is offered wherever anything is still owing.
+          */}
+          {creditAvailable && (
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={onCredit}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    setPaymentFormData({
+                      ...paymentFormData,
+                      apply_credit: checked,
+                      credit_amount: checked ? paymentFormData.credit_amount : '',
+                      credit_due_date: checked ? paymentFormData.credit_due_date : '',
+                    });
+                  }}
+                />
+                <span>{t('completePay.creditOption')}</span>
+              </label>
+              {onCredit && (
+                <div style={{ marginTop: 10, maxWidth: 280 }}>
+                  <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
+                    {t('completePay.creditAmountLabel', { currency: shortfallMeta.sc })}
+                  </label>
+                  <AmountInput
+                    step={shortfallMeta.sc === 'UZS' ? '1' : '0.01'}
+                    placeholder={
+                      shortfallMeta.creditAmount != null
+                        ? (shortfallMeta.sc === 'UZS'
+                          ? String(Math.round(shortfallMeta.creditAmount))
+                          : shortfallMeta.creditAmount.toFixed(2))
+                        : '0'
+                    }
+                    value={paymentFormData.credit_amount ?? ''}
+                    onChange={(e) =>
+                      setPaymentFormData({ ...paymentFormData, credit_amount: e.target.value })
+                    }
+                  />
+                  <small style={{ color: '#666', marginTop: 5, display: 'block' }}>
+                    {t('completePay.creditAmountHint')}
+                  </small>
+                  <label
+                    style={{ display: 'block', marginTop: 10, marginBottom: 4, fontSize: '0.9em' }}
+                  >
+                    {t('completePay.creditDueDateLabel')}
+                  </label>
+                  <input
+                    type="date"
+                    value={paymentFormData.credit_due_date ?? ''}
+                    onChange={(e) =>
+                      setPaymentFormData({ ...paymentFormData, credit_due_date: e.target.value })
+                    }
+                    required
+                  />
+                  <small style={{ color: '#666', marginTop: 5, display: 'block' }}>
+                    {t('completePay.creditDueDateHint')}
+                  </small>
+                </div>
               )}
             </div>
           )}

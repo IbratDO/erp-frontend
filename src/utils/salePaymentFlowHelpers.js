@@ -9,6 +9,7 @@ import {
   buildCrossCurrencyAdvanceConfirmMessage,
   buildSplitCurrencyConfirmMessage,
   buildAdditionalProfitConfirmMessage,
+  buildCreditConfirmMessage,
   buildCompleteSaleRequest,
   paymentAmountInSaleCurrency,
 } from './saleCompletePayHelpers';
@@ -36,7 +37,11 @@ export async function runSalePaymentSubmitFlow({
   const uzsT = parseFloat(paymentFormData.uzs) || 0;
   const usdT = parseFloat(paymentFormData.usd) || 0;
 
-  if (uzsT + usdT === 0) {
+  const wantsCredit = !!paymentFormData.apply_credit;
+
+  // "Enter at least one amount" is the right rule everywhere except here: a sale taken wholly on
+  // credit is settled with no money at all, and that is the answer, not a missing one.
+  if (uzsT + usdT === 0 && !wantsCredit) {
     showNotification?.(cp('errEnterPayment'), 'error');
     return { ok: false };
   }
@@ -131,11 +136,34 @@ export async function runSalePaymentSubmitFlow({
     return { ok: false };
   }
 
-  let effForm = paymentFormData;
-  let effMeta = meta;
+  if (wantsCredit && meta.creditExplained) {
+    if (meta.sharesExceedGap) {
+      showNotification?.(cp('errSharesExceedGap'), 'error');
+      return { ok: false };
+    }
+    if (meta.creditDueDateMissing) {
+      showNotification?.(cp('errCreditDueDate'), 'error');
+      return { ok: false };
+    }
+    if (!window.confirm(buildCreditConfirmMessage(meta, paymentFormData.credit_due_date))) {
+      return { ok: false };
+    }
+  }
+  if (wantsCredit && meta.creditWithNothingOwing) {
+    showNotification?.(cp('errCreditNothingOwing'), 'error');
+    return { ok: false };
+  }
+
+  // Ticked credit, then raised the payment until nothing was owing: drop the stale flag rather
+  // than asking the server to open a debt of nothing.
+  const staleCredit = wantsCredit && !meta.creditExplained;
+  let effForm = staleCredit
+    ? { ...paymentFormData, apply_credit: false, credit_amount: '', credit_due_date: '' }
+    : paymentFormData;
+  let effMeta = staleCredit ? computePaymentDifferenceMeta(sale, effForm, cbuRate) : meta;
   if (meta.needsAdditionalProfitConfirm) {
     if (!window.confirm(buildAdditionalProfitConfirmMessage(meta, exchangeRate))) return { ok: false };
-    effForm = { ...paymentFormData, apply_additional_profit: true };
+    effForm = { ...effForm, apply_additional_profit: true };
     effMeta = computePaymentDifferenceMeta(sale, effForm, cbuRate);
   }
 

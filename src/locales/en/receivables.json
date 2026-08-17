@@ -25,7 +25,13 @@
     "allYears": "All Years",
     "month": "Month",
     "allMonths": "All Months",
-    "clearAll": "Clear all"
+    "clearAll": "Clear all",
+    "scope": "View",
+    "scopeOpen": "Open debts only",
+    "scopeAll": "All",
+    "grouping": "Grouping",
+    "groupByCustomer": "By customer",
+    "flatList": "Flat list"
   },
   "collect": {
     "title": "Collect payment — receivable #{{id}}",
@@ -56,7 +62,14 @@
     "saleRef": "#{{id}}",
     "financeRef": "Fin #{{id}}",
     "collect": "Collect",
-    "footerPending": "Pending balance due"
+    "footerPending": "Pending balance due",
+    "dueDate": "Payment date",
+    "overdueBy": "{{days}} days overdue",
+    "dueToday": "due today",
+    "dueInDays": "{{days}} days left",
+    "groupCount": "({{open}} open / {{total}} total)",
+    "settleAll": "Settle all",
+    "settling": "Settling…"
   },
   "payablesTable": {
     "title": "Accounts Payable",
@@ -139,6 +152,9 @@
     "confirmCancelDispatchFee": "Cancel this courier fee? The courier will not be paid and Money Balance is unchanged.",
     "cancelDispatchFeeFailed": "Could not cancel the courier fee.",
     "confirmReimburseCourierChange": "Pay the courier back the change he gave the customer at the door?",
-    "reimburseCourierChangeFailed": "Could not reimburse the courier."
+    "reimburseCourierChangeFailed": "Could not reimburse the courier.",
+    "confirmSettleCustomer": "Settle all {{count}} of {{customer}}'s debts in full? Total: {{amount}}.",
+    "settleCustomerDone": "{{customer}}: {{done}} debts settled.",
+    "settleCustomerPartial": "{{done}} of {{total}} settled. Errors: {{errors}}"
   }
 }

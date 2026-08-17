@@ -113,6 +113,11 @@ const BalanceSheet = () => {
   // that was no longer true.
   const courierCash = assets?.current?.courier_cash?.total_usd ?? 0;
   const expectedProfit = equity?.expected_profit_usd ?? 0;
+  // Goods sold on credit and their still-unearned margin. Both are reclassifications, not new
+  // money: the asset comes out of Debitorlik and the equity row out of current period profit,
+  // so each total below is unchanged by their appearing. Absent on an older backend, hence ?? 0.
+  const creditSalesRecv = assets?.current?.credit_sales_receivable?.total_usd ?? 0;
+  const expectedCreditProfit = equity?.expected_credit_profit_usd ?? 0;
 
   const faNonCurrent =
     assets?.non_current?.fixed_assets_usd
@@ -271,6 +276,15 @@ const BalanceSheet = () => {
                       value={formatUsd(customerRecv)}
                       indent={1}
                     />
+                    {/* Directly under Debitorlik, because that is where this money came from:
+                        the same customer debt, filed under the promise that carries it. */}
+                    {Math.abs(creditSalesRecv) > 0.005 && (
+                      <LineRow
+                        label={t('assets.creditSalesReceivable')}
+                        value={formatUsd(creditSalesRecv)}
+                        indent={1}
+                      />
+                    )}
                     <LineRow
                       label={t('assets.productReceivables')}
                       value={formatUsd(productRecv)}
@@ -362,6 +376,15 @@ const BalanceSheet = () => {
                       value={formatUsd(expectedProfit)}
                       indent={1}
                     />
+                    {/* Next to its sibling: that row is margin on goods not yet paid for at all,
+                        this one is margin on goods being paid for in instalments. */}
+                    {Math.abs(expectedCreditProfit) > 0.005 && (
+                      <LineRow
+                        label={t('equity.expectedCreditProfit')}
+                        value={formatUsd(expectedCreditProfit)}
+                        indent={1}
+                      />
+                    )}
                     <LineRow
                       label={t('equity.currencyConversionPl')}
                       value={formatUsd(equity?.currency_conversion_pl_usd)}

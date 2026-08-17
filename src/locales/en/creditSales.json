@@ -1,0 +1,75 @@
+{
+  "title": "Credit Sales",
+  "intro": "Sales where the goods left against a promise to pay. The debt falls as cash arrives; profit is recognized once the cost has been recovered.",
+  "filters": {
+    "title": "Filters",
+    "scope": "View",
+    "scopeOpen": "Open debts only",
+    "scopeAll": "All",
+    "status": "Status",
+    "statusAny": "Any status",
+    "search": "Search",
+    "searchPlaceholder": "Customer, product or ID"
+  },
+  "status": {
+    "unpaid": "Fully unpaid",
+    "partial": "Partially paid",
+    "paid": "Fully paid",
+    "waived": "Debt waived"
+  },
+  "due": {
+    "overdueBy": "{{days}} days overdue",
+    "inDays": "{{days}} days left"
+  },
+  "table": {
+    "title": "Debts",
+    "empty": "No credit sales found.",
+    "id": "ID",
+    "sale": "Sale",
+    "customer": "Customer",
+    "product": "Product",
+    "status": "Status",
+    "principal": "Total debt",
+    "paid": "Paid",
+    "remaining": "Remaining",
+    "due": "Payment date",
+    "actions": "Actions",
+    "history": "History",
+    "hideHistory": "Hide",
+    "collect": "Receive payment",
+    "waive": "Waive",
+    "totalsLine": "total {{principal}} · paid {{paid}} · remaining {{remaining}}"
+  },
+  "collect": {
+    "title": "Credit payment #{{id}}",
+    "hint": "{{customer}} still owes {{amount}}. Part payments are accepted.",
+    "amount": "Payment amount ({{currency}})",
+    "notes": "Notes (optional)",
+    "record": "Record payment",
+    "recorded": "Payment recorded."
+  },
+  "waive": {
+    "title": "Waive debt #{{id}}",
+    "hint": "The remaining {{amount}} is written off. No cash arrives — the unrecovered cost is booked as a loss.",
+    "reason": "Reason",
+    "reasonHint": "Required. This moves the balance sheet, so the reason stays on the record.",
+    "record": "Waive the debt",
+    "confirm": "Waive {{customer}}'s remaining {{amount}}? This cannot be undone.",
+    "done": "Debt waived."
+  },
+  "history": {
+    "empty": "No payments yet.",
+    "paidAt": "Date",
+    "amount": "Amount",
+    "remainingAfter": "Remaining",
+    "by": "Received by",
+    "notes": "Notes",
+    "waived": "{{amount}} waived on {{at}}. Reason: {{reason}}"
+  },
+  "errors": {
+    "generic": "The action could not be completed.",
+    "amountRequired": "Enter the payment amount.",
+    "amountExceeds": "The payment cannot exceed the remaining debt ({{balance}}).",
+    "reasonRequired": "Enter the reason for waiving the debt."
+  }
+}

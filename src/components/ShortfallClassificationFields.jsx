@@ -12,8 +12,14 @@ import { formatDisplayAmount } from '../utils/currencyFormat';
  *
  * `form` needs `balance_shortfall_type`, `balance_shortfall_amount` and
  * `apply_currency_conversion_difference`; `meta` comes from `computePaymentDifferenceMeta`.
+ *
+ * `allowCredit` opts a call site into the third answer: the customer takes the goods and owes
+ * the rest. Opt-in rather than on everywhere, because it is only honest where the caller both
+ * sends `credit_due_date` and posts to an endpoint that classifies credit — the courier's own
+ * step-1 proposal does neither, and offering it there would promise a debt nothing would open.
  */
-export default function ShortfallClassificationFields({ form, setForm, meta, t }) {
+export default function ShortfallClassificationFields({ form, setForm, meta, t, allowCredit = false }) {
+  const onCredit = !!form.apply_credit;
   // Money over the amount due is a different question with a different pair of answers, and
   // Discount is not one of them — you cannot forgive a surplus. Branching here rather than at
   // each call site is what keeps every form that classifies a difference in step.
@@ -23,7 +29,7 @@ export default function ShortfallClassificationFields({ form, setForm, meta, t }
   return (
     <>
       <p style={{ margin: '0 0 10px', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
-        {t('completePay.shortfallHint')}
+        {allowCredit ? t('completePay.shortfallHintCredit') : t('completePay.shortfallHint')}
       </p>
       <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
         <input
@@ -66,6 +72,66 @@ export default function ShortfallClassificationFields({ form, setForm, meta, t }
         />
         <span>{t('completePay.conversionDifferenceOption')}</span>
       </label>
+      {allowCredit && (
+        <>
+          <label
+            style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginTop: 12 }}
+          >
+            <input
+              type="checkbox"
+              checked={onCredit}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                // Nothing else is touched. Credit sits beside the discount and the conversion
+                // difference rather than replacing either — one gap can hold all three.
+                setForm((prev) => ({
+                  ...prev,
+                  apply_credit: checked,
+                  credit_amount: checked ? prev.credit_amount || '' : '',
+                  credit_due_date: checked ? prev.credit_due_date || '' : '',
+                }));
+              }}
+            />
+            <span>{t('completePay.creditOption')}</span>
+          </label>
+          {onCredit && (
+            <div style={{ marginTop: 10, maxWidth: 280 }}>
+              <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
+                {t('completePay.creditAmountLabel', { currency: meta.sc || 'USD' })}
+              </label>
+              <AmountInput
+                step={(meta.sc || 'USD').toUpperCase() === 'UZS' ? '1' : '0.01'}
+                placeholder={
+                  meta.creditAmount != null
+                    ? ((meta.sc || 'USD').toUpperCase() === 'UZS'
+                      ? String(Math.round(meta.creditAmount))
+                      : Number(meta.creditAmount).toFixed(2))
+                    : '0'
+                }
+                value={form.credit_amount ?? ''}
+                onChange={(e) => setForm((prev) => ({ ...prev, credit_amount: e.target.value }))}
+              />
+              <small style={{ color: '#666', marginTop: 5, display: 'block' }}>
+                {t('completePay.creditAmountHint')}
+              </small>
+              <label
+                style={{ display: 'block', marginTop: 10, marginBottom: 4, fontSize: '0.9em' }}
+              >
+                {t('completePay.creditDueDateLabel')}
+              </label>
+              <input
+                type="date"
+                value={form.credit_due_date ?? ''}
+                onChange={(e) => setForm((prev) => ({ ...prev, credit_due_date: e.target.value }))}
+                required
+              />
+              <small style={{ color: '#666', marginTop: 5, display: 'block' }}>
+                {t('completePay.creditDueDateHint')}
+              </small>
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }

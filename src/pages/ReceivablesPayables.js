@@ -9,7 +9,7 @@ import {
 import { formatDisplayAmount } from '../utils/currencyFormat';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
-import { formatAppDateTime } from '../utils/localeFormat';
+import { dateOnlyToLocalDate, formatAppDate, formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
@@ -159,6 +159,101 @@ function receivableCustomerName(rcv) {
   return rcv.sale_detail?.customer_detail?.name || '—';
 }
 
+/** Open means the shop is still expecting the money. Everything else is history. */
+function isOpenReceivable(rcv) {
+  return rcv?.status === 'pending' || rcv?.status === 'overdue';
+}
+
+/**
+ * When this debt was promised, as a plain `YYYY-MM-DD`, or null.
+ *
+ * Two sources for one date. `Receivable.due_date` is the field that means it, and it is what
+ * the balance sheet side of the feature writes; `sale_detail.credit_due_date` is the same
+ * promise recorded on the sale, and it is the fallback for rows written before the receivable
+ * carried the date at all. Preferring the receivable keeps one answer per row.
+ */
+export function receivableDueDate(rcv) {
+  const raw = rcv?.due_date || rcv?.sale_detail?.credit_due_date;
+  // Sliced off the front of the string rather than parsed through `Date`. The server stores
+  // the promise at midnight in the project's own timezone and serializes it there, so the
+  // first ten characters *are* the day the customer named. Parsing and re-reading it in the
+  // browser's zone would move that day by one whenever the two disagree, which is how a debt
+  // due on the 1st starts reading as due on the 31st.
+  return raw ? String(raw).slice(0, 10) : null;
+}
+
+/** Whole days from today until the debt falls due. Negative once past it; null with no date. */
+export function receivableDaysUntilDue(rcv, today = new Date()) {
+  const due = receivableDueDate(rcv);
+  if (!due) return null;
+  const dueMidnight = dateOnlyToLocalDate(due);
+  if (!dueMidnight) return null;
+  // Both sides floored to local midnight, so "days" counts calendar days rather than a
+  // fraction of one — otherwise a debt due tomorrow reads as 0 days from mid-afternoon.
+  const todayMidnight = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((dueMidnight - todayMidnight) / 86400000);
+}
+
+/**
+ * How near the due date is, as a colour. The scale the owner asked for.
+ *
+ * Settled is green, comfortably ahead is left plain, the last ten days are amber, and past due
+ * is red. Ten days is the shop's own horizon for chasing. Pure, so it can be tested and reused;
+ * `CreditSales.creditRowBackground` is the same scale keyed off that page's own fields.
+ */
+export function receivableRowBackground(rcv, today = new Date()) {
+  if (!rcv) return undefined;
+  if (rcv.status === 'paid') return '#d4edda';
+  if (rcv.status === 'cancelled') return '#e2e3e5';
+  const days = receivableDaysUntilDue(rcv, today);
+  // No date is not the same as no urgency — it is a row nobody promised anything about, and
+  // colouring it would say something the record does not.
+  if (days == null) return undefined;
+  if (days < 0) return '#f8d7da';
+  if (days <= 10) return '#fff3cd';
+  return undefined;
+}
+
+/**
+ * One row per customer, carrying their debts.
+ *
+ * Grouped by customer *name* rather than id because a receivable can hang off a manual finance
+ * record with no customer behind it at all; those collect under one "—" heading instead of
+ * each becoming a group of one. Currencies are kept apart inside each group: this page has no
+ * exchange rate, and two debts in different money do not add up to a number anyone is owed.
+ */
+export function groupReceivablesByCustomer(rows) {
+  const groups = new Map();
+  for (const rcv of rows) {
+    const name = receivableCustomerName(rcv);
+    if (!groups.has(name)) {
+      groups.set(name, { name, rows: [], openTotals: {}, openCount: 0, soonestDays: null });
+    }
+    const group = groups.get(name);
+    group.rows.push(rcv);
+    if (!isOpenReceivable(rcv)) continue;
+    group.openCount += 1;
+    const ccy = String(rcv.currency || rcv.sale_detail?.sale_currency || 'USD').toUpperCase();
+    group.openTotals[ccy] = (group.openTotals[ccy] || 0) + (parseFloat(rcv.amount) || 0);
+    const days = receivableDaysUntilDue(rcv);
+    // The group takes the colour of its most urgent open debt, so a customer with one overdue
+    // item reads as overdue even when their other debts are months away.
+    if (days != null && (group.soonestDays == null || days < group.soonestDays)) {
+      group.soonestDays = days;
+    }
+  }
+  return [...groups.values()];
+}
+
+/** The group header's colour, from the same scale as a single row. */
+export function groupRowBackground(group) {
+  if (!group || group.openCount === 0) return '#d4edda';
+  if (group.soonestDays == null) return undefined;
+  if (group.soonestDays < 0) return '#f8d7da';
+  if (group.soonestDays <= 10) return '#fff3cd';
+  return undefined;
+}
+
 function payableContext(p, tr) {
   if (isCustomerDepositPayable(p)) {
     return tr('payableContext.customerDeposit');
@@ -215,6 +310,9 @@ const RECEIVABLE_TABLE_SORT_ACCESSORS = {
   dispatch: (rcv) => (rcv.sale_detail?.dispatch_info?.dispatch_type || '').toLowerCase(),
   amount: (rcv) => parseFloat(rcv.amount) || 0,
   currency: (rcv) => String(rcv.currency ?? rcv.sale_detail?.sale_currency ?? '').toLowerCase(),
+  // Undated debts sort last rather than first: a row nobody promised anything about is not the
+  // most urgent thing on the page.
+  due_date: (rcv) => receivableDueDate(rcv) ?? '9999-12-31',
   status: (rcv) => String(rcv.status ?? '').toLowerCase(),
   created_at: (rcv) => new Date(rcv.created_at).getTime() || 0,
   paid_date: (rcv) => {
@@ -287,7 +385,15 @@ const ReceivablesPayables = () => {
     year: '',
     month: '',
     kind: '',
+    // Debitorlik's own view controls. `scope` is browser-side rather than another API filter:
+    // the backend's `status` parameter already narrows the fetch, and stacking a second server
+    // filter on top of it would make "Barchasi" mean two different things depending on which
+    // one was set last.
+    scope: 'open',
+    grouped: true,
   });
+  const [expandedCustomers, setExpandedCustomers] = useState(() => new Set());
+  const [settlingCustomer, setSettlingCustomer] = useState(null);
 
   useEffect(() => {
     setLoading(true);
@@ -494,9 +600,17 @@ const ReceivablesPayables = () => {
     }
   };
 
+  // Everything below reads `visibleReceivables`, never `receivables`. The tab used to render
+  // the raw list while only the payables side had a filter, so a figure under the table could
+  // count rows the table was not showing.
+  const visibleReceivables = useMemo(
+    () => (filter.scope === 'open' ? receivables.filter(isOpenReceivable) : receivables),
+    [receivables, filter.scope],
+  );
+
   const receivableAmountTotals = useMemo(
-    () => sumAmountsByCurrency(receivables.filter((r) => r.status === 'pending')),
-    [receivables]
+    () => sumAmountsByCurrency(visibleReceivables.filter((r) => r.status === 'pending')),
+    [visibleReceivables]
   );
   const payableAmountTotals = useMemo(
     () => sumAmountsByCurrency(payables),
@@ -520,8 +634,8 @@ const ReceivablesPayables = () => {
     [visiblePayables]
   );
   const receivablePendingByCurrency = useMemo(
-    () => sumAmountsByCurrency(receivables.filter((r) => r.status === 'pending')),
-    [receivables]
+    () => sumAmountsByCurrency(visibleReceivables.filter((r) => r.status === 'pending')),
+    [visibleReceivables]
   );
   const payablePendingByCurrency = useMemo(
     () => sumAmountsByCurrency(visiblePayables.filter((p) => isOpenPayable(p))),
@@ -530,8 +644,12 @@ const ReceivablesPayables = () => {
 
   const receivablesSort = useClientTableSort(RECEIVABLE_TABLE_SORT_ACCESSORS);
   const sortedReceivableRows = useMemo(
-    () => receivablesSort.sortRows(receivables || []),
-    [receivables, receivablesSort],
+    () => receivablesSort.sortRows(visibleReceivables || []),
+    [visibleReceivables, receivablesSort],
+  );
+  const receivableGroups = useMemo(
+    () => groupReceivablesByCustomer(sortedReceivableRows),
+    [sortedReceivableRows],
   );
 
   const payablesTableSort = useClientTableSort(PAYABLE_TABLE_SORT_ACCESSORS);
@@ -539,6 +657,162 @@ const ReceivablesPayables = () => {
     () => payablesTableSort.sortRows(visiblePayables || []),
     [visiblePayables, payablesTableSort],
   );
+
+  const toggleCustomer = (name) => {
+    setExpandedCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
+
+  const formatGroupTotals = (group) => {
+    const parts = Object.entries(group.openTotals)
+      .filter(([, amount]) => amount > 0)
+      .map(([ccy, amount]) => formatMoneyAmount(amount, ccy));
+    return parts.length ? parts.join(' + ') : '—';
+  };
+
+  const dueLabelFor = (days, date) => {
+    if (!date) return '—';
+    const shown = formatAppDate(dateOnlyToLocalDate(date));
+    if (days == null) return shown;
+    if (days < 0) return `${shown} · ${t('receivablesTable.overdueBy', { days: Math.abs(days) })}`;
+    if (days === 0) return `${shown} · ${t('receivablesTable.dueToday')}`;
+    return `${shown} · ${t('receivablesTable.dueInDays', { days })}`;
+  };
+
+  const groupDueLabel = (group) => {
+    if (group.soonestDays == null) return '—';
+    const soonest = group.rows
+      .filter((r) => isOpenReceivable(r) && receivableDaysUntilDue(r) === group.soonestDays)
+      .map(receivableDueDate)[0];
+    return dueLabelFor(group.soonestDays, soonest);
+  };
+
+  /**
+   * Settle every open debt this customer has, one request each.
+   *
+   * Sequential rather than parallel, and it keeps going after a failure: each receivable is its
+   * own cash movement, so a row that will not collect must not silently prevent the rows behind
+   * it from being collected. What actually happened is reported at the end rather than guessed.
+   */
+  const handleSettleCustomer = async (group) => {
+    const collectible = group.rows.filter((r) => canCollectReceivable(r) && isOpenReceivable(r));
+    if (!collectible.length) return;
+    if (
+      !window.confirm(
+        t('notifications.confirmSettleCustomer', {
+          count: collectible.length,
+          customer: group.name,
+          amount: formatGroupTotals(group),
+        }),
+      )
+    ) {
+      return;
+    }
+    setSettlingCustomer(group.name);
+    let done = 0;
+    const failures = [];
+    try {
+      for (const rcv of collectible) {
+        const ccy = String(rcv.currency || rcv.sale_detail?.sale_currency || 'USD').toUpperCase();
+        const amount = parseFloat(rcv.amount) || 0;
+        if (amount <= 0) continue;
+        try {
+          if (rcv.finance_record) {
+            await api.post(`/finance/${rcv.finance_record}/settle/`);
+          } else {
+            await api.post(`/receivables/${rcv.id}/collect_payment/`, {
+              uzs_cash: ccy === 'UZS' ? amount : 0,
+              uzs_card: 0,
+              usd_cash: ccy === 'USD' ? amount : 0,
+              usd_card: 0,
+              notes: '',
+            });
+          }
+          done += 1;
+        } catch (error) {
+          console.error('Error settling receivable', rcv.id, error);
+          failures.push(`#${rcv.id}: ${error.response?.data?.error || error.response?.data?.detail || ''}`);
+        }
+      }
+    } finally {
+      setSettlingCustomer(null);
+      await fetchReceivables();
+    }
+    alert(
+      failures.length
+        ? t('notifications.settleCustomerPartial', {
+          done,
+          total: collectible.length,
+          errors: failures.join('; '),
+        })
+        : t('notifications.settleCustomerDone', { done, customer: group.name }),
+    );
+  };
+
+  /** One receivable row. Shared by the flat list and the expanded groups, so the two can
+   *  never drift into showing different columns for the same record. */
+  const receivableRow = (receivable) => {
+    const sd = receivable.sale_detail;
+    const days = receivableDaysUntilDue(receivable);
+    return (
+      <tr key={receivable.id} style={{ backgroundColor: receivableRowBackground(receivable) }}>
+        <td>#{receivable.id}</td>
+        <td>{receivableCustomerName(receivable)}</td>
+        <td>
+          {receivable.sale
+            ? t('receivablesTable.saleRef', { id: receivable.sale })
+            : receivable.finance_record
+              ? t('receivablesTable.financeRef', { id: receivable.finance_record })
+              : '—'}
+        </td>
+        <td>
+          {sd?.product_detail ? `${sd.product_detail.brand} ${sd.product_detail.model}` : '—'}
+        </td>
+        <td>
+          {sd?.sale_type ? t(`saleTypes.${sd.sale_type}`, { defaultValue: sd.sale_type }) : '—'}
+        </td>
+        <td>{sd?.order ? <span>{t('receivablesTable.orderRef', { id: sd.order })}</span> : '—'}</td>
+        <td
+          style={{ fontSize: '0.9rem', maxWidth: '200px' }}
+          title={sd?.dispatch_info?.logistics_notes || undefined}
+        >
+          {receivableDispatchLabel(sd, t)}
+        </td>
+        <td style={{ fontWeight: '600', color: '#28a745' }}>
+          {parseFloat(receivable.amount).toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}
+        </td>
+        <td>{receivable.currency === 'UZS' ? uzsLabel : usdLabel}</td>
+        <td>{dueLabelFor(days, receivableDueDate(receivable))}</td>
+        <td>
+          <span className={`status-badge ${receivable.status}`}>
+            {tStatus(receivable.status, 'receivable')}
+          </span>
+        </td>
+        <td>{formatAppDateTime(receivable.created_at)}</td>
+        <td>{receivable.paid_date ? formatAppDateTime(receivable.paid_date) : '—'}</td>
+        <td>
+          {canCollectReceivable(receivable) && canCollect ? (
+            <button
+              type="button"
+              className="btn-edit"
+              onClick={() => beginCollectReceivable(receivable)}
+            >
+              {t('receivablesTable.collect')}
+            </button>
+          ) : (
+            '—'
+          )}
+        </td>
+      </tr>
+    );
+  };
 
   if (loading) {
     return <div className="page-container">{t('actions.loading', { ns: 'common' })}</div>;
@@ -692,6 +966,30 @@ const ReceivablesPayables = () => {
                 <option value="cancelled">{tStatus('cancelled', 'receivable')}</option>
               </select>
             </div>
+          {activeTab === 'receivables' && (
+            <>
+              <div className="filter-field">
+                <label>{t('filters.scope')}</label>
+                <select
+                  value={filter.scope}
+                  onChange={(e) => setFilter({ ...filter, scope: e.target.value })}
+                >
+                  <option value="open">{t('filters.scopeOpen')}</option>
+                  <option value="all">{t('filters.scopeAll')}</option>
+                </select>
+              </div>
+              <div className="filter-field">
+                <label>{t('filters.grouping')}</label>
+                <select
+                  value={filter.grouped ? 'grouped' : 'flat'}
+                  onChange={(e) => setFilter({ ...filter, grouped: e.target.value === 'grouped' })}
+                >
+                  <option value="grouped">{t('filters.groupByCustomer')}</option>
+                  <option value="flat">{t('filters.flatList')}</option>
+                </select>
+              </div>
+            </>
+          )}
           {activeTab === 'payables' && (
             <div className="filter-field">
               <label>{t('filters.payableKind')}</label>
@@ -831,6 +1129,7 @@ const ReceivablesPayables = () => {
                 <SortableTh columnId="dispatch" sortCol={receivablesSort.sortCol} sortDir={receivablesSort.sortDir} onSort={receivablesSort.onHeaderClick}>{t('receivablesTable.delivery')}</SortableTh>
                 <SortableTh columnId="amount" sortCol={receivablesSort.sortCol} sortDir={receivablesSort.sortDir} onSort={receivablesSort.onHeaderClick}>{t('receivablesTable.amount')}</SortableTh>
                 <SortableTh columnId="currency" sortCol={receivablesSort.sortCol} sortDir={receivablesSort.sortDir} onSort={receivablesSort.onHeaderClick}>{t('receivablesTable.currency')}</SortableTh>
+                <SortableTh columnId="due_date" sortCol={receivablesSort.sortCol} sortDir={receivablesSort.sortDir} onSort={receivablesSort.onHeaderClick}>{t('receivablesTable.dueDate')}</SortableTh>
                 <SortableTh columnId="status" sortCol={receivablesSort.sortCol} sortDir={receivablesSort.sortDir} onSort={receivablesSort.onHeaderClick}>{t('receivablesTable.status')}</SortableTh>
                 <SortableTh columnId="created_at" sortCol={receivablesSort.sortCol} sortDir={receivablesSort.sortDir} onSort={receivablesSort.onHeaderClick}>{t('receivablesTable.created')}</SortableTh>
                 <SortableTh columnId="paid_date" sortCol={receivablesSort.sortCol} sortDir={receivablesSort.sortDir} onSort={receivablesSort.onHeaderClick}>{t('receivablesTable.paidDate')}</SortableTh>
@@ -838,83 +1137,61 @@ const ReceivablesPayables = () => {
               </tr>
             </thead>
             <tbody>
-              {receivables.length === 0 ? (
+              {sortedReceivableRows.length === 0 ? (
                 <tr>
-                  <td colSpan="13" style={{ textAlign: 'center' }}>
+                  <td colSpan="14" style={{ textAlign: 'center' }}>
                     {t('receivablesTable.noRows')}
                   </td>
                 </tr>
-              ) : (
-                sortedReceivableRows.map((receivable) => {
-                  const sd = receivable.sale_detail;
-                  return (
-                  <tr key={receivable.id}>
-                    <td>#{receivable.id}</td>
-                      <td>{receivableCustomerName(receivable)}</td>
-                      <td>
-                        {receivable.sale
-                          ? t('receivablesTable.saleRef', { id: receivable.sale })
-                          : receivable.finance_record
-                            ? t('receivablesTable.financeRef', { id: receivable.finance_record })
-                            : '—'}
+              ) : filter.grouped ? (
+                receivableGroups.flatMap((group) => {
+                  const open = expandedCustomers.has(group.name);
+                  const header = (
+                    <tr
+                      key={`group-${group.name}`}
+                      className="sale-group-row"
+                      style={{ backgroundColor: groupRowBackground(group), cursor: 'pointer' }}
+                      onClick={() => toggleCustomer(group.name)}
+                    >
+                      <td colSpan="7" style={{ fontWeight: 600 }}>
+                        {open ? '▾' : '▸'} {group.name}{' '}
+                        <span style={{ fontWeight: 400, color: '#555' }}>
+                          {t('receivablesTable.groupCount', {
+                            open: group.openCount,
+                            total: group.rows.length,
+                          })}
+                        </span>
                       </td>
-                      <td>
-                        {sd?.product_detail
-                          ? `${sd.product_detail.brand} ${sd.product_detail.model}`
-                          : '—'}
+                      <td colSpan="2" style={{ fontWeight: 600, color: '#28a745' }}>
+                        {formatGroupTotals(group)}
                       </td>
+                      <td>{groupDueLabel(group)}</td>
+                      <td colSpan="3">—</td>
                       <td>
-                        {sd?.sale_type
-                          ? t(`saleTypes.${sd.sale_type}`, { defaultValue: sd.sale_type })
-                          : '—'}
-                      </td>
-                      <td>
-                        {sd?.order ? (
-                          <span>{t('receivablesTable.orderRef', { id: sd.order })}</span>
-                        ) : (
-                          '—'
-                        )}
-                      </td>
-                      <td
-                        style={{ fontSize: '0.9rem', maxWidth: '200px' }}
-                        title={sd?.dispatch_info?.logistics_notes || undefined}
-                      >
-                        {receivableDispatchLabel(sd, t)}
-                    </td>
-                    <td style={{ fontWeight: '600', color: '#28a745' }}>
-                      {parseFloat(receivable.amount).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                    </td>
-                    <td>{receivable.currency === 'UZS' ? uzsLabel : usdLabel}</td>
-                    <td>
-                      <span className={`status-badge ${receivable.status}`}>
-                        {tStatus(receivable.status, 'receivable')}
-                      </span>
-                    </td>
-                    <td>{formatAppDateTime(receivable.created_at)}</td>
-                    <td>
-                      {receivable.paid_date
-                        ? formatAppDateTime(receivable.paid_date)
-                          : '—'}
-                      </td>
-                      <td>
-                        {canCollectReceivable(receivable) && canCollect ? (
+                        {canCollect && group.openCount > 0 ? (
                           <button
                             type="button"
                             className="btn-edit"
-                            onClick={() => beginCollectReceivable(receivable)}
+                            disabled={settlingCustomer === group.name}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleSettleCustomer(group);
+                            }}
                           >
-                            {t('receivablesTable.collect')}
+                            {settlingCustomer === group.name
+                              ? t('receivablesTable.settling')
+                              : t('receivablesTable.settleAll')}
                           </button>
                         ) : (
                           '—'
                         )}
-                    </td>
-                  </tr>
+                      </td>
+                    </tr>
                   );
+                  return open ? [header, ...group.rows.map(receivableRow)] : [header];
                 })
+              ) : (
+                sortedReceivableRows.map(receivableRow)
               )}
             </tbody>
             <tfoot>
@@ -925,7 +1202,7 @@ const ReceivablesPayables = () => {
                 <td style={{ fontWeight: 600, color: '#28a745' }}>
                   {formatMultiCurrencyAmounts(receivableAmountTotals)}
                 </td>
-                <td colSpan="5">—</td>
+                <td colSpan="6">—</td>
               </tr>
             </tfoot>
           </table>

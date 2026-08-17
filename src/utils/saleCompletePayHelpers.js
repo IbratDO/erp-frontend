@@ -424,6 +424,28 @@ export function buildAdditionalProfitConfirmMessage(meta, exchangeRate) {
     .join('\n\n');
 }
 
+/**
+ * Confirm before letting goods leave against a promise.
+ *
+ * Worth a stop of its own rather than folding into the generic shortfall path: this is the one
+ * completion where the shop hands over stock and gets nothing for it now, and the amount and the
+ * date are the two things nobody can correct afterwards without re-opening the sale.
+ */
+export function buildCreditConfirmMessage(meta, dueDate) {
+  const sc = (meta?.sc || 'USD').toUpperCase();
+  const amount = meta?.creditAmount ?? 0;
+  // Fall through with whatever share was named; the discount, if any, is shown by the form.
+  return [
+    cp('confirmCreditTitle'),
+    cp('confirmCreditAmount', { amount: formatAmountForCurrency(amount, sc) }),
+    cp('confirmCreditDate', { date: String(dueDate || '').slice(0, 10) }),
+    cp('confirmCreditEffect'),
+    cp('confirmContinue'),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export const emptyPaymentFormState = () => ({
   saleId: null,
   uzs: '',
@@ -435,6 +457,13 @@ export const emptyPaymentFormState = () => ({
   dispatch_payment_currency: 'UZS',
   balance_shortfall_type: '',
   balance_shortfall_amount: '',
+  // Credit has its own flag rather than another value of `balance_shortfall_type`, because a
+  // gap can be part forgiven and part owed at once and that field holds one answer. Blank
+  // `credit_amount` means "whatever is left after the discount", which is the common case.
+  apply_credit: false,
+  credit_amount: '',
+  // Required whenever credit is on: a debt with no date is one nobody is ever reminded about.
+  credit_due_date: '',
   apply_currency_conversion_difference: false,
   apply_additional_profit: false,
   apply_change: false,
@@ -552,7 +581,20 @@ export function buildPaymentFormDataFromSale(sale, cbuRate) {
  * remaining = paid - (due - discount); negative = underpayment still unexplained without FX.
  */
 export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
-  const base = computePaymentShortfallMeta(sale, paymentFormData, cbuRate);
+  const raw = computePaymentShortfallMeta(sale, paymentFormData, cbuRate);
+  // Independent of the discount, and of the conversion difference. All three can explain parts
+  // of one gap: some forgiven, some owed, some rate arithmetic. `balance_shortfall_type` is
+  // still read so a form that has not been updated yet keeps working.
+  const wantCredit =
+    !!paymentFormData.apply_credit || paymentFormData.balance_shortfall_type === 'on_credit';
+  // An empty payment box reads as "nothing typed yet" everywhere else, which is what keeps the
+  // form from complaining about a shortfall the moment it opens. A credit sale is the one
+  // completion where nothing typed is the whole answer — the customer hands over no money at
+  // all — so once credit is chosen the blank is read as the zero it actually is.
+  const base =
+    wantCredit && !raw.mixed && raw.due != null && raw.paid == null
+      ? { ...raw, paid: 0, paidGross: raw.paidGross ?? 0, short: raw.due, needs: raw.due > 0 }
+      : raw;
   if (base.mixed || base.due == null || base.paid == null) {
     return {
       ...base,
@@ -569,8 +611,28 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
     const entered = parseFloat(paymentFormData.balance_shortfall_amount);
     discountAmount = Number.isFinite(entered) && entered > 0 ? entered : 0;
   }
-  const remainingAfterDiscount = base.paid - (base.due - discountAmount);
   const tol = (base.sc || 'USD').toUpperCase() === 'UZS' ? 1 : PAYMENT_SHORTFALL_TOLERANCE;
+
+  // What the customer did not hand over. Discount and credit each take a named share of it and
+  // the conversion difference absorbs the rest — the rule the server applies, mirrored here so
+  // the form and the server never reach different verdicts about the same payment.
+  const gap = base.due - base.paid;
+  const namedCredit = parseFloat(paymentFormData.credit_amount);
+  let creditAmount = 0;
+  if (wantCredit && gap > tol) {
+    creditAmount =
+      Number.isFinite(namedCredit) && namedCredit > 0
+        ? namedCredit
+        : Math.max(0, gap - discountAmount);
+  }
+  // Naming shares that together exceed the gap invents money that was never owed. Guarded on
+  // there *being* a gap: on a surplus `gap` is negative, and without the guard a payment with
+  // no discount and no credit reads as 0 > −2.28 and every overpayment is rejected.
+  const sharesExceedGap = gap > tol && discountAmount + creditAmount > gap + tol;
+  // Ticked on a payment that leaves nothing owing — there is no debt to open.
+  const creditWithNothingOwing = wantCredit && gap <= tol;
+
+  const remainingAfterDiscount = base.paid - (base.due - discountAmount - creditAmount);
   const wantFx = !!paymentFormData.apply_currency_conversion_difference;
   const wantAdditionalProfit = !!paymentFormData.apply_additional_profit;
   const isOverpay = remainingAfterDiscount > tol;
@@ -587,9 +649,17 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
   // Additional profit alone only ever explains a genuine surplus.
   const apExplained = !wantFx && wantAdditionalProfit && isOverpay;
   const fxExplained = wantFx && !splitSurplus;
+  // Credit explains part of a *shortfall* and only a shortfall: the customer walks out owing
+  // what was not handed over. There is nothing to credit on a surplus.
+  const creditExplained = creditAmount > 0 && !sharesExceedGap;
+  const creditDueDateMissing =
+    creditExplained && !String(paymentFormData.credit_due_date || '').trim();
+  // `remainingAfterDiscount` now nets off the credit too, so a gap fully covered by a discount
+  // and a credit lands inside tolerance and needs nothing further — which is the point.
   const explained = fxExplained || apExplained || splitFxValid;
   const unexplained = explained ? 0 : remainingAfterDiscount;
-  const differenceNeedsClassification = Math.abs(unexplained) > tol;
+  const differenceNeedsClassification =
+    sharesExceedGap || creditWithNothingOwing || Math.abs(unexplained) > tol;
   // Reachable only for overpayment with nothing selected yet (advance sales stay hard-blocked).
   const needsAdditionalProfitConfirm =
     !wantFx && !wantAdditionalProfit && isOverpay && !base.hasAdvance;
@@ -614,6 +684,13 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
         ? remainingAfterDiscount
         : null,
     splitSurplus,
+    wantCredit,
+    creditExplained,
+    creditAmount,
+    creditDueDateMissing,
+    sharesExceedGap,
+    creditWithNothingOwing,
+    gap,
     differenceNeedsClassification,
     needsAdditionalProfitConfirm,
     // Surplus classified as FX or additional profit is not a generic overpayment confirm.
@@ -769,8 +846,29 @@ export function computeReservedPaymentMeta(sale, uzsStr, usdStr, cbuRate, form =
     form?.balance_shortfall_type === 'discount'
       ? Math.max(0, parseFloat(form.balance_shortfall_amount) || 0)
       : 0;
+  // A reserved item is bought like anything else once the customer comes for it, so its
+  // remainder can be shared out the same way. The deposit is already off `due`, which means
+  // the gap measured here is what is genuinely left to explain.
+  const gapR = due != null && paid != null ? due - paid : 0;
+  const tolR = sc === 'UZS' ? 1 : PAYMENT_SHORTFALL_TOLERANCE;
+  const wantCreditR = !!form?.apply_credit;
+  const namedCreditR = parseFloat(form?.credit_amount);
+  let creditAmountR = 0;
+  if (wantCreditR && gapR > tolR) {
+    creditAmountR =
+      Number.isFinite(namedCreditR) && namedCreditR > 0
+        ? namedCreditR
+        : Math.max(0, gapR - discountAmount);
+  }
+  const sharesExceedGapR = gapR > tolR && discountAmount + creditAmountR > gapR + tolR;
   return {
-    needsDiscountChoice,
+    needsDiscountChoice: needsDiscountChoice && creditAmountR + discountAmount + tolR < gapR,
+    creditAmount: creditAmountR,
+    creditDueDateMissing:
+      creditAmountR > 0 && !String(form?.credit_due_date || '').trim(),
+    creditWithNothingOwing: wantCreditR && gapR <= tolR,
+    sharesExceedGap: sharesExceedGapR,
+    gap: gapR,
     needsRate: false,
     splitCurrency,
     crossCurrency,
@@ -799,6 +897,18 @@ export function buildCompleteSaleRequest(paymentFormData, meta, exchangeRate) {
     const disc = parseFloat(paymentFormData.balance_shortfall_amount);
     if (Number.isFinite(disc) && disc > 0) {
       requestData.balance_shortfall_amount = disc;
+    }
+  }
+  if (paymentFormData.apply_credit) {
+    requestData.apply_credit = true;
+    requestData.credit_due_date = String(paymentFormData.credit_due_date || '').trim();
+    // Sent only when the user actually named a share. Left off, the server credits the whole
+    // remainder after the discount and computes that figure from the due and payment it already
+    // holds — which is the number the balance sheet later removes on the other side, so a
+    // second opinion from here could only disagree with it.
+    const credit = parseFloat(paymentFormData.credit_amount);
+    if (Number.isFinite(credit) && credit > 0) {
+      requestData.credit_amount = credit;
     }
   }
   if (paymentFormData.apply_currency_conversion_difference) {
@@ -859,6 +969,11 @@ export function buildGroupCompleteRequests(groupSales, paymentFormData, meta, ex
   let changeUsdLeft = changeUsdIn;
 
   const applyGroupDiscount = paymentFormData.balance_shortfall_type === 'discount';
+  // Credit rides down to every line, and every line opens its own debt. That is deliberate:
+  // profit on a credit sale is recognized against that line's own cost, so a group cannot share
+  // one debt row without the payment split quietly deciding how much profit each line reports.
+  // The lines carry the same `sale_group`, which is what lets the UI show and settle them as one.
+  const applyGroupCredit = !!paymentFormData.apply_credit;
 
   return groupSales.map((sale, idx) => {
     const isLast = idx === groupSales.length - 1;
@@ -878,6 +993,11 @@ export function buildGroupCompleteRequests(groupSales, paymentFormData, meta, ex
       uzs: uzsShare > 0 ? String(uzsShare) : '',
       usd: usdShare > 0 ? String(usdShare) : '',
       balance_shortfall_type: applyGroupDiscount ? 'discount' : '',
+      apply_credit: applyGroupCredit,
+      // The named share is deliberately dropped per line: each line's debt is whatever is left
+      // of its own due after its own slice of the payment, which the server already computes.
+      // Sending the group's figure to every line would credit it once per line.
+      credit_amount: '',
       apply_change: wantChange && (changeUzsShare > 0 || changeUsdShare > 0),
       change_uzs: changeUzsShare > 0 ? String(changeUzsShare) : '',
       change_usd: changeUsdShare > 0 ? String(changeUsdShare) : '',

@@ -332,6 +332,42 @@ function courierChangeTotals(linesForGroup) {
   return { changeUzs, changeUsd };
 }
 
+/**
+ * Is the shortfall in front of the shop the *customer's*, or the courier's?
+ *
+ * At Step 2 the shop is remitting money the courier already took at the door, so a gap has two
+ * completely different meanings and only one of them is a debt the customer owes. If the shop is
+ * handing over everything the courier collected, whatever is still missing never arrived from
+ * the customer — that is a credit sale. If the shop is remitting *less* than he collected, the
+ * money exists and the courier is holding it; calling that a customer debt would record a debt
+ * against money the customer has already paid, and the shop would chase the wrong person.
+ *
+ * So credit is offered only on the first case. A line with nothing collected at all satisfies it
+ * too, which is right: the customer took delivery and paid nothing.
+ */
+function remittingWholeCollection(line, uzsEntered, usdEntered) {
+  const legs = collectionLegs(line);
+  return (
+    Math.abs((parseFloat(uzsEntered) || 0) - (legs.grossUzs || 0)) <= 1
+    && Math.abs((parseFloat(usdEntered) || 0) - (legs.grossUsd || 0)) <= 0.01
+  );
+}
+
+/** The same test for the collapsed trip form, whose one box covers every line at once. */
+function combinedRemitsWholeCollection(linesForGroup, combinedForm) {
+  const totals = (linesForGroup || []).reduce(
+    (acc, line) => {
+      const legs = collectionLegs(line);
+      return { uzs: acc.uzs + (legs.grossUzs || 0), usd: acc.usd + (legs.grossUsd || 0) };
+    },
+    { uzs: 0, usd: 0 },
+  );
+  return (
+    Math.abs((parseFloat(combinedForm?.uzs) || 0) - totals.uzs) <= 1
+    && Math.abs((parseFloat(combinedForm?.usd) || 0) - totals.usd) <= 0.01
+  );
+}
+
 /** Drop the measurement-only change legs before posting. See `applyCourierChangeToStep2Form`. */
 function stripFormChangeLegs(body) {
   const { apply_change: _a, change_uzs: _u, change_usd: _d, ...rest } = body;
@@ -565,6 +601,9 @@ export default function SaleDeliverySettlementForm({
     usd: '',
     balance_shortfall_type: '',
     balance_shortfall_amount: '',
+    apply_credit: false,
+    credit_amount: '',
+    credit_due_date: '',
     apply_currency_conversion_difference: false,
   });
   const [step2CombinedNote, setStep2CombinedNote] = useState('');
@@ -1046,6 +1085,9 @@ export default function SaleDeliverySettlementForm({
       ? {
           balance_shortfall_type: step2Combined.balance_shortfall_type,
           balance_shortfall_amount: step2Combined.balance_shortfall_amount,
+          apply_credit: step2Combined.apply_credit,
+          credit_amount: step2Combined.credit_amount,
+          credit_due_date: step2Combined.credit_due_date,
           apply_currency_conversion_difference: step2Combined.apply_currency_conversion_difference,
           apply_additional_profit: step2Combined.apply_additional_profit,
           currency_conversion_difference_amount:
@@ -1148,6 +1190,16 @@ export default function SaleDeliverySettlementForm({
         if (resolved.balance_shortfall_type === 'discount') {
           body.balance_shortfall_type = 'discount';
           body.balance_shortfall_amount = Math.round(shortfallTotal * ratio * 100) / 100;
+        }
+        // Unlike the discount, the credit is *not* split here. Each line's debt is whatever is
+        // left of its own due after its own share of the remittance, which the server already
+        // computes — splitting a group total by ratio would only produce a second, rounded
+        // opinion of the same figure for the balance sheet to disagree with.
+        if (resolved.apply_credit) {
+          body.apply_credit = true;
+          body.credit_due_date = resolved.credit_due_date;
+          // The named share is deliberately not split down: each line's debt is what is left of
+          // its own due after its own slice of the remittance, which the server computes.
         }
         if (resolved.apply_currency_conversion_difference) {
           body.apply_currency_conversion_difference = true;
@@ -1712,6 +1764,7 @@ export default function SaleDeliverySettlementForm({
                             return typeof fn === 'function' ? fn(base) : fn;
                           });
                         }}
+                        allowCredit={combinedRemitsWholeCollection(step2Lines, step2Combined)}
                         meta={computePaymentDifferenceMeta(
                           buildCombinedSaleForGroup(step2Lines),
                           applyCourierChangeToStep2Form(
@@ -1813,6 +1866,7 @@ export default function SaleDeliverySettlementForm({
                             }
                             meta={meta}
                             t={t}
+                            allowCredit={remittingWholeCollection(line, form.uzs, form.usd)}
                           />
                         </div>
                       )}

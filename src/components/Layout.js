@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { usePermissions } from '../hooks/usePermissions';
 import { getRoleDisplayName } from '../utils/permissions';
 import { translateMenuItems } from '../utils/i18nMenu';
+import NotificationBell from './NotificationBell';
 import './Layout.css';
 
 const MOBILE_BREAKPOINT = 768;
@@ -165,6 +166,14 @@ const Layout = () => {
             ☰
           </button>
         )}
+        {/*
+          A top bar rather than another nav entry, because a reminder is only useful when it is
+          in front of you whatever page you are on. The left nav is deliberately untouched.
+          It holds only the bell for now; it is the place anything else app-wide would go.
+        */}
+        <header className="app-topbar">
+          <NotificationBell />
+        </header>
         <Outlet />
       </main>
     </div>

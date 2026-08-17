@@ -247,3 +247,24 @@
     padding: 16px;
   }
 }
+
+/* App-wide top bar. Right-aligned and shallow: it must not push the page content down far
+   enough to matter, because every page below it was laid out before it existed. */
+.app-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 40px;
+  margin-bottom: 4px;
+}
+
+@media (max-width: 767px) {
+  /* The mobile hamburger floats at the top-left of .main-content, which already reserves
+     56px of padding for it. The bar sits inside that reserved band rather than below it, so
+     the bell and the menu button share one row instead of stacking. */
+  .layout--mobile .app-topbar {
+    min-height: 32px;
+    margin-top: -8px;
+  }
+}

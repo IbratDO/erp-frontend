@@ -1048,15 +1048,12 @@ const Orders = () => {
         showNotification(t('notifications.selectProductQty'), 'error');
         return;
       }
-      // Selling price is a plan, not a commitment - plenty of stock is ordered before anyone
-      // decides what it will go for, and the real price is set at the sale. Cost is different:
-      // the money is being spent now, so one of the two currencies has to say how much.
-      const costUsd = parseFloat(l.cost_usd_per_unit) || 0;
-      const costUzs = parseFloat(l.cost_uzs_per_unit) || 0;
-      if (!(costUsd > 0) && !(costUzs > 0)) {
-        showNotification(t('notifications.costRequired'), 'error');
-        return;
-      }
+      // Neither price is a commitment at this point. Selling price is a plan — plenty of
+      // stock is ordered before anyone decides what it will go for, and the real price is
+      // set at the sale. Cost is the same: the supplier's figure is often not settled when
+      // the order goes in, and the amount actually handed over is entered per line later at
+      // Pay Order, which is what the books use. Requiring a guess here only invited a wrong
+      // number that someone then had to remember to correct.
       if (!String(l.eshop || '').trim()) {
         showNotification(t('notifications.selectEshop'), 'error');
         return;
@@ -1504,6 +1501,9 @@ const Orders = () => {
       uzs: Number.isFinite(uzsNum) && uzsNum > 0 ? String(uzsNum) : '',
       usd: Number.isFinite(usdNum) && usdNum > 0 ? String(usdNum) : '',
       weight: Number.isFinite(weightNum) && weightNum > 0 ? String(weightNum) : '',
+      // Nothing arrived on this line, so there is no parcel to weigh — see the group form
+      // and cargo_allocation_utils.line_travelled for the same rule.
+      travelled: order.received_quantity == null || Number(order.received_quantity) > 0,
     });
     setShowCargoForm(true);
     setTimeout(() => cargoFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -1641,6 +1641,10 @@ const Orders = () => {
       // Settled lines still belong to the shipment and still count toward the weight split,
       // but their weight is history now — shown, not editable.
       cargoIsPaid: Boolean(o.cargo_is_paid),
+      // Freight is charged per RECEIVED unit, so a line where nothing arrived was never on
+      // the carrier's scales: it has no weight to give and takes no share of the bill. A
+      // line that has not been counted yet reads as fully received, so it is weighed as usual.
+      travelled: o.received_quantity == null || Number(o.received_quantity) > 0,
       paidUzs:
         (Number(o.cargo_payment_uzs_cash) || 0) + (Number(o.cargo_payment_uzs_card) || 0),
       paidUsd:
@@ -1658,8 +1662,12 @@ const Orders = () => {
     setTimeout(() => cargoGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
+  /** A line that never arrived weighs nothing here, whatever is still stored on it. */
+  const cargoGroupLineWeight = (line) =>
+    line?.travelled === false ? 0 : parseFloat(line?.weight) || 0;
+
   const sumLineWeights = (lines) =>
-    lines.reduce((sum, l) => sum + (parseFloat(l.weight) || 0), 0);
+    lines.reduce((sum, l) => sum + cargoGroupLineWeight(l), 0);
 
   /** Trailing zeros in a controlled numeric field are noise; keep it short. */
   const weightToInputValue = (n) => (n > 0 ? String(Number(n.toFixed(2))) : '');
@@ -1690,7 +1698,11 @@ const Orders = () => {
         return { ...prev, weightTotal: value };
       }
 
-      const editable = prev.lines.filter((l) => !cargoGroupLineLocked(l));
+      // Lines that never arrived are not weighed at all, so the shipment total is shared
+      // out only over the parcels that actually travelled.
+      const editable = prev.lines.filter(
+        (l) => !cargoGroupLineLocked(l) && l.travelled !== false,
+      );
       if (!editable.length) return { ...prev, weightTotal: value };
 
       const lockedSum = sumLineWeights(prev.lines.filter((l) => cargoGroupLineLocked(l)));
@@ -1710,7 +1722,7 @@ const Orders = () => {
           ? round2(available - used)
           : round2(
               currentSum > 0
-                ? (available * (parseFloat(l.weight) || 0)) / currentSum
+                ? (available * cargoGroupLineWeight(l)) / currentSum
                 : available / editable.length,
             );
         shares.set(l.orderId, share);
@@ -1749,17 +1761,21 @@ const Orders = () => {
     const totalUzs = enteredUzs + alreadyPaidUzs;
     const totalUsd = enteredUsd + alreadyPaidUsd;
 
-    const weights = lines.map((l) => parseFloat(l.weight) || 0);
+    const weights = lines.map((l) => cargoGroupLineWeight(l));
     const totalWeight = weights.reduce((sum, w) => sum + w, 0);
 
     const round2 = (n) => Math.round(n * 100) / 100;
     const perLine = lines.map(() => ({ uzs: 0, usd: 0 }));
+    // The rounding remainder goes to the last line that actually weighs something. Handing
+    // it to the last line outright would dump the whole bill on a parcel that never arrived
+    // whenever such a line happens to sit at the bottom of the list.
+    const absorber = weights.reduce((last, w, i) => (w > 0 ? i : last), -1);
 
     if (totalWeight > 0) {
       let usedUzs = 0;
       let usedUsd = 0;
       lines.forEach((_, i) => {
-        const isLast = i === lines.length - 1;
+        const isLast = i === absorber;
         perLine[i] = isLast
           ? { uzs: round2(totalUzs - usedUzs), usd: round2(totalUsd - usedUsd) }
           : {
@@ -1801,7 +1817,9 @@ const Orders = () => {
     e.preventDefault();
     // Locked lines already carry a stored weight, so they can never be the missing one.
     const missingWeight = cargoGroupData.lines.some(
-      (l) => !cargoGroupLineLocked(l) && !(l.weight !== '' && l.weight != null && Number(l.weight) > 0),
+      (l) => !cargoGroupLineLocked(l)
+        && l.travelled !== false
+        && !(l.weight !== '' && l.weight != null && Number(l.weight) > 0),
     );
     if (missingWeight) {
       showNotification(t('batch.errWeightRequiredForCargo', { ns: 'orders' }), 'error');
@@ -1820,7 +1838,7 @@ const Orders = () => {
     try {
       const weights = {};
       for (const l of cargoGroupData.lines) {
-        weights[l.orderId] = Number(l.weight);
+        weights[l.orderId] = cargoGroupLineWeight(l);
       }
       await api.post('/orders/pay_cargo_group/', {
         order_group: cargoGroupData.groupId,
@@ -2055,7 +2073,7 @@ const Orders = () => {
       const uzs = parseFloat(cargoFormData.uzs) || 0;
       const usd = parseFloat(cargoFormData.usd) || 0;
       const weight = parseFloat(cargoFormData.weight) || 0;
-      if (weight <= 0) {
+      if (weight <= 0 && cargoFormData.travelled !== false) {
         showNotification(t('notifications.cargoWeightRequired'), 'error');
         return;
       }
@@ -2937,17 +2955,26 @@ const Orders = () => {
               </div>
               <div className="form-group">
                 <label>
-                  {t('batch.weightKgTotal', { ns: 'orders' })} <span style={{ color: '#e53e3e' }}>*</span>
+                  {t('batch.weightKgTotal', { ns: 'orders' })}
+                  {cargoFormData.travelled !== false && (
+                    <span style={{ color: '#e53e3e' }}> *</span>
+                  )}
                 </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0.01"
-                  required
-                  placeholder="0.00"
-                  value={cargoFormData.weight}
-                  onChange={(e) => setCargoFormData({ ...cargoFormData, weight: e.target.value })}
-                />
+                {cargoFormData.travelled === false ? (
+                  <p style={{ color: '#999', margin: 0 }}>
+                    {t('batch.weightNotArrivedHint', { ns: 'orders' })}
+                  </p>
+                ) : (
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0.01"
+                    required
+                    placeholder="0.00"
+                    value={cargoFormData.weight}
+                    onChange={(e) => setCargoFormData({ ...cargoFormData, weight: e.target.value })}
+                  />
+                )}
               </div>
             </div>
             <div className="form-actions">
@@ -3126,7 +3153,11 @@ const Orders = () => {
                         )}
                       </td>
                       <td className="batch-sale-lines__td--num">
-                        {cargoGroupLineLocked(line) ? (
+                        {line.travelled === false ? (
+                          <span style={{ color: '#999' }} title={t('batch.weightNotArrivedHint', { ns: 'orders' })}>
+                            {t('batch.weightNotArrived', { ns: 'orders' })}
+                          </span>
+                        ) : cargoGroupLineLocked(line) ? (
                           <span>
                             {formatAppNumber(parseFloat(line.weight) || 0)}
                             <span

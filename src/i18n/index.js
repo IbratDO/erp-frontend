@@ -19,6 +19,8 @@ import uzFixedAssets from '../locales/uz/fixedAssets.json';
 import uzProfitLoss from '../locales/uz/profitLoss.json';
 import uzBalanceSheet from '../locales/uz/balanceSheet.json';
 import uzReceivables from '../locales/uz/receivables.json';
+import uzCreditSales from '../locales/uz/creditSales.json';
+import uzNotifications from '../locales/uz/notifications.json';
 import uzUsers from '../locales/uz/users.json';
 import uzAudit from '../locales/uz/audit.json';
 import uzPenalties from '../locales/uz/penalties.json';
@@ -43,6 +45,8 @@ import enFixedAssets from '../locales/en/fixedAssets.json';
 import enProfitLoss from '../locales/en/profitLoss.json';
 import enBalanceSheet from '../locales/en/balanceSheet.json';
 import enReceivables from '../locales/en/receivables.json';
+import enCreditSales from '../locales/en/creditSales.json';
+import enNotifications from '../locales/en/notifications.json';
 import enUsers from '../locales/en/users.json';
 import enAudit from '../locales/en/audit.json';
 import enPenalties from '../locales/en/penalties.json';
@@ -72,6 +76,8 @@ const resources = {
     profitLoss: uzProfitLoss,
     balanceSheet: uzBalanceSheet,
     receivables: uzReceivables,
+    creditSales: uzCreditSales,
+    notifications: uzNotifications,
     users: uzUsers,
     audit: uzAudit,
     penalties: uzPenalties,
@@ -97,6 +103,8 @@ const resources = {
     profitLoss: enProfitLoss,
     balanceSheet: enBalanceSheet,
     receivables: enReceivables,
+    creditSales: enCreditSales,
+    notifications: enNotifications,
     users: enUsers,
     audit: enAudit,
     penalties: enPenalties,

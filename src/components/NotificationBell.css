@@ -1,0 +1,140 @@
+/* The bell and its dropdown. Lives in the top bar; the left nav is untouched. */
+
+.notif {
+  position: relative;
+}
+
+.notif-bell {
+  position: relative;
+  border: none;
+  background: transparent;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.notif-bell:hover {
+  background: #f1f3f5;
+}
+
+.notif-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: #dc3545;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 18px;
+  text-align: center;
+}
+
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 1200;
+  overflow: hidden;
+}
+
+.notif-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid #eee;
+  font-size: 0.95rem;
+}
+
+.notif-link-btn {
+  border: none;
+  background: transparent;
+  color: #0d6efd;
+  cursor: pointer;
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.notif-link-btn:hover {
+  text-decoration: underline;
+}
+
+/* Capped so a shop with many open debts gets a scrollable glance, not a page-length dropdown. */
+.notif-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.notif-empty {
+  margin: 0;
+  padding: 18px 12px;
+  color: #666;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.notif-item {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  width: 100%;
+  padding: 10px 12px 10px 14px;
+  border: none;
+  border-bottom: 1px solid #f2f2f2;
+  /* The level shows as a stripe rather than a fill: a panel of solid red blocks is harder to
+     read than white rows that are individually flagged. */
+  border-left: 4px solid transparent;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.notif-item:hover {
+  background: #f8f9fa;
+}
+
+.notif-item--warning {
+  border-left-color: #ffc107;
+}
+
+.notif-item--danger {
+  border-left-color: #dc3545;
+}
+
+.notif-item--info {
+  border-left-color: #0d6efd;
+}
+
+/* Read notices stay in the list — they are still true — but stop competing for attention. */
+.notif-item--read {
+  background: #fbfbfb;
+  color: #6c757d;
+}
+
+.notif-item-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.notif-item--read .notif-item-title {
+  font-weight: 500;
+}
+
+.notif-item-body {
+  font-size: 0.82rem;
+  color: #6c757d;
+}

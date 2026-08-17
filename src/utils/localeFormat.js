@@ -18,6 +18,19 @@ export function formatAppDate(date, options = {}) {
   return d.toLocaleDateString(getAppLocale(), options);
 }
 
+/**
+ * A plain `YYYY-MM-DD` as a local `Date`, with no timezone shift.
+ *
+ * `new Date('2026-09-01')` reads the string as UTC midnight, so a browser west of Greenwich
+ * renders it as 31 August — a due date that moves by a day depending on where you open the
+ * page. The parts constructor is local, which is what a calendar date means.
+ */
+export function dateOnlyToLocalDate(iso) {
+  if (!iso) return null;
+  const [y, m, d] = String(iso).slice(0, 10).split('-').map(Number);
+  return y && m && d ? new Date(y, m - 1, d) : null;
+}
+
 /** Fixed app-wide date/time format: DD/MM/YYYY, HH:MM:SS (24h) — deliberately not
  * locale-dependent, so it stays identical across every page regardless of UI language
  * or browser locale (unlike `toLocaleString`, which flips to MM/DD/YYYY + AM/PM under

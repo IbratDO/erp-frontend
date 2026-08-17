@@ -32,6 +32,7 @@ import {
   computeReservedPaymentMeta,
   buildSplitCurrencyConfirmMessage,
   buildAdditionalProfitConfirmMessage,
+  buildCreditConfirmMessage,
   uzsToUsd,
   usdToUzs,
 } from '../utils/saleCompletePayHelpers';
@@ -169,7 +170,7 @@ function renderSaleQuantityCell(quantity, orderedQuantity, t) {
 }
 
 function saleRowBackground(sale) {
-  if (sale.balance_shortfall_type === 'on_credit') return '#ffebee';
+  if (parseFloat(sale.credit_amount) > 0 || sale.balance_shortfall_type === 'on_credit') return '#ffebee';
   if (sale.balance_shortfall_type === 'discount') return '#fff3e0';
   return undefined;
 }
@@ -187,7 +188,7 @@ function renderDiscountCreditCell(sale, t) {
         sale.balance_shortfall_currency || sale.sale_currency || 'USD'
       )}`
     );
-  } else if (sale.balance_shortfall_type === 'on_credit' && sale.balance_shortfall_amount) {
+  } else if (parseFloat(sale.credit_amount) > 0) {
     parts.push(
       `${t('discount.onCredit')}: ${formatDisplayAmount(
         sale.balance_shortfall_amount,
@@ -1001,6 +1002,9 @@ const Sales = () => {
     usd: '',
     balance_shortfall_type: '',
     balance_shortfall_amount: '',
+    apply_credit: false,
+    credit_amount: '',
+    credit_due_date: '',
     apply_currency_conversion_difference: false,
     apply_additional_profit: false,
   });
@@ -1028,6 +1032,9 @@ const Sales = () => {
     // silent customer debt (see ShortfallClassificationFields).
     balance_shortfall_type: '',
     balance_shortfall_amount: '',
+    apply_credit: false,
+    credit_amount: '',
+    credit_due_date: '',
     apply_currency_conversion_difference: false,
     apply_change: false,
     change_uzs: '',
@@ -1323,6 +1330,9 @@ const Sales = () => {
         deposit_currency: 'USD',
         balance_shortfall_type: '',
         balance_shortfall_amount: '',
+        apply_credit: false,
+        credit_amount: '',
+        credit_due_date: '',
         apply_currency_conversion_difference: false,
         apply_change: false,
         change_uzs: '',
@@ -1356,6 +1366,9 @@ const Sales = () => {
         // Each line settles on its own, so a shortfall is classified per line too.
         balance_shortfall_type: '',
         balance_shortfall_amount: '',
+        apply_credit: false,
+        credit_amount: '',
+        credit_due_date: '',
         apply_currency_conversion_difference: false,
         apply_change: false,
         change_uzs: '',
@@ -1434,6 +1447,9 @@ const Sales = () => {
             usd: line.usd,
             balance_shortfall_type: line.balance_shortfall_type,
             balance_shortfall_amount: line.balance_shortfall_amount,
+            apply_credit: line.apply_credit,
+            credit_amount: line.credit_amount,
+            credit_due_date: line.credit_due_date,
             apply_currency_conversion_difference: line.apply_currency_conversion_difference,
             apply_change: line.apply_change,
             change_uzs: line.change_uzs,
@@ -1456,6 +1472,17 @@ const Sales = () => {
         if (!isUnderpaidMeta(meta)) continue;
         if (line.balance_shortfall_type === 'discount' && !(parseFloat(line.balance_shortfall_amount) > 0)) {
           showNotification(t('completePay.errDiscountAmount'), 'error');
+          return;
+        }
+        // Checked here rather than at the request builder for the same reason the discount is:
+        // the backend runs the group in one transaction, so one line rejected halfway rolls
+        // every other line back.
+        if (meta.creditDueDateMissing) {
+          showNotification(t('completePay.errCreditDueDate'), 'error');
+          return;
+        }
+        if (meta.creditConflictsFx) {
+          showNotification(t('completePay.errCreditWithFx'), 'error');
           return;
         }
         if (meta.differenceNeedsClassification) {
@@ -1486,6 +1513,18 @@ const Sales = () => {
                 balance_shortfall_type: 'discount',
                 ...(Number.isFinite(discount) && discount > 0
                   ? { balance_shortfall_amount: discount }
+                  : {}),
+              }
+              : {}),
+            // The named share is sent when the user gave one; otherwise the server credits
+            // whatever is left of *this line's* due after its own discount, which is the figure
+            // the balance sheet later removes on the other side.
+            ...(l.apply_credit
+              ? {
+                apply_credit: true,
+                credit_due_date: l.credit_due_date || '',
+                ...(parseFloat(l.credit_amount) > 0
+                  ? { credit_amount: parseFloat(l.credit_amount) }
                   : {}),
               }
               : {}),
@@ -1568,6 +1607,9 @@ const Sales = () => {
             usd: completeFromOrderData.now_usd,
             balance_shortfall_type: completeFromOrderData.balance_shortfall_type,
             balance_shortfall_amount: completeFromOrderData.balance_shortfall_amount,
+            apply_credit: completeFromOrderData.apply_credit,
+            credit_amount: completeFromOrderData.credit_amount,
+            credit_due_date: completeFromOrderData.credit_due_date,
             apply_currency_conversion_difference:
               completeFromOrderData.apply_currency_conversion_difference,
             apply_change: completeFromOrderData.apply_change,
@@ -1597,8 +1639,26 @@ const Sales = () => {
                 : {}),
             }
             : {}),
+          ...(flow.requestData.apply_credit
+            ? {
+              apply_credit: true,
+              credit_due_date: flow.requestData.credit_due_date,
+              ...(flow.requestData.credit_amount != null
+                ? { credit_amount: flow.requestData.credit_amount }
+                : {}),
+            }
+            : {}),
           ...(flow.requestData.apply_currency_conversion_difference
             ? { apply_currency_conversion_difference: true }
+            : {}),
+          ...(flow.requestData.apply_credit
+            ? {
+              apply_credit: true,
+              credit_due_date: flow.requestData.credit_due_date,
+              ...(flow.requestData.credit_amount != null
+                ? { credit_amount: flow.requestData.credit_amount }
+                : {}),
+            }
             : {}),
           ...(flow.requestData.change_uzs != null
             ? { change_uzs: flow.requestData.change_uzs }
@@ -1628,6 +1688,15 @@ const Sales = () => {
             balance_shortfall_type: paymentPayload.balance_shortfall_type,
             ...(paymentPayload.balance_shortfall_amount != null
               ? { balance_shortfall_amount: paymentPayload.balance_shortfall_amount }
+              : {}),
+          }
+          : {}),
+        ...(paymentPayload.apply_credit
+          ? {
+            apply_credit: true,
+            credit_due_date: paymentPayload.credit_due_date,
+            ...(paymentPayload.credit_amount != null
+              ? { credit_amount: paymentPayload.credit_amount }
               : {}),
           }
           : {}),
@@ -1777,7 +1846,9 @@ const Sales = () => {
       );
       const uzsT = parseFloat(sellReservedData.uzs) || 0;
       const usdT = parseFloat(sellReservedData.usd) || 0;
-      if (uzsT + usdT === 0) {
+      // The one settlement that legitimately arrives with nothing: the customer takes the
+      // reserved item and owes the balance after their deposit.
+      if (uzsT + usdT === 0 && !sellReservedData.apply_credit) {
         showNotification(t('sellReserved.errPayment'), 'error');
         return;
       }
@@ -1808,12 +1879,34 @@ const Sales = () => {
       }
       const wantDisc = sellReservedData.balance_shortfall_type === 'discount';
       const wantFx = !!sellReservedData.apply_currency_conversion_difference;
+      const wantCredit = !!sellReservedData.apply_credit;
       const discAmt = parseFloat(sellReservedData.balance_shortfall_amount) || 0;
       if (wantDisc && discAmt <= 0) {
         showNotification(t('completePay.errDiscountAmount'), 'error');
         return;
       }
-      if (meta.needsDiscountChoice && !wantDisc && !wantFx) {
+      if (wantCredit) {
+        if (meta.creditWithNothingOwing) {
+          showNotification(t('completePay.errCreditNothingOwing'), 'error');
+          return;
+        }
+        if (meta.sharesExceedGap) {
+          showNotification(t('completePay.errSharesExceedGap'), 'error');
+          return;
+        }
+        if (meta.creditDueDateMissing) {
+          showNotification(t('completePay.errCreditDueDate'), 'error');
+          return;
+        }
+        if (
+          !window.confirm(
+            buildCreditConfirmMessage(meta, sellReservedData.credit_due_date),
+          )
+        ) {
+          return;
+        }
+      }
+      if (meta.needsDiscountChoice && !wantDisc && !wantFx && !wantCredit) {
         showNotification(t('completePay.errShortfall'), 'error');
         return;
       }
@@ -1850,6 +1943,14 @@ const Sales = () => {
       if (wantFx) {
         payload.apply_currency_conversion_difference = true;
       }
+      if (wantCredit) {
+        payload.apply_credit = true;
+        payload.credit_due_date = String(sellReservedData.credit_due_date || '').trim();
+        const namedCredit = parseFloat(sellReservedData.credit_amount);
+        if (Number.isFinite(namedCredit) && namedCredit > 0) {
+          payload.credit_amount = namedCredit;
+        }
+      }
       const overpayTol = meta.sc === 'UZS' ? 1 : 0.005;
       const isOverpay = meta.paid != null && meta.due != null && meta.paid - meta.due > overpayTol;
       if (isOverpay && !wantDisc && !wantFx) {
@@ -1871,6 +1972,7 @@ const Sales = () => {
         saleId: null, uzs: '', usd: '', balance_shortfall_type: '',
         balance_shortfall_amount: '', apply_currency_conversion_difference: false,
         apply_additional_profit: false,
+        apply_credit: false, credit_amount: '', credit_due_date: '',
         apply_change: false, change_uzs: '', change_usd: '',
       });
       fetchSales();
@@ -1891,6 +1993,11 @@ const Sales = () => {
     sellReservedExchangeRate?.rate ?? null,
     sellReservedData,
   );
+  // Offered whenever anything is still owing, not only once a payment has come up short.
+  const sellReservedCreditAvailable =
+    sellReservedSaleForForm != null
+    && sellReservedPayMeta.gap != null
+    && sellReservedPayMeta.gap > (sellReservedPayMeta.sc === 'UZS' ? 1 : 0.005);
   // Same rule as Complete & Pay: keyed off the gross surplus, so the panel does not vanish the
   // moment the change entered in it makes the payment read as exact.
   const sellReservedChangeAvailable = !!sellReservedSaleForForm && (
@@ -2551,6 +2658,7 @@ const Sales = () => {
                       setForm={setCompleteFromOrderData}
                       meta={meta}
                       t={t}
+                      allowCredit
                     />
                   </div>
                 );
@@ -2570,6 +2678,7 @@ const Sales = () => {
                     saleId: null, customer: '', selling_price: '', sale_type: 'bought_from_shop',
                     now_uzs: '', now_usd: '', deposit_received: false, deposit_amount: '', deposit_currency: 'USD',
                     balance_shortfall_type: '', balance_shortfall_amount: '',
+                    apply_credit: false, credit_amount: '', credit_due_date: '',
                     apply_currency_conversion_difference: false,
                     apply_change: false, change_uzs: '', change_usd: '',
                   });
@@ -2790,6 +2899,7 @@ const Sales = () => {
                         setForm={setLine}
                         meta={meta}
                         t={t}
+                        allowCredit
                       />
                     )}
                   </div>
@@ -2961,6 +3071,70 @@ const Sales = () => {
                     />
                     <span>{t('completePay.conversionDifferenceOption')}</span>
                   </label>
+                </div>
+              )}
+              {/*
+                Outside the shortfall block, and gated only on there being something owing: a
+                reserved item taken wholly on credit is settled with no money at all, which the
+                shortfall prompt never sees because it only appears once a payment has been
+                typed and come up short.
+              */}
+              {sellReservedCreditAvailable && (
+                <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                  <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={!!sellReservedData.apply_credit}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setSellReservedData({
+                          ...sellReservedData,
+                          apply_credit: checked,
+                          credit_amount: checked ? sellReservedData.credit_amount : '',
+                          credit_due_date: checked ? sellReservedData.credit_due_date : '',
+                        });
+                      }}
+                    />
+                    <span>{t('completePay.creditOption')}</span>
+                  </label>
+                  {sellReservedData.apply_credit && (
+                    <div style={{ marginTop: 10, maxWidth: 280 }}>
+                      <label style={{ display: 'block', marginBottom: 4, fontSize: '0.9em' }}>
+                        {t('completePay.creditAmountLabel', { currency: sellReservedPayMeta.sc })}
+                      </label>
+                      <AmountInput
+                        step={sellReservedPayMeta.sc === 'UZS' ? '1' : '0.01'}
+                        placeholder={
+                          sellReservedPayMeta.creditAmount
+                            ? (sellReservedPayMeta.sc === 'UZS'
+                              ? String(Math.round(sellReservedPayMeta.creditAmount))
+                              : sellReservedPayMeta.creditAmount.toFixed(2))
+                            : '0'
+                        }
+                        value={sellReservedData.credit_amount ?? ''}
+                        onChange={(e) =>
+                          setSellReservedData({ ...sellReservedData, credit_amount: e.target.value })
+                        }
+                      />
+                      <small style={{ color: '#666', marginTop: 5, display: 'block' }}>
+                        {t('completePay.creditAmountHint')}
+                      </small>
+                      <label style={{ display: 'block', marginTop: 10, marginBottom: 4, fontSize: '0.9em' }}>
+                        {t('completePay.creditDueDateLabel')}
+                      </label>
+                      <input
+                        type="date"
+                        value={sellReservedData.credit_due_date ?? ''}
+                        onChange={(e) =>
+                          setSellReservedData({ ...sellReservedData, credit_due_date: e.target.value })
+                        }
+                        required
+                      />
+                      <small style={{ color: '#666', marginTop: 5, display: 'block' }}>
+                        {t('completePay.creditDueDateHint')}
+                      </small>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

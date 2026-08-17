@@ -1,0 +1,15 @@
+{
+  "title": "Notifications",
+  "empty": "Nothing new.",
+  "markAllRead": "Mark all as read",
+  "kinds": {
+    "credit_due_soon": {
+      "title": "{{customer}} — payment due soon",
+      "body": "{{amount}} · {{dueDate}} · sale #{{saleId}}"
+    },
+    "credit_overdue": {
+      "title": "{{customer}} — payment overdue",
+      "body": "{{amount}} · {{days}} days late · sale #{{saleId}}"
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "title": "Bildirishnomalar",
+  "empty": "Yangi bildirishnoma yo‘q.",
+  "markAllRead": "Hammasini o‘qilgan deb belgilash",
+  "kinds": {
+    "credit_due_soon": {
+      "title": "{{customer}} — qarz to‘lovi yaqin",
+      "body": "{{amount}} · {{dueDate}} · sotuv #{{saleId}}"
+    },
+    "credit_overdue": {
+      "title": "{{customer}} — qarz muddati o‘tdi",
+      "body": "{{amount}} · {{days}} kun kechikkan · sotuv #{{saleId}}"
+    }
+  }
+}

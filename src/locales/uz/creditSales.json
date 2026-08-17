@@ -1,0 +1,75 @@
+{
+  "title": "Nasiya savdolar",
+  "intro": "Mahsulot mijozga qarzga berilgan savdolar. Pul kelib tushgan sari qarz kamayadi; foyda esa tannarx qoplangandan keyin hisoblanadi.",
+  "filters": {
+    "title": "Filtrlar",
+    "scope": "Ko‘rinish",
+    "scopeOpen": "Faqat ochiq qarzlar",
+    "scopeAll": "Barchasi",
+    "status": "Holat",
+    "statusAny": "Barcha holatlar",
+    "search": "Qidiruv",
+    "searchPlaceholder": "Mijoz, mahsulot yoki ID"
+  },
+  "status": {
+    "unpaid": "To‘lanmagan",
+    "partial": "Qisman to‘langan",
+    "paid": "To‘liq to‘langan",
+    "waived": "Qarz kechirilgan"
+  },
+  "due": {
+    "overdueBy": "{{days}} kun kechikkan",
+    "inDays": "{{days}} kun qoldi"
+  },
+  "table": {
+    "title": "Qarzlar ro‘yxati",
+    "empty": "Nasiya savdolar topilmadi.",
+    "id": "ID",
+    "sale": "Sotuv",
+    "customer": "Mijoz",
+    "product": "Mahsulot",
+    "status": "Holat",
+    "principal": "Jami qarz",
+    "paid": "To‘langan",
+    "remaining": "Qolgan",
+    "due": "To‘lov sanasi",
+    "actions": "Amallar",
+    "history": "Tarix",
+    "hideHistory": "Yopish",
+    "collect": "To‘lov qabul qilish",
+    "waive": "Kechirish",
+    "totalsLine": "jami {{principal}} · to‘langan {{paid}} · qolgan {{remaining}}"
+  },
+  "collect": {
+    "title": "Nasiya to‘lovi #{{id}}",
+    "hint": "{{customer}} qarzidan qolgani: {{amount}}. Qisman to‘lov ham qabul qilinadi.",
+    "amount": "To‘lov summasi ({{currency}})",
+    "notes": "Izoh (ixtiyoriy)",
+    "record": "To‘lovni yozish",
+    "recorded": "To‘lov qayd etildi."
+  },
+  "waive": {
+    "title": "Qarzni kechirish #{{id}}",
+    "hint": "Qolgan {{amount}} qarz hisobdan chiqariladi. Pul kirmaydi — qoplanmagan tannarx zarar sifatida yoziladi.",
+    "reason": "Sabab",
+    "reasonHint": "Majburiy. Bu amal balansni o‘zgartiradi, shuning uchun sababi yozuvda qoladi.",
+    "record": "Qarzni kechirish",
+    "confirm": "{{customer}} ning {{amount}} qarzi kechirilsinmi? Bu amalni qaytarib bo‘lmaydi.",
+    "done": "Qarz kechirildi."
+  },
+  "history": {
+    "empty": "Hali to‘lov qilinmagan.",
+    "paidAt": "Sana",
+    "amount": "Summa",
+    "remainingAfter": "Qolgan qarz",
+    "by": "Kim qabul qildi",
+    "notes": "Izoh",
+    "waived": "{{at}} da {{amount}} kechirilgan. Sabab: {{reason}}"
+  },
+  "errors": {
+    "generic": "Amalni bajarishda xatolik.",
+    "amountRequired": "To‘lov summasini kiriting.",
+    "amountExceeds": "To‘lov qolgan qarzdan ({{balance}}) oshmasligi kerak.",
+    "reasonRequired": "Kechirish sababini kiriting."
+  }
+}
