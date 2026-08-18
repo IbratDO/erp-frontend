@@ -166,6 +166,46 @@ describe('useBusy', () => {
     expect(value).toEqual({ id: 7 });
   });
 
+  test('it still releases the button under StrictMode', async () => {
+    // React runs every effect twice in development — mount, unmount, mount again — on the same
+    // hook state. This is the app's real configuration (index.js wraps everything in
+    // StrictMode), and it is what made every button in the shop stick on 'Yuklanmoqda...' after
+    // one click: the simulated unmount left the alive flag false, so the release was skipped.
+    const seen = { busy: null, run: null };
+    function Probe() {
+      const [busy, run] = useBusy();
+      seen.busy = busy;
+      seen.run = run;
+      return <span>{busy ? 'busy' : 'idle'}</span>;
+    }
+    const container = document.createElement('div');
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    act(() => {
+      root.render(
+        <React.StrictMode>
+          <Probe />
+        </React.StrictMode>,
+      );
+    });
+
+    const gate = deferred();
+    let attempt;
+    act(() => {
+      attempt = seen.run(() => gate.promise);
+    });
+    expect(container.textContent).toBe('busy');
+
+    await act(async () => {
+      gate.resolve();
+      await attempt;
+    });
+    expect(container.textContent).toBe('idle');
+
+    act(() => root.unmount());
+    container.remove();
+  });
+
   test('a form that closes itself mid-flight does not warn', async () => {
     const seen = setup();
     const gate = deferred();

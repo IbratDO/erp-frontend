@@ -14,6 +14,8 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppNumber, formatAppDateTime } from '../utils/localeFormat';
 import FormSearchableSelect from '../components/FormSearchableSelect';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 const saleReadyToComplete = (sale) => !!(sale && sale.status === 'dispatched');
 
@@ -575,7 +577,7 @@ const Dispatchers = () => {
       {showForm && canManagePartners && formData.id && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('form.editTitle')}</h2>
-          <form onSubmit={handleDispatcherSubmit}>
+          <BusyForm onSubmit={handleDispatcherSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('form.name')} *</label>
@@ -618,11 +620,11 @@ const Dispatchers = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.save', { ns: 'common' })}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -679,9 +681,9 @@ const Dispatchers = () => {
                     <button type="button" className="btn-edit" onClick={() => handleEditDispatcher(btsFromApi)}>
                       {t('actions.edit', { ns: 'common' })}
                     </button>{' '}
-                    <button type="button" className="btn-delete" onClick={() => handleDeleteDispatcher(btsFromApi.id)}>
+                    <ActionButton type="button" className="btn-delete" onClick={() => handleDeleteDispatcher(btsFromApi.id)}>
                       {t('actions.delete', { ns: 'common' })}
-                    </button>
+                    </ActionButton>
                   </td>
                 </tr>
               ) : (
@@ -712,14 +714,14 @@ const Dispatchers = () => {
                   <td>—</td>
                   <td onClick={(e) => e.stopPropagation()}>
                     {canManagePartners ? (
-                      <button
+                      <ActionButton
                         type="button"
                         className="btn-primary"
                         onClick={handleRestoreBtsPartner}
                         style={{ fontSize: '0.9em' }}
                       >
                         {t('partners.restoreBts')}
-                      </button>
+                      </ActionButton>
                     ) : (
                       '—'
                     )}
@@ -770,9 +772,9 @@ const Dispatchers = () => {
                           <button type="button" className="btn-edit" onClick={() => handleEditDispatcher(d)}>
                             {t('actions.edit', { ns: 'common' })}
                           </button>{' '}
-                          <button type="button" className="btn-delete" onClick={() => handleDeleteDispatcher(d.id)}>
+                          <ActionButton type="button" className="btn-delete" onClick={() => handleDeleteDispatcher(d.id)}>
                             {t('actions.delete', { ns: 'common' })}
-                          </button>
+                          </ActionButton>
                         </>
                       )}
                     </td>

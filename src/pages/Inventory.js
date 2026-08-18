@@ -23,6 +23,7 @@ import {
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 
 const EMPTY_FORM = {
   product: '',
@@ -412,7 +413,7 @@ const Inventory = () => {
       {showForm && canAddInventory && (
         <div className="form-card">
           <h2>{t('newItem')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>
@@ -597,11 +598,11 @@ const Inventory = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('form.create')}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 

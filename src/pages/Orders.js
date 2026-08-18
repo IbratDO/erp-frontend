@@ -38,6 +38,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import AmountInput from '../components/AmountInput';
+import orderLineTravelled from '../utils/cargoLineTravelled';
 import ActionButton from '../components/ActionButton';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import FilterPanel from '../components/FilterPanel';
@@ -1518,9 +1519,9 @@ const Orders = () => {
       uzs: Number.isFinite(uzsNum) && uzsNum > 0 ? String(uzsNum) : '',
       usd: Number.isFinite(usdNum) && usdNum > 0 ? String(usdNum) : '',
       weight: Number.isFinite(weightNum) && weightNum > 0 ? String(weightNum) : '',
-      // Nothing arrived on this line, so there is no parcel to weigh — see the group form
-      // and cargo_allocation_utils.line_travelled for the same rule.
-      travelled: order.received_quantity == null || Number(order.received_quantity) > 0,
+      // Whether there is a parcel to weigh at all — see utils/cargoLineTravelled, which is
+      // the browser's copy of cargo_allocation_utils.line_travelled.
+      travelled: orderLineTravelled(order, orders),
     });
     setShowCargoForm(true);
     setTimeout(() => cargoFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -1664,10 +1665,10 @@ const Orders = () => {
       // Settled lines still belong to the shipment and still count toward the weight split,
       // but their weight is history now — shown, not editable.
       cargoIsPaid: Boolean(o.cargo_is_paid),
-      // Freight is charged per RECEIVED unit, so a line where nothing arrived was never on
-      // the carrier's scales: it has no weight to give and takes no share of the bill. A
-      // line that has not been counted yet reads as fully received, so it is weighed as usual.
-      travelled: o.received_quantity == null || Number(o.received_quantity) > 0,
+      // Freight is charged per RECEIVED unit, and only for goods that are actually here:
+      // a line still at the supplier has never been on the carrier's scales and is not on
+      // this parcel's bill. See utils/cargoLineTravelled.
+      travelled: orderLineTravelled(o, orders),
       paidUzs:
         (Number(o.cargo_payment_uzs_cash) || 0) + (Number(o.cargo_payment_uzs_card) || 0),
       paidUsd:

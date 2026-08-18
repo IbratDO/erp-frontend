@@ -8,6 +8,7 @@ import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
 import FormSearchableSelect from '../components/FormSearchableSelect';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 
 /** Types that name an owner and move that owner's share — mirrors
  *  `EquityTransaction.OWNER_ATTRIBUTED_TYPES` on the backend. A withdrawal is drawings and
@@ -164,7 +165,7 @@ const Equity = () => {
       {showForm && isAdmin && (
         <div className="form-card" style={{ marginBottom: 16 }}>
           <h2>{t('form.title')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('form.type')}</label>
@@ -236,9 +237,9 @@ const Equity = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">{t('actions.save', { ns: 'common' })}</button>
+              <SubmitButton className="btn-primary">{t('actions.save', { ns: 'common' })}</SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 

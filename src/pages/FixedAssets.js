@@ -8,6 +8,8 @@ import PageTitle from '../components/PageTitle';
 import { formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 const CATEGORY_VALUES = [
   'vehicle',
@@ -299,7 +301,7 @@ const FixedAssets = () => {
       {showForm && isAdmin && (
         <div className="form-card" style={{ marginBottom: 16 }}>
           <h2>{t('form.newTitle')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('form.assetName')}</label>
@@ -367,18 +369,18 @@ const FixedAssets = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {form.pay_immediately ? t('form.payNowReceiveLater') : t('form.createPurchaseOrder')}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
       {showPaymentForm && (
         <div className="form-card" style={{ marginBottom: 16 }}>
           <h2>{paymentTitle()}</h2>
-          <form onSubmit={handlePaymentSubmit}>
+          <BusyForm onSubmit={handlePaymentSubmit}>
             {paymentForm.action !== 'receive' && (
               <div className="form-grid">
                 <div className="form-group">
@@ -417,7 +419,7 @@ const FixedAssets = () => {
               </div>
             )}
             <div className="form-actions" style={{ marginTop: 12 }}>
-              <button type="submit" className="btn-primary">{t('payment.confirm')}</button>
+              <SubmitButton className="btn-primary">{t('payment.confirm')}</SubmitButton>
               <button
                 type="button"
                 className="btn-secondary"
@@ -429,7 +431,7 @@ const FixedAssets = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -516,14 +518,14 @@ const FixedAssets = () => {
                           </button>
                         )}
                         {showReceive && (
-                          <button
+                          <ActionButton
                             type="button"
                             className="btn-status"
                             style={{ marginRight: 4 }}
                             onClick={() => handleReceive(a)}
                           >
                             {t('actions.receive')}
-                          </button>
+                          </ActionButton>
                         )}
                         {onBooks && (
                           <>
@@ -535,24 +537,24 @@ const FixedAssets = () => {
                             >
                               {t('actions.sell')}
                             </button>
-                            <button
+                            <ActionButton
                               type="button"
                               className="btn-status"
                               style={{ marginRight: 4 }}
                               onClick={() => handleWriteOff(a)}
                             >
                               {t('actions.writeOff')}
-                            </button>
+                            </ActionButton>
                           </>
                         )}
                         {canDelete && (
-                          <button
+                          <ActionButton
                             type="button"
                             className="btn-status"
                             onClick={() => handleDelete(a)}
                           >
                             {t('actions.remove')}
-                          </button>
+                          </ActionButton>
                         )}
                       </td>
                     )}

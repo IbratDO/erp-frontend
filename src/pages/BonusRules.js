@@ -9,6 +9,8 @@ import { formatAppDateTime } from '../utils/localeFormat';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 const emptyRule = () => ({
   user: '',
@@ -135,7 +137,7 @@ const BonusRules = () => {
       {showForm && canManage && (
         <div className="form-card" style={{ marginBottom: 16 }}>
           <h2>{editingId ? t('form.editTitle') : t('form.newTitle')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <label>
                 {t('form.salesManager')}
@@ -197,10 +199,10 @@ const BonusRules = () => {
               </label>
             </div>
             <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-              <button type="submit" className="btn-primary">{t('actions.save', { ns: 'common' })}</button>
+              <SubmitButton className="btn-primary">{t('actions.save', { ns: 'common' })}</SubmitButton>
               <button type="button" className="btn-edit" onClick={() => setShowForm(false)}>{t('actions.cancel', { ns: 'common' })}</button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -232,7 +234,7 @@ const BonusRules = () => {
                     <td>
                       <button type="button" className="btn-edit" onClick={() => openEdit(r)}>{t('actions.edit', { ns: 'common' })}</button>
                       {' '}
-                      <button type="button" className="btn-delete" onClick={() => handleDelete(r.id)}>{t('actions.delete', { ns: 'common' })}</button>
+                      <ActionButton type="button" className="btn-delete" onClick={() => handleDelete(r.id)}>{t('actions.delete', { ns: 'common' })}</ActionButton>
                     </td>
                   )}
                 </tr>

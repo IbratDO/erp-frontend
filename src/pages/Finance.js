@@ -17,6 +17,8 @@ import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 const EXPENSE_TYPE_VALUES = [
   'salary', 'lunch', 'taxi', 'office_supplies', 'utilities', 'rent', 'delivery', 'cargo', 'smm', 'other',
@@ -362,7 +364,7 @@ const Finance = () => {
       {showExpenseForm && canCreateExpense && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('expenseForm.title')}</h2>
-          <form onSubmit={handleExpenseSubmit}>
+          <BusyForm onSubmit={handleExpenseSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('expenseForm.expenseType')}</label>
@@ -457,18 +459,18 @@ const Finance = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('expenseForm.submit')}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
       {showIncomeForm && canCreateIncome && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('incomeForm.title')}</h2>
-          <form onSubmit={handleIncomeSubmit}>
+          <BusyForm onSubmit={handleIncomeSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('incomeForm.currency')}</label>
@@ -513,9 +515,9 @@ const Finance = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">{t('incomeForm.submit')}</button>
+              <SubmitButton className="btn-primary">{t('incomeForm.submit')}</SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -735,9 +737,9 @@ const Finance = () => {
                     {canCreateManual && (
                       <td>
                         {record.status === 'pending' ? (
-                          <button type="button" className="btn-edit" onClick={() => handleSettleRecord(record)}>
+                          <ActionButton type="button" className="btn-edit" onClick={() => handleSettleRecord(record)}>
                             {t('table.settle')}
-                          </button>
+                          </ActionButton>
                         ) : (
                           '—'
                         )}

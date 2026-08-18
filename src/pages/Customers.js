@@ -10,6 +10,8 @@ import { useClientTableSort } from '../utils/tableSort';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import { formatAppDateTime } from '../utils/localeFormat';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 function customerProductLine(detail, t) {
   if (!detail) return '';
@@ -311,7 +313,7 @@ const Customers = () => {
       {showForm && (canCreate || canUpdate) && (
         <div className="form-card">
           <h2>{formData.id ? t('form.editTitle') : t('form.newTitle')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('name')} *</label>
@@ -361,9 +363,9 @@ const Customers = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {formData.id ? t('form.update') : t('form.create')}
-              </button>
+              </SubmitButton>
                 <button
                   type="button"
                   className="btn-edit"
@@ -375,7 +377,7 @@ const Customers = () => {
                   {t('actions.cancel', { ns: 'common' })}
                 </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -479,12 +481,12 @@ const Customers = () => {
                       </button>
                       )}
                       {canDelete && (
-                      <button
+                      <ActionButton
                         className="btn-delete"
                         onClick={() => handleDelete(customer.id)}
                       >
                         {t('actions.delete', { ns: 'common' })}
-                      </button>
+                      </ActionButton>
                       )}
                     </td>
                   </tr>

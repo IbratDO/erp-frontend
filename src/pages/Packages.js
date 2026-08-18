@@ -10,6 +10,7 @@ import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 
 const PKG_INV_SORT = {
   package_type: (r) => String(r.package_type ?? '').toLowerCase(),
@@ -536,7 +537,7 @@ const Packages = () => {
               ? t('form.addStockTitle', { type: editingPackage.package_type })
               : t('form.orderTitle')}
           </h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('form.packageType')}</label>
@@ -636,11 +637,11 @@ const Packages = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {formData.pay_immediately ? t('form.submitPayReceive') : t('form.submitCreateOrder')}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -653,7 +654,7 @@ const Packages = () => {
                 ? t('paymentForm.receiveTitle', { id: paymentFormData.historyId })
                 : t('paymentForm.payReceiveTitle', { id: paymentFormData.historyId })}
           </h2>
-          <form onSubmit={handlePaymentSubmit}>
+          <BusyForm onSubmit={handlePaymentSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('paymentForm.quantityReceived')}</label>
@@ -713,13 +714,13 @@ const Packages = () => {
               )}
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {paymentFormData.action === 'pay'
                   ? t('paymentForm.recordPayment')
                   : paymentFormData.action === 'receive'
                     ? t('paymentForm.receiveInventory')
                     : t('paymentForm.payAndReceive')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -735,7 +736,7 @@ const Packages = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 

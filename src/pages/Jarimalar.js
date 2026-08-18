@@ -9,6 +9,8 @@ import FormSearchableSelect from '../components/FormSearchableSelect';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 const EMPTY_FILTERS = {
   employee: '',
@@ -196,7 +198,7 @@ const Jarimalar = () => {
       {showForm && (
         <div className="form-card" style={{ marginBottom: 20 }}>
           <h2>{editing ? t('form.editTitle') : t('form.newTitle')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('form.manager')}</label>
@@ -261,14 +263,14 @@ const Jarimalar = () => {
               </div>
             </div>
             <div style={{ marginTop: 12, display: 'flex', gap: 8 }}>
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.save', { ns: 'common' })}
-              </button>
+              </SubmitButton>
               <button type="button" className="btn-edit" onClick={() => setShowForm(false)}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -390,9 +392,9 @@ const Jarimalar = () => {
                       <button type="button" className="btn-edit" onClick={() => openEdit(p)}>
                         {t('actions.edit', { ns: 'common' })}
                       </button>{' '}
-                      <button type="button" className="btn-delete" onClick={() => handleDelete(p)}>
+                      <ActionButton type="button" className="btn-delete" onClick={() => handleDelete(p)}>
                         {t('actions.delete', { ns: 'common' })}
-                      </button>
+                      </ActionButton>
                     </td>
                   </tr>
                 ))

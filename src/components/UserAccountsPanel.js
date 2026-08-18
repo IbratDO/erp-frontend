@@ -4,6 +4,8 @@ import apiGetAll from '../utils/fetchAllPages';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from './PageTitle';
+import BusyForm, { SubmitButton } from './BusyForm';
+import ActionButton from './ActionButton';
 
 const emptyUser = () => ({
   username: '',
@@ -220,7 +222,7 @@ const UserAccountsPanel = () => {
             </ul>
             <div className="danger-callout__kept">{t('clearDataWarningKept')}</div>
           </div>
-          <form onSubmit={handleClearDatabase}>
+          <BusyForm onSubmit={handleClearDatabase}>
             <div className="form-grid" style={{ gridTemplateColumns: 'minmax(0, 320px)' }}>
               <div className="form-group">
                 <label>{t('clearDataConfirmLabel')}</label>
@@ -239,25 +241,25 @@ const UserAccountsPanel = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button
-                type="submit"
+              <SubmitButton
+               
                 className="btn-danger-action"
                 disabled={clearing || !confirmMatches}
               >
                 {clearing ? t('actions.loading', { ns: 'common' }) : t('clearDataProceed')}
-              </button>
+              </SubmitButton>
               <button type="button" className="btn-edit" onClick={closeClearForm} disabled={clearing}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
       {showForm && canManage && (
         <div className="form-card">
           <h2>{editingId ? t('editLogin') : t('newLogin')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('firstName')}</label>
@@ -335,14 +337,14 @@ const UserAccountsPanel = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.save', { ns: 'common' })}
-              </button>
+              </SubmitButton>
               <button type="button" className="btn-edit" onClick={closeUserForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -381,9 +383,9 @@ const UserAccountsPanel = () => {
                         <button type="button" className="btn-edit" onClick={() => openEdit(u)}>
                           {t('actions.edit', { ns: 'common' })}
                         </button>{' '}
-                        <button type="button" className="btn-delete" onClick={() => handleDelete(u.id)}>
+                        <ActionButton type="button" className="btn-delete" onClick={() => handleDelete(u.id)}>
                           {t('actions.delete', { ns: 'common' })}
-                        </button>
+                        </ActionButton>
                       </td>
                     )}
                   </tr>

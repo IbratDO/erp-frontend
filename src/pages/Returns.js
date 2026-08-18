@@ -32,6 +32,7 @@ import {
 } from '../utils/productCategoryTypes';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 
 function returnProductPickerLabel(p, tr) {
   if (!p) return '';
@@ -889,7 +890,7 @@ const Returns = () => {
       {showForm && canCreateReturn && (
         <div className="form-card">
           <h2>{t('form.title')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               {(() => {
                 const searchLower = productSearch.toLowerCase();
@@ -1323,11 +1324,11 @@ const Returns = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('form.submit')}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -1386,7 +1387,7 @@ const Returns = () => {
               ) : null}
             </div>
           )}
-          <form onSubmit={handleRefundSubmit}>
+          <BusyForm onSubmit={handleRefundSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('refundForm.uzsRefund')}</label>
@@ -1470,9 +1471,9 @@ const Returns = () => {
               </div>
             )}
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('table.markRefunded')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -1485,7 +1486,7 @@ const Returns = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 

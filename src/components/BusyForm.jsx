@@ -16,19 +16,20 @@ const BusyContext = createContext(false);
  * The submit handler must return its promise for this to mean anything. Most already do, being
  * `async`; one that is not simply flickers, which is harmless.
  *
- * `preventDefault` stays the handler's own business, exactly as it is today, so nothing about
- * an existing form changes except when its button comes back.
+ * `preventDefault` is called here before anything else, and the handlers still call it
+ * themselves — twice is a no-op. It has to be here because of the one case the `busy` state
+ * cannot see: a second submit in the same tick as the first. React has not re-rendered, so
+ * `busy` still reads false, but `run` refuses on its ref and never calls the handler — which
+ * means the handler never gets to prevent anything, and the browser does a native form
+ * submission. A reloaded page in the middle of a payment is worse than the duplicate this
+ * component exists to stop.
  */
 export function BusyForm({ onSubmit, children, ...rest }) {
   const [busy, run] = useBusy();
 
   const handleSubmit = (event) => {
+    event.preventDefault();
     if (!onSubmit) return undefined;
-    if (busy) {
-      // A second Enter or a click that beat the disable: the first is still running.
-      event.preventDefault();
-      return undefined;
-    }
     return run(() => onSubmit(event));
   };
 

@@ -4,6 +4,7 @@ import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
 import useAppTranslation from '../hooks/useAppTranslation';
 import { usdToUzs, uzsToUsd } from '../utils/saleCompletePayHelpers';
 import AmountInput from './AmountInput';
+import BusyForm, { SubmitButton } from './BusyForm';
 
 const PL_TOLERANCE_USD = 0.005;
 
@@ -171,7 +172,7 @@ export default function CurrencyConversionForm({ onSuccess, onCancel }) {
         </p>
       ) : null}
 
-      <form onSubmit={handleSubmit}>
+      <BusyForm onSubmit={handleSubmit}>
         <div className="form-grid">
           <div className="form-group">
             <label>{t('conversion.direction')}</label>
@@ -271,11 +272,11 @@ export default function CurrencyConversionForm({ onSuccess, onCancel }) {
           <button type="button" className="btn-edit" onClick={onCancel} disabled={submitting}>
             {t('actions.cancel', { ns: 'common' })}
           </button>
-          <button type="submit" className="btn-primary" disabled={submitting || rateBusy || !effectiveRate}>
+          <SubmitButton className="btn-primary" disabled={submitting || rateBusy || !effectiveRate}>
             {submitting ? t('conversion.converting') : t('conversion.convert')}
-          </button>
+          </SubmitButton>
         </div>
-      </form>
+      </BusyForm>
     </div>
   );
 }

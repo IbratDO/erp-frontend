@@ -11,6 +11,7 @@ import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 
 /** Table columns: one per currency (legacy *_cash and *_card ledger buckets roll up here). */
 const CURRENCY_COLS = [
@@ -377,7 +378,7 @@ const MoneyBalance = () => {
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('adjustTitle')}</h2>
           <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '12px' }}>{t('adjustIntro')}</p>
-          <form onSubmit={handleAdjust}>
+          <BusyForm onSubmit={handleAdjust}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('balance')}</label>
@@ -420,11 +421,11 @@ const MoneyBalance = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('adjustBalance')}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 

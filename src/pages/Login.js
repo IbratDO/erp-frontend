@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../contexts/AuthContext';
 import { canAccessRoute, getDefaultHomePath } from '../utils/permissions';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 import './Login.css';
 
 const Login = () => {
@@ -40,7 +41,7 @@ const Login = () => {
       <div className="login-box">
         <h1>{t('app.title')}</h1>
         <h2>{t('app.subtitle')}</h2>
-        <form onSubmit={handleSubmit}>
+        <BusyForm onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="username">{t('auth.username')}</label>
             <input
@@ -63,10 +64,14 @@ const Login = () => {
             />
           </div>
           {error && <div className="error-message">{error}</div>}
-          <button type="submit" disabled={loading} className="login-button">
+          <SubmitButton
+            disabled={loading}
+            className="login-button"
+            busyLabel={t('auth.loggingIn')}
+          >
             {loading ? t('auth.loggingIn') : t('auth.login')}
-          </button>
-        </form>
+          </SubmitButton>
+        </BusyForm>
       </div>
     </div>
   );

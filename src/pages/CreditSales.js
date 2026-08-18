@@ -11,6 +11,8 @@ import { formatDisplayAmount } from '../utils/currencyFormat';
 import { dateOnlyToLocalDate, formatAppDate, formatAppDateTime } from '../utils/localeFormat';
 import { useClientTableSort } from '../utils/tableSort';
 import './TablePage.css';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 /**
  * Nasiya savdo — goods that left the shop against a promise.
@@ -298,7 +300,7 @@ export default function CreditSales() {
               ),
             })}
           </p>
-          <form onSubmit={handleCollectSubmit}>
+          <BusyForm onSubmit={handleCollectSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>
@@ -321,12 +323,12 @@ export default function CreditSales() {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">{t('collect.record')}</button>
+              <SubmitButton className="btn-primary">{t('collect.record')}</SubmitButton>
               <button type="button" className="btn-edit" onClick={() => setCollectTarget(null)}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -341,7 +343,7 @@ export default function CreditSales() {
               ),
             })}
           </p>
-          <form onSubmit={handleWaiveSubmit}>
+          <BusyForm onSubmit={handleWaiveSubmit}>
             <div className="form-grid">
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>{t('waive.reason')}</label>
@@ -357,7 +359,7 @@ export default function CreditSales() {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-danger-action">{t('waive.record')}</button>
+              <SubmitButton className="btn-danger-action">{t('waive.record')}</SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -369,7 +371,7 @@ export default function CreditSales() {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -452,13 +454,13 @@ export default function CreditSales() {
                               {expandedId === row.id ? t('table.hideHistory') : t('table.history')}
                             </button>
                             {isOpen && canCollect && (
-                              <button
+                              <ActionButton
                                 type="button"
                                 className="btn-primary"
                                 onClick={() => beginCollect(row)}
                               >
                                 {t('table.collect')}
-                              </button>
+                              </ActionButton>
                             )}
                             {isOpen && canWaive && (
                               <button

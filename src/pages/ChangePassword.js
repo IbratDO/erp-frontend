@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import api from '../utils/api';
 import './TablePage.css';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 
 const ChangePassword = () => {
   const { t } = useTranslation('common');
@@ -59,7 +60,7 @@ const ChangePassword = () => {
       <div className="page-header">
         <h1>{t('auth.changePasswordTitle')}</h1>
       </div>
-      <form className="form-card" onSubmit={handleSubmit} style={{ maxWidth: 420 }}>
+      <BusyForm className="form-card" onSubmit={handleSubmit} style={{ maxWidth: 420 }}>
         <div className="form-group">
           <label htmlFor="current-password">{t('auth.currentPassword')}</label>
           <input
@@ -100,11 +101,11 @@ const ChangePassword = () => {
           </div>
         ) : null}
         <div className="form-actions">
-          <button type="submit" className="btn-primary" disabled={saving}>
+          <SubmitButton className="btn-primary" disabled={saving}>
             {saving ? t('auth.changePasswordSaving') : t('auth.changePasswordSubmit')}
-          </button>
+          </SubmitButton>
         </div>
-      </form>
+      </BusyForm>
     </div>
   );
 };

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import BusyForm, { SubmitButton } from './BusyForm';
 import AmountInput from './AmountInput';
 import SaleChangeFields from './SaleChangeFields';
 import api from '../utils/api';
@@ -289,7 +290,7 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
           <strong>{t('completePay.amountDue')}</strong> {formatDisplayAmount(finalDue, sc)}
         </div>
       </div>
-      <form onSubmit={handleSubmit}>
+      <BusyForm onSubmit={handleSubmit}>
         <div className="form-grid">
           {paymentFormData.prepayment_amount && parseFloat(paymentFormData.prepayment_amount) > 0 && (
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
@@ -572,14 +573,14 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
           </div>
         </div>
         <div className="form-actions">
-          <button type="submit" className="btn-primary">
+          <SubmitButton className="btn-primary">
             {t('completeSale')}
-          </button>
+          </SubmitButton>
           <button type="button" className="btn-edit" onClick={handleCancel}>
             {t('actions.cancel', { ns: 'common' })}
           </button>
         </div>
-      </form>
+      </BusyForm>
     </div>
   );
 }

@@ -113,6 +113,12 @@ api.interceptors.response.use(
  * genuine requests. Only the server can rule that out, and for the endpoints where it matters
  * it already does — paying an order, paying cargo and selling from an order all refuse a
  * repeat outright. `manage.py audit_repeat_guards` lists the ones that do not.
+ *
+ * Creating orders and sales is deliberately not among them. A general "refuse an identical
+ * body twice" guard was built and removed: two identical sales are a real thing a shop does,
+ * the server cannot tell one from a misfired click, and refusing real trading is the worse
+ * error of the two. The browser guards above are the right place for this, because only the
+ * browser knows the two requests came from one gesture.
  */
 const inFlightWrites = new Map();
 

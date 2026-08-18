@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 import api from '../utils/api';
 import { getCachedProducts, invalidateProductsCache, setProductsCache } from '../utils/catalogCache';
 import SortableTh from '../components/SortableTh';
@@ -585,7 +587,7 @@ const Products = () => {
       {showForm && (canCreate || (canUpdate && editingProduct)) && (
         <div className="form-card">
           <h2>{editingProduct ? t('editProduct') : t('newProduct')}</h2>
-          <form onSubmit={handleSubmit}>
+          <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>
@@ -1007,11 +1009,11 @@ const Products = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {editingProduct ? t('form.update') : t('form.create')}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -1163,12 +1165,12 @@ const Products = () => {
                     </button>
                     )}
                     {canDelete && (
-                    <button
+                    <ActionButton
                       className="btn-delete"
                       onClick={() => handleDelete(product.id)}
                     >
                       {t('actions.delete', { ns: 'common' })}
-                    </button>
+                    </ActionButton>
                     )}
                   </td>
                 </tr>

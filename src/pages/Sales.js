@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 import AmountInput from '../components/AmountInput';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
@@ -2037,26 +2039,26 @@ const Sales = () => {
           sale.sale_type === 'delivery' &&
           !sale.dispatch_info &&
           canDispatch && (
-            <button type="button" className="btn-status" onClick={() => actionFor('dispatched')}>
+            <ActionButton type="button" className="btn-status" onClick={() => actionFor('dispatched')}>
               {t('rowActions.dispatch', { ns: 'sales' })}
-            </button>
+            </ActionButton>
           )}
         {(sale.status === 'pending' || sale.status === 'confirmed') && sale.sale_type === 'bought_from_shop' && canCompletePay && (
-          <button type="button" className="btn-status" onClick={() => actionFor('completed')}>
+          <ActionButton type="button" className="btn-status" onClick={() => actionFor('completed')}>
             {t('rowActions.completePay', { ns: 'sales' })}
-          </button>
+          </ActionButton>
         )}
         {(sale.status === 'pending' || sale.status === 'confirmed') &&
           sale.sale_type === 'bought_from_shop' &&
           canCompleteWithoutPay && (
-            <button
+            <ActionButton
               type="button"
               className="btn-status"
               onClick={() => actionFor('completed')}
               style={{ backgroundColor: '#4caf50', color: 'white' }}
             >
               {t('rowActions.completeSale', { ns: 'sales' })}
-            </button>
+            </ActionButton>
           )}
         {shopDeliverySettlementRequiredForGroup(groupSales?.length ? { groupSales } : sale) && canDeliverySettle && (
           <ShopDeliverySettlementButtons
@@ -2067,9 +2069,9 @@ const Sales = () => {
           />
         )}
         {sale.status === 'dispatched' && !shopDeliverySettlementRequired(sale) && canCompletePay && (
-          <button type="button" className="btn-status" onClick={() => actionFor('completed')}>
+          <ActionButton type="button" className="btn-status" onClick={() => actionFor('completed')}>
             {t('rowActions.completePay', { ns: 'sales' })}
-          </button>
+          </ActionButton>
         )}
         {(groupSales?.length
           ? groupSales.some((s) => s.status === 'pending' && s.sale_type === 'from_order')
@@ -2105,23 +2107,23 @@ const Sales = () => {
             </button>
             )}
             {showCancel ? (
-            <button
+            <ActionButton
               type="button"
               className="btn-edit"
               onClick={() => handleCancelSale(cancelTargetId, groupSales)}
               style={{ backgroundColor: '#f44336', color: 'white' }}
             >
               {t('rowActions.cancelSale', { ns: 'sales' })}
-            </button>
+            </ActionButton>
             ) : canCancelReserved && !groupSales?.length ? (
-            <button
+            <ActionButton
               type="button"
               className="btn-edit"
               onClick={() => handleCancelReserved(sale.id)}
               style={{ backgroundColor: '#f44336', color: 'white' }}
             >
               {t('rowActions.cancelReserved', { ns: 'sales' })}
-            </button>
+            </ActionButton>
             ) : null}
             {sale.deposit_received && (
               <span style={{ fontSize: '0.85em', color: '#666', display: 'block', marginTop: '5px' }}>
@@ -2131,14 +2133,14 @@ const Sales = () => {
           </>
         )}
         {showCancel && !(sale.status === 'reserved' && sale.sale_type === 'reserved') && (
-          <button
+          <ActionButton
             type="button"
             className="btn-edit"
             onClick={() => handleCancelSale(cancelTargetId, groupSales)}
             style={{ backgroundColor: '#f44336', color: 'white', marginTop: '5px' }}
           >
             {t('rowActions.cancelSale', { ns: 'sales' })}
-          </button>
+          </ActionButton>
         )}
         {['completed', 'returned'].includes(sale.status) && sale.payment_currency && (
           <span style={{ fontSize: '0.9em', color: '#666', display: 'block', marginTop: '5px' }}>
@@ -2301,7 +2303,7 @@ const Sales = () => {
       {showDispatchForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('dispatch.title')}</h2>
-          <form onSubmit={handleDispatchSubmit}>
+          <BusyForm onSubmit={handleDispatchSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('dispatch.type')}</label>
@@ -2384,9 +2386,9 @@ const Sales = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('dispatch.create')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -2407,7 +2409,7 @@ const Sales = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -2424,7 +2426,7 @@ const Sales = () => {
               </p>
             );
           })()}
-          <form onSubmit={handleCompleteFromOrderSubmit}>
+          <BusyForm onSubmit={handleCompleteFromOrderSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('completeFromOrder.saleType')}</label>
@@ -2665,9 +2667,9 @@ const Sales = () => {
               })()}
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('completeSale')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -2687,14 +2689,14 @@ const Sales = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
       {showCompleteFromOrderGroupForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('completeFromOrder.titleGroup', { count: completeFromOrderGroupData.lines.length })}</h2>
-          <form onSubmit={handleCompleteFromOrderGroupSubmit}>
+          <BusyForm onSubmit={handleCompleteFromOrderGroupSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('completeFromOrder.saleType')}</label>
@@ -2906,9 +2908,9 @@ const Sales = () => {
                 );
               })}
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('completeSale')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -2923,7 +2925,7 @@ const Sales = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -2957,7 +2959,7 @@ const Sales = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('sellReserved.intro')}
           </p>
-          <form onSubmit={handleSellReservedSubmit}>
+          <BusyForm onSubmit={handleSellReservedSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('currency.uzs', { ns: 'common' })}</label>
@@ -3139,9 +3141,9 @@ const Sales = () => {
               )}
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('completeSale')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3158,7 +3160,7 @@ const Sales = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -3169,7 +3171,7 @@ const Sales = () => {
           <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
             {t('batch.intro')}
           </p>
-          <form onSubmit={handleBatchSubmit}>
+          <BusyForm onSubmit={handleBatchSubmit}>
             <div className="sales-batch-header-row">
               <div className="form-group">
                 <label>{t('batch.customerRequired')}</label>
@@ -3374,18 +3376,18 @@ const Sales = () => {
               <button type="button" className="btn-edit" onClick={addBatchLine}>
                 + {t('batch.addLine')}
               </button>
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('batch.createCount', { count: batchLines.filter((l) => l.layer).length })}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
       {showCustomerForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('customer.addTitle')}</h2>
-          <form onSubmit={handleCreateCustomer}>
+          <BusyForm onSubmit={handleCreateCustomer}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('customer.name')} *</label>
@@ -3428,9 +3430,9 @@ const Sales = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('customer.addButton')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3442,7 +3444,7 @@ const Sales = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 

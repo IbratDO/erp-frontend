@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import BusyForm, { SubmitButton } from './BusyForm';
+import ActionButton from './ActionButton';
 import api from '../utils/api';
 import AmountInput from './AmountInput';
 import SaleChangeFields from './SaleChangeFields';
@@ -1612,9 +1614,9 @@ export default function SaleDeliverySettlementForm({
             );
           })}
           <div className="form-actions" style={{ marginTop: 12 }}>
-            <button type="button" className="btn-primary" onClick={handleStep1Submit}>
+            <ActionButton type="button" className="btn-primary" onClick={handleStep1Submit}>
               {t('deliverySettlement.step1Button')}
-            </button>
+            </ActionButton>
           </div>
         </div>
       )}
@@ -1644,9 +1646,9 @@ export default function SaleDeliverySettlementForm({
                 {t('deliverySettlement.returnPendingItem', { id: line.id, product: productLabelFor(line, t), qty: line.quantity })}
               </span>
               {canConfirmReturn ? (
-                <button type="button" className="btn-status" onClick={() => handleConfirmReturn(line)}>
+                <ActionButton type="button" className="btn-status" onClick={() => handleConfirmReturn(line)}>
                   {t('deliverySettlement.confirmReturnButton')}
-                </button>
+                </ActionButton>
               ) : (
                 <span style={{ fontSize: '0.85em', color: '#92400e' }}>{t('deliverySettlement.returnPendingNoPerm')}</span>
               )}
@@ -1675,7 +1677,7 @@ export default function SaleDeliverySettlementForm({
                 <p style={{ color: '#b45309', marginBottom: 12, fontSize: '0.85em' }}>{exchangeRateError}</p>
               ) : null}
               {showStep2Combined ? (
-                <form
+                <BusyForm
                   onSubmit={(e) => {
                     e.preventDefault();
                     handleStep2CombinedSubmit();
@@ -1794,17 +1796,17 @@ export default function SaleDeliverySettlementForm({
                     </div>
                   </div>
                   <div className="form-actions">
-                    <button type="submit" className="btn-primary">
+                    <SubmitButton className="btn-primary">
                       {t('deliverySettlement.step2Button')}
-                    </button>
+                    </SubmitButton>
                   </div>
-                </form>
+                </BusyForm>
               ) : (
                 step2Lines.map((line) => {
                 const form = { ...step2DefaultFormFor(line, cbuRate), ...(step2ByLine[line.id] || {}) };
                 const meta = computePaymentDifferenceMeta(line, form, cbuRate);
                 return (
-                  <form
+                  <BusyForm
                     key={line.id}
                     onSubmit={(e) => {
                       e.preventDefault();
@@ -1888,11 +1890,11 @@ export default function SaleDeliverySettlementForm({
                       </div>
                     </div>
                     <div className="form-actions">
-                      <button type="submit" className="btn-primary">
+                      <SubmitButton className="btn-primary">
                         {t('deliverySettlement.step2Button')}
-                      </button>
+                      </SubmitButton>
                     </div>
-                  </form>
+                  </BusyForm>
                 );
               })
               )}
@@ -1909,7 +1911,7 @@ export default function SaleDeliverySettlementForm({
               {t('deliverySettlement.step3NoPerm')}
             </p>
           ) : showStep3Combined ? (
-            <form
+            <BusyForm
               onSubmit={(e) => {
                 e.preventDefault();
                 handleStep3CombinedSubmit();
@@ -1936,11 +1938,11 @@ export default function SaleDeliverySettlementForm({
                 </div>
               </div>
               <div className="form-actions">
-                <button type="submit" className="btn-primary">
+                <SubmitButton className="btn-primary">
                   {t('deliverySettlement.step3ButtonPay')}
-                </button>
+                </SubmitButton>
               </div>
-            </form>
+            </BusyForm>
           ) : (
             step3Lines.map((line) => {
               const d = line.dispatch_info || null;
@@ -1955,7 +1957,7 @@ export default function SaleDeliverySettlementForm({
                   ? combinedPaymentInSaleCurrency({ sale_currency: feeCcy }, pay.uzs, pay.usd, cbuRate)
                   : null;
               return (
-                <form
+                <BusyForm
                   key={line.id}
                   onSubmit={(e) => {
                     e.preventDefault();
@@ -2008,11 +2010,11 @@ export default function SaleDeliverySettlementForm({
                     </div>
                   ) : null}
                   <div className="form-actions">
-                    <button type="submit" className="btn-primary">
+                    <SubmitButton className="btn-primary">
                       {needsFeePayment ? t('deliverySettlement.step3ButtonPay') : t('deliverySettlement.step3ButtonComplete')}
-                    </button>
+                    </SubmitButton>
                   </div>
-                </form>
+                </BusyForm>
               );
             })
           )}

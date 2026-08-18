@@ -16,6 +16,8 @@ import { useClientTableSort } from '../utils/tableSort';
 import { usePermissions } from '../hooks/usePermissions';
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
+import ActionButton from '../components/ActionButton';
 
 /** Pending receivable — sale on-credit remainder or manual other income. */
 function canCollectReceivable(receivable) {
@@ -1072,7 +1074,7 @@ const ReceivablesPayables = () => {
                   components={{ strong: <strong /> }}
                 />
               </p>
-              <form onSubmit={handleCollectReceivableSubmit}>
+              <BusyForm onSubmit={handleCollectReceivableSubmit}>
                 <div className="form-grid">
                   <div className="form-group">
                     <label>
@@ -1093,7 +1095,7 @@ const ReceivablesPayables = () => {
                   </div>
                 </div>
                 <div className="form-actions">
-                  <button type="submit" className="btn-primary">{t('collect.record')}</button>
+                  <SubmitButton className="btn-primary">{t('collect.record')}</SubmitButton>
                   <button
                     type="button"
                     className="btn-edit"
@@ -1108,7 +1110,7 @@ const ReceivablesPayables = () => {
                     {t('actions.cancel', { ns: 'common' })}
                   </button>
                 </div>
-              </form>
+              </BusyForm>
             </div>
           )}
         <div className="table-card">
@@ -1297,13 +1299,13 @@ const ReceivablesPayables = () => {
                       </td>
                       <td>
                         {isDeposit && canRefundDeposit ? (
-                          <button
+                          <ActionButton
                             type="button"
                             className="btn-edit"
                             onClick={() => handleRefundCustomerDeposit(payable)}
                           >
                             {t('payablesTable.returnDeposit')}
-                          </button>
+                          </ActionButton>
                         ) : payable.delivery_change_sale && canPayDispatchFee ? (
                           <button
                             type="button"
@@ -1357,9 +1359,9 @@ const ReceivablesPayables = () => {
                             )}
                           </>
                         ) : payable.finance_record && payable.status === 'pending' ? (
-                          <button type="button" className="btn-edit" onClick={() => handleSettleManualPayable(payable)}>
+                          <ActionButton type="button" className="btn-edit" onClick={() => handleSettleManualPayable(payable)}>
                             {t('payablesTable.pay')}
-                          </button>
+                          </ActionButton>
                         ) : (
                           '—'
                         )}
