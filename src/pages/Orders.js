@@ -38,6 +38,8 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import AmountInput from '../components/AmountInput';
+import ActionButton from '../components/ActionButton';
+import BusyForm, { SubmitButton } from '../components/BusyForm';
 import FilterPanel from '../components/FilterPanel';
 
 const categoryTypeLabel = (value, t) =>
@@ -65,11 +67,26 @@ function showMarkAsReceivedAction(order) {
   );
 }
 
+/**
+ * Whether anything on this line actually arrived.
+ *
+ * A null count means "not counted yet" (or a line predating short-delivery tracking), which
+ * reads as fully received — same rule the backend uses in `order_shortfall_utils.received_qty`.
+ */
+function orderReceivedSomething(order) {
+  return order?.received_quantity == null || Number(order.received_quantity) > 0;
+}
+
 function orderReadyForInventoryActions(order) {
   return (
     (order.status === 'received' || order.status === 'order_paid') &&
     order.order_is_paid &&
-    order.cargo_is_paid
+    order.cargo_is_paid &&
+    // Nothing arrived, so there is nothing to shelve and nothing to hand a customer. The
+    // line's way out is the shortfall: receive it late, or close it as refunded / written
+    // off. Offering "finalize" here produced a dead Sotish button and an Omborda row holding
+    // no stock, which then went terminal and locked its own corrections away.
+    orderReceivedSomething(order)
   );
 }
 
@@ -1609,9 +1626,15 @@ const Orders = () => {
 
   const handleMoveToInventoryGroup = async (groupId) => {
     try {
-      await api.post('/orders/update_status_group/', { order_group: groupId, status: 'in_inventory' });
+      const { data } = await api.post('/orders/update_status_group/', {
+        order_group: groupId, status: 'in_inventory',
+      });
       await fetchOrders();
-      showNotification(t('notifications.statusUpdated'), 'success');
+      // The server steps over lines nothing arrived on and names them. That has to reach the
+      // user: otherwise the count silently comes up short and the skipped line looks ignored
+      // rather than deliberately left open for its shortfall to be resolved.
+      const skipped = data?.skipped_order_ids?.length ? 'warning' : 'success';
+      showNotification(data?.message || t('notifications.statusUpdated'), skipped);
     } catch (error) {
       console.error('Error moving group to inventory:', error);
       showNotification(
@@ -2408,59 +2431,59 @@ const Orders = () => {
             </button>
           )}
           {steps.includes('pay_order') && canPayOrder && (
-            <button
+            <ActionButton
               className="btn-status"
               onClick={() => handlePayOrder(order)}
               style={{ marginRight: '5px' }}
             >
               {t('actions.payOrder', { ns: 'orders' })}
-            </button>
+            </ActionButton>
           )}
           {steps.includes('pay_cargo') && canPayCargo && (
-            <button
+            <ActionButton
               className="btn-status"
               onClick={() => handlePayCargo(order.id)}
               style={{ marginRight: '5px' }}
             >
               {t('actions.payCargo', { ns: 'orders' })}
-            </button>
+            </ActionButton>
           )}
           {order.shortfall_status === 'pending' && canUpdateStatus && (
-            <button
+            <ActionButton
               className="btn-status"
               onClick={() => handleReceiveRemaining(order)}
               style={{ marginRight: '5px' }}
             >
               {t('actions.receiveRemaining', { ns: 'orders' })}
-            </button>
+            </ActionButton>
           )}
           {/* Unpaid: refund and write-off are the same act — stop billing for what never
               came — so a single neutral button avoids a false choice. */}
           {order.shortfall_status === 'pending' && canPayOrder && !order.order_is_paid && (
-            <button
+            <ActionButton
               className="btn-status"
               onClick={() => handleResolveShortfall(order, 'refunded')}
               style={{ marginRight: '5px' }}
             >
               {t('actions.dropFromBill', { ns: 'orders' })}
-            </button>
+            </ActionButton>
           )}
           {order.shortfall_status === 'pending' && canPayOrder && order.order_is_paid && (
             <>
-              <button
+              <ActionButton
                 className="btn-status"
                 onClick={() => handleResolveShortfall(order, 'refunded')}
                 style={{ marginRight: '5px' }}
               >
                 {t('actions.markRefunded', { ns: 'orders' })}
-              </button>
-              <button
+              </ActionButton>
+              <ActionButton
                 className="btn-status"
                 onClick={() => handleResolveShortfall(order, 'written_off')}
                 style={{ marginRight: '5px', backgroundColor: '#f44336' }}
               >
                 {t('actions.writeOff', { ns: 'orders' })}
-              </button>
+              </ActionButton>
             </>
           )}
           {/* `has_sale` counts cancelled sales too, on purpose: once an item has been sold
@@ -2469,24 +2492,24 @@ const Orders = () => {
               purchase order would contradict that by unwinding the supplier payment. Without
               this, cancelling the sale reopened the order and the button came back. */}
           {canCancelOrder && !ORDER_TERMINAL_STATUSES.has(order.status) && !order.has_sale && (
-            <button
+            <ActionButton
               className="btn-edit"
               onClick={() => handleCancelOrder(order.id)}
               style={{ marginRight: '5px', backgroundColor: '#f44336', color: 'white' }}
             >
               {t('actions.cancelOrder', { ns: 'orders' })}
-            </button>
+            </ActionButton>
           )}
           {steps.includes('finalize') &&
             order.order_type === 'stock' &&
             canMoveInventory && (
-            <button
+            <ActionButton
               className="btn-status"
               onClick={() => handleStatusUpdate(order.id, 'in_inventory')}
               style={{ marginRight: '5px' }}
             >
               {t('actions.moveToInventory', { ns: 'orders' })}
-            </button>
+            </ActionButton>
           )}
           {/* Still per-line as well as group-wide: a customer can buy some items from a
               multi-item on_demand order and decline others. */}
@@ -2495,22 +2518,22 @@ const Orders = () => {
             !order.has_sale && (
             <>
               {canSellProduct && (
-              <button
+              <ActionButton
                 className="btn-status"
                 onClick={() => handleSellProduct(order.id)}
                 style={{ marginRight: '5px', backgroundColor: '#4caf50', color: 'white' }}
               >
                 {t('actions.sellProduct', { ns: 'orders' })}
-              </button>
+              </ActionButton>
               )}
               {canMoveInventory && (
-              <button
+              <ActionButton
                 className="btn-status"
                 onClick={() => handleMoveToInventoryFromOrder(order.id)}
                 style={{ backgroundColor: '#2196f3', color: 'white' }}
               >
                 {t('actions.moveToInventory', { ns: 'orders' })}
-              </button>
+              </ActionButton>
               )}
             </>
           )}
@@ -2784,7 +2807,7 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('paymentForm.intro')}
           </p>
-          <form onSubmit={handlePaymentSubmit}>
+          <BusyForm onSubmit={handlePaymentSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{uzsLabel}</label>
@@ -2811,13 +2834,13 @@ const Orders = () => {
               )}
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {paymentFormData.is_pay_order
                   ? t('actions.payOrder', { ns: 'orders' })
                   : paymentFormData.is_received_and_pay
                     ? t('actions.markReceivedAndPay', { ns: 'orders' })
                     : t('actions.confirmMoveToInventory', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button type="button" className="btn-edit"
                 onClick={() => {
                   setShowPaymentForm(false);
@@ -2826,7 +2849,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -2834,7 +2857,7 @@ const Orders = () => {
         <div className="form-card" style={{ marginBottom: '20px' }} ref={moveToInventoryFormRef}>
           <h2>{t('moveForm.title', { id: moveToInventoryData.orderId })}</h2>
           {renderOrderContextCard(moveToInventoryData.orderId)}
-          <form onSubmit={handleMoveToInventorySubmit}>
+          <BusyForm onSubmit={handleMoveToInventorySubmit}>
             <div className="form-grid">
               {(() => {
                 const invOrder = orders.find((o) => o.id === moveToInventoryData.orderId);
@@ -2905,9 +2928,9 @@ const Orders = () => {
               })()}
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.moveToInventory', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -2924,7 +2947,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -2935,7 +2958,7 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('cargoForm.intro')}
           </p>
-          <form onSubmit={handleCargoPaymentSubmit}>
+          <BusyForm onSubmit={handleCargoPaymentSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{uzsLabel}</label>
@@ -2978,9 +3001,9 @@ const Orders = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.payCargo', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -2992,7 +3015,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -3005,7 +3028,7 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('markOrderedForm.intro')}
           </p>
-          <form onSubmit={handleMarkAsOrderedSubmit}>
+          <BusyForm onSubmit={handleMarkAsOrderedSubmit}>
             <div className="form-grid">
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>{t('markOrderedForm.notes')}{markOrderedNotesRequired ? ' *' : ''}</label>
@@ -3019,9 +3042,9 @@ const Orders = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.markAsOrdered', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3033,7 +3056,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
         );
       })()}
@@ -3047,7 +3070,7 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('markOrderedForm.intro')}
           </p>
-          <form onSubmit={handleMarkAsOrderedGroupSubmit}>
+          <BusyForm onSubmit={handleMarkAsOrderedGroupSubmit}>
             <div className="form-grid">
               <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                 <label>{t('markOrderedForm.notes')}{markOrderedGroupNotesRequired ? ' *' : ''}</label>
@@ -3061,9 +3084,9 @@ const Orders = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.markAsOrdered', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3075,7 +3098,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
         );
       })()}
@@ -3086,7 +3109,7 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('batch.payCargoGroupIntro', { ns: 'orders' })}
           </p>
-          <form onSubmit={handlePayCargoGroupSubmit}>
+          <BusyForm onSubmit={handlePayCargoGroupSubmit}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{uzsLabel}</label>
@@ -3231,9 +3254,9 @@ const Orders = () => {
               </table>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.payCargo', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3245,7 +3268,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -3255,7 +3278,7 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('batch.receiveIntro', { ns: 'orders' })}
           </p>
-          <form onSubmit={handleReceiveSubmit}>
+          <BusyForm onSubmit={handleReceiveSubmit}>
             <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
               <table className="batch-sale-lines" role="table">
                 <thead>
@@ -3351,9 +3374,9 @@ const Orders = () => {
               />
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('batch.confirmReceive', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3365,7 +3388,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -3375,7 +3398,7 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('batch.payOrderGroupIntro', { ns: 'orders' })}
           </p>
-          <form onSubmit={handlePayOrderGroupSubmit}>
+          <BusyForm onSubmit={handlePayOrderGroupSubmit}>
             <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll" style={{ marginBottom: 16 }}>
               <table className="batch-sale-lines" role="table">
                 <thead>
@@ -3422,9 +3445,9 @@ const Orders = () => {
               </table>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('actions.payOrder', { ns: 'orders' })}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3436,7 +3459,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -3446,7 +3469,7 @@ const Orders = () => {
           <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
             {t('batch.intro', { ns: 'orders' })}
           </p>
-          <form onSubmit={handleBatchSubmit}>
+          <BusyForm onSubmit={handleBatchSubmit}>
             <div className="orders-batch-header-row">
               {canManageStockOrders && (
               <div className="form-group">
@@ -3723,20 +3746,20 @@ const Orders = () => {
               <button type="button" className="btn-edit" onClick={addBatchLine}>
                 + {t('batch.addLine', { ns: 'orders' })}
               </button>
-              <button type="submit" className="btn-primary" disabled={batchCreating}>
+              <SubmitButton className="btn-primary" disabled={batchCreating}>
                 {batchCreating
                   ? t('creating', { ns: 'orders' })
                   : t('batch.createCount', { ns: 'orders', count: batchLines.filter((l) => l.product).length })}
-              </button>
+              </SubmitButton>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
       {showCustomerForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
           <h2>{t('customerForm.title')}</h2>
-          <form onSubmit={handleCreateCustomer}>
+          <BusyForm onSubmit={handleCreateCustomer}>
             <div className="form-grid">
               <div className="form-group">
                 <label>{t('name', { ns: 'common' })} *</label>
@@ -3779,9 +3802,9 @@ const Orders = () => {
               </div>
             </div>
             <div className="form-actions">
-              <button type="submit" className="btn-primary">
+              <SubmitButton className="btn-primary">
                 {t('customerForm.add')}
-              </button>
+              </SubmitButton>
               <button
                 type="button"
                 className="btn-edit"
@@ -3793,7 +3816,7 @@ const Orders = () => {
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
-          </form>
+          </BusyForm>
         </div>
       )}
 
@@ -4050,7 +4073,7 @@ const Orders = () => {
                           </button>
                         )}
                         {groupSteps.includes('pay_order') && canPayOrder && (
-                          <button
+                          <ActionButton
                             className="btn-status"
                             onClick={() => handlePayOrderGroup(row.orders.filter(
                               (o) => !o.order_is_paid && o.status !== 'order_created' && !ORDER_TERMINAL_STATUSES.has(o.status),
@@ -4058,7 +4081,7 @@ const Orders = () => {
                             style={{ marginRight: '5px' }}
                           >
                             {t('actions.payOrder', { ns: 'orders' })}
-                          </button>
+                          </ActionButton>
                         )}
                         {groupSteps.includes('pay_cargo') && canPayCargo && (
                           <button
@@ -4072,13 +4095,13 @@ const Orders = () => {
                         {groupSteps.includes('finalize') && canMoveInventory && row.orders.some(
                           (o) => availableOrderSteps(o).includes('finalize') && o.order_type === 'stock',
                         ) && (
-                          <button
+                          <ActionButton
                             className="btn-status"
                             onClick={() => handleMoveToInventoryGroup(row.groupId)}
                             style={{ marginRight: '5px' }}
                           >
                             {t('actions.moveToInventory', { ns: 'orders' })}
-                          </button>
+                          </ActionButton>
                         )}
                         {/* On-demand fulfillment for the whole order at once. Each line keeps
                             its own button too, since a customer can take some items and
@@ -4088,37 +4111,37 @@ const Orders = () => {
                             && availableOrderSteps(o).includes('finalize')
                             && !o.has_sale,
                         ) && (
-                          <button
+                          <ActionButton
                             className="btn-status"
                             onClick={() => handleSellProductGroup(row.groupId)}
                             style={{ marginRight: '5px' }}
                           >
                             {t('actions.sellProduct', { ns: 'orders' })}
-                          </button>
+                          </ActionButton>
                         )}
                         {groupSteps.includes('finalize') && canMoveInventory && row.orders.some(
                           (o) => o.order_type === 'on_demand'
                             && availableOrderSteps(o).includes('finalize')
                             && !o.has_sale,
                         ) && (
-                          <button
+                          <ActionButton
                             className="btn-status"
                             onClick={() => handleMoveToInventoryGroupFromOrder(row.groupId)}
                             style={{ marginRight: '5px' }}
                           >
                             {t('actions.moveToInventory', { ns: 'orders' })}
-                          </button>
+                          </ActionButton>
                         )}
                         {/* Cancels every remaining open line; individual lines have their own
                             cancel button inside the expanded group. */}
                         {canCancelOrder && openLine && (
-                          <button
+                          <ActionButton
                             className="btn-edit"
                             onClick={() => handleCancelGroup(row.groupId)}
                             style={{ backgroundColor: '#f44336', color: 'white' }}
                           >
                             {t('actions.cancelGroup', { ns: 'orders' })}
-                          </button>
+                          </ActionButton>
                         )}
                       </td>
                       <td>
