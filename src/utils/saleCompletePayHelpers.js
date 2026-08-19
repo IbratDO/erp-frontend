@@ -1010,6 +1010,64 @@ export function buildGroupCompleteRequests(groupSales, paymentFormData, meta, ex
   });
 }
 
+/**
+ * Divide one handful of money across a group's delivery lines, by what each line still owes.
+ *
+ * The courier is handed a single sum for the whole basket and has one box per item to put it in,
+ * so the natural thing is to split it evenly. That is almost always wrong: three items owing
+ * $35.60, $5.60 and $35.60 take a third each, and the small one reads as hugely overpaid while
+ * the other two read short. The server then judges each line on its own — writing off the two
+ * shortfalls and rewriting the small line's price upward — and the basket that was $1.48 short
+ * ends up with three separate faults that happen to cancel. Group #10 on 13 August is exactly
+ * this, and it moved a $55.00 sale to $74.51.
+ *
+ * Weighting by due is the same rule `buildGroupCompleteRequests` uses at the counter; this is
+ * that rule at the courier's door. Shares are rounded to whole som / cents and the last line
+ * takes the remainder, so the shares always add back to what was actually handed over.
+ *
+ * Returns null when any line's due cannot be read yet (the CBU rate has not arrived), so the
+ * caller leaves the boxes alone rather than filling them with a guess.
+ */
+export function splitDeliveryCollectionByDue(lines, totals, cbuRate) {
+  const active = (lines || []).filter(Boolean);
+  if (!active.length) return [];
+
+  const dues = [];
+  for (const line of active) {
+    const due = computeAdvanceRemainingDue(line, null, cbuRate);
+    if (due == null) return null;
+    dues.push(due);
+  }
+  const totalDue = dues.reduce((sum, d) => sum + d, 0);
+
+  const uzsIn = parseFloat(totals?.uzs) || 0;
+  const usdIn = parseFloat(totals?.usd) || 0;
+  let uzsLeft = uzsIn;
+  let usdLeft = usdIn;
+
+  return active.map((line, idx) => {
+    const isLast = idx === active.length - 1;
+    // Nothing owed anywhere (a fully pre-paid basket) has no weights to speak of, so fall back
+    // to equal shares rather than dividing by zero.
+    const weight = totalDue > 0 ? dues[idx] / totalDue : 1 / active.length;
+    // The last line takes the remainder so the shares add back exactly. Rounding that remainder
+    // too is not a second rounding — it is already a whole som or a whole cent, just carrying
+    // the binary dust of the subtractions, and $34.919999999999995 has no business in a
+    // payment field.
+    const uzsShare = isLast ? Math.round(uzsLeft) : Math.round(uzsIn * weight);
+    const usdShare = isLast
+      ? Math.round(usdLeft * 100) / 100
+      : Math.round(usdIn * weight * 100) / 100;
+    uzsLeft -= uzsShare;
+    usdLeft -= usdShare;
+    return {
+      id: line.id,
+      uzs: uzsShare > 0 ? String(uzsShare) : '',
+      usd: usdShare > 0 ? String(usdShare) : '',
+    };
+  });
+}
+
 /** Delivery after dispatch: 3-step settlement instead of single Complete & Pay (shop or from-order). */
 export function shopDeliverySettlementRequired(sale) {
   if (!sale || sale.status !== 'dispatched') return false;

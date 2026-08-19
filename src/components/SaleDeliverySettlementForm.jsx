@@ -21,6 +21,7 @@ import {
   saleHasOrderAdvance,
   getAdvanceCurrency,
   advanceAmountInSaleCurrency,
+  splitDeliveryCollectionByDue,
 } from '../utils/saleCompletePayHelpers';
 import {
   runSalePaymentSubmitFlow,
@@ -595,6 +596,11 @@ export default function SaleDeliverySettlementForm({
   const [lines, setLines] = useState([]);
   const [linesLoading, setLinesLoading] = useState(true);
   const [step1ByLine, setStep1ByLine] = useState({});
+  // What the customer handed over for the whole basket. The courier is given one sum at the door,
+  // so he gets one box for it here and the code does the dividing — see the note on
+  // `splitDeliveryCollectionByDue`. The per-item boxes stay editable underneath for the case
+  // where a customer really did pay item by item.
+  const [step1Total, setStep1Total] = useState({ uzs: '', usd: '' });
   const [step2ByLine, setStep2ByLine] = useState({});
   const [step2NoteByLine, setStep2NoteByLine] = useState({});
   const [step3PayByLine, setStep3PayByLine] = useState({});
@@ -836,9 +842,32 @@ export default function SaleDeliverySettlementForm({
     setStep1ByLine((prev) => ({ ...prev, [lineId]: { ...prev[lineId], item_status: itemStatus } }));
   };
 
+  /** Spread the basket total across the items still being accepted, by what each one owes. */
+  const applyStep1Total = (next) => {
+    setStep1Total(next);
+    const accepted = step1Lines.filter(
+      (l) => (step1ByLine[l.id] || {}).item_status !== 'declined',
+    );
+    const shares = splitDeliveryCollectionByDue(accepted, next, cbuRate);
+    // Null means a line's due cannot be read yet because the rate has not arrived. Leaving the
+    // boxes as they are is the honest response; filling them with a guess is not.
+    if (!shares) return;
+    setStep1ByLine((prev) => {
+      const out = { ...prev };
+      for (const share of shares) {
+        out[share.id] = { ...out[share.id], uzs: share.uzs, usd: share.usd };
+      }
+      return out;
+    });
+  };
+
   const handleStep1Submit = async () => {
     const toAccept = [];
     const toDecline = [];
+    // Lines whose price the courier has agreed to move. The server refuses to move a price
+    // without this, so a surplus that slips past the check below — an unloaded rate leaves the
+    // meta blank and neither branch fires — comes back as an error instead of a quiet rewrite.
+    const priceChangeConfirmed = new Set();
     for (const line of step1Lines) {
       const f = step1ByLine[line.id] || {};
       if (f.item_status === 'declined') {
@@ -926,6 +955,7 @@ export default function SaleDeliverySettlementForm({
             ].join('\n'),
           );
           if (!ok) return;
+          priceChangeConfirmed.add(line.id);
         }
       }
     }
@@ -986,6 +1016,9 @@ export default function SaleDeliverySettlementForm({
           if (f.apply_additional_profit) {
             body.apply_additional_profit = true;
           }
+        }
+        if (priceChangeConfirmed.has(line.id)) {
+          body.confirm_price_change = true;
         }
         await api.post(`/sales/${line.id}/delivery_customer_paid/`, body);
         done += 1;
@@ -1473,6 +1506,16 @@ export default function SaleDeliverySettlementForm({
                 },
                 { uzs: 0, usd: 0 },
               );
+              // The item boxes arrive pre-filled with each line's own due, so until a basket
+              // total is typed there is nothing to reconcile against and the note stays away.
+              const totalEntered =
+                (parseFloat(step1Total.uzs) || 0) > 0 || (parseFloat(step1Total.usd) || 0) > 0;
+              // The shares are rounded to whole som and cents, so they add back exactly; a
+              // mismatch here means somebody edited one of the item boxes by hand, which is
+              // allowed but worth showing rather than hiding.
+              const allocatedMatches =
+                Math.abs(totals.uzs - (parseFloat(step1Total.uzs) || 0)) < 1 &&
+                Math.abs(totals.usd - (parseFloat(step1Total.usd) || 0)) < 0.01;
               return (
                 <div
                   className="form-grid"
@@ -1484,14 +1527,35 @@ export default function SaleDeliverySettlementForm({
                     borderRadius: 8,
                   }}
                 >
+                  <div className="form-group" style={{ gridColumn: '1 / -1', marginBottom: 4 }}>
+                    <p style={{ margin: 0, fontSize: '0.88em', color: '#4a5568' }}>
+                      {t('deliverySettlement.step1TotalIntro')}
+                    </p>
+                  </div>
                   <div className="form-group">
                     <label>{t('deliverySettlement.step1TotalUzsLabel')}</label>
-                    <input type="text" readOnly value={formatDisplayAmount(totals.uzs, 'UZS')} />
+                    <AmountInput
+                      value={step1Total.uzs}
+                      onChange={(e) => applyStep1Total({ ...step1Total, uzs: e.target.value })}
+                    />
                   </div>
                   <div className="form-group">
                     <label>{t('deliverySettlement.step1TotalUsdLabel')}</label>
-                    <input type="text" readOnly value={formatDisplayAmount(totals.usd, 'USD')} />
+                    <AmountInput
+                      value={step1Total.usd}
+                      onChange={(e) => applyStep1Total({ ...step1Total, usd: e.target.value })}
+                    />
                   </div>
+                  {totalEntered && (
+                    <div className="form-group" style={{ gridColumn: '1 / -1', margin: 0 }}>
+                      <p style={{ margin: 0, fontSize: '0.85em', color: allocatedMatches ? '#4a5568' : '#b45309' }}>
+                        {t('deliverySettlement.step1AllocatedNote', {
+                          uzs: formatDisplayAmount(totals.uzs, 'UZS'),
+                          usd: formatDisplayAmount(totals.usd, 'USD'),
+                        })}
+                      </p>
+                    </div>
+                  )}
                 </div>
               );
             })()}
