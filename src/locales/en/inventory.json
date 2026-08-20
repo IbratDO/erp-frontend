@@ -6,6 +6,11 @@
   "addItem": "Add inventory item",
   "newItem": "New inventory item",
   "noStock": "No inventory in stock",
+  "cancelLayer": {
+    "button": "Cancel",
+    "confirm": "Cancel the \"{{product}}\" line of {{quantity}}?\n\nThe stock comes off the shelf and its cost goes back into the till: {{uzs}} / {{usd}}.\n\nThis cannot be undone.",
+    "err": "The line could not be cancelled."
+  },
   "rowCount": "{{count}} row(s)",
   "categoryTypes": {
     "sports": "Sports",
@@ -47,7 +52,10 @@
     "create": "Create",
     "soum": "so'm",
     "sellingLine": "{{qty}} × {{unit}} = {{total}} line total",
-    "costLine": "{{qty}} × {{unit}} = {{total}} leaves the till"
+    "costLine": "{{qty}} × {{unit}} = {{total}} leaves the till",
+    "addLine": "Add line",
+    "lineNumber": "Line {{number}}",
+    "basketCost": "Total out of the till for {{count}} line(s): {{uzs}} / {{usd}}"
   },
   "table": {
     "categoryType": "Category type",
@@ -70,6 +78,7 @@
     "errQuantity": "Please enter a valid quantity (at least 1).",
     "errSellingPrice": "Enter a selling price per unit.",
     "errSupplierCost": "Enter the unit cost in so'm, in dollars, or in both.",
-    "errSave": "Error saving inventory item"
+    "errSave": "Error saving inventory item",
+    "errSelectProduct": "Choose a product on at least one line."
   }
 }
