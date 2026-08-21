@@ -32,7 +32,7 @@
     "cash": "Cash",
     "bank": "Bank",
     "customerReceivables": "Customer receivables (unpaid sales)",
-    "creditSalesReceivable": "Expected receipts from credit sales",
+    "creditSalesReceivable": "Expected receipts from debts",
     "productReceivables": "Product receivables (prepaid orders, goods in transit)",
     "unpaidOrderReceivables": "Product receivables (unpaid orders)",
     "fixedAssetReceivables": "Fixed asset receivables (paid, not yet received)",
@@ -60,7 +60,7 @@
     "retainedEarnings": "Retained earnings (prior periods)",
     "currentPeriodPl": "Current period profit / loss (P&L)",
     "expectedProfit": "Expected profit/loss (sold, unpaid)",
-    "expectedCreditProfit": "Expected profit/loss from credit sales",
+    "expectedCreditProfit": "Expected profit/loss from debts",
     "currencyConversionPl": "Current difference from currency operations (profit/loss)",
     "notionalFx": "Unrealized currency difference (soum held)"
   },

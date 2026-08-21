@@ -1,5 +1,5 @@
 {
-  "title": "Nasiya savdolar",
+  "title": "Qarzdorlik",
   "intro": "Mahsulot mijozga qarzga berilgan savdolar. Pul kelib tushgan sari qarz kamayadi; foyda esa tannarx qoplangandan keyin hisoblanadi.",
   "filters": {
     "title": "Filtrlar",
@@ -23,13 +23,13 @@
   },
   "table": {
     "title": "Qarzlar ro‘yxati",
-    "empty": "Nasiya savdolar topilmadi.",
+    "empty": "Qarzdorlik topilmadi.",
     "id": "ID",
     "sale": "Sotuv",
     "customer": "Mijoz",
     "product": "Mahsulot",
     "status": "Holat",
-    "principal": "Jami qarz",
+    "principal": "Jami qarz (USD)",
     "paid": "To‘langan",
     "remaining": "Qolgan",
     "due": "To‘lov sanasi",
@@ -38,7 +38,8 @@
     "hideHistory": "Yopish",
     "collect": "To‘lov qabul qilish",
     "waive": "Kechirish",
-    "totalsLine": "jami {{principal}} · to‘langan {{paid}} · qolgan {{remaining}}"
+    "totalsLine": "jami {{principal}} · to‘langan {{paid}} · qolgan {{remaining}}",
+    "principalUzs": "Jami qarz (so‘m)"
   },
   "collect": {
     "title": "Nasiya to‘lovi #{{id}}",
@@ -46,7 +47,9 @@
     "amount": "To‘lov summasi ({{currency}})",
     "notes": "Izoh (ixtiyoriy)",
     "record": "To‘lovni yozish",
-    "recorded": "To‘lov qayd etildi."
+    "recorded": "To‘lov qayd etildi.",
+    "amountUzs": "To‘lov (so‘m)",
+    "amountUsd": "To‘lov (USD)"
   },
   "waive": {
     "title": "Qarzni kechirish #{{id}}",
@@ -71,5 +74,21 @@
     "amountRequired": "To‘lov summasini kiriting.",
     "amountExceeds": "To‘lov qolgan qarzdan ({{balance}}) oshmasligi kerak.",
     "reasonRequired": "Kechirish sababini kiriting."
+  },
+  "create": {
+    "button": "Qarzdorlik qo‘shish",
+    "title": "Yangi qarzdorlik",
+    "intro": "Sotuvsiz berilgan qarz. Pul kassadan chiqadi va shu summa qarz sifatida yoziladi — balans o‘zgarmaydi.",
+    "customer": "Mijoz",
+    "dueDate": "Qaytarish sanasi",
+    "amountUzs": "Summa (so‘m)",
+    "amountUsd": "Summa (USD)",
+    "notes": "Izoh",
+    "cashNote": "Diqqat: bu summa kassadan yechiladi. Qaytarilganda kassaga qayta kiradi. Foyda/zararga ta’sir qilmaydi.",
+    "record": "Qarzdorlikni yozish",
+    "confirm": "{{amount}} qarzga berilsinmi? Bu summa kassadan yechiladi.",
+    "errCustomer": "Mijozni tanlang.",
+    "errAmount": "Summani so‘mda, dollarda yoki ikkalasida kiriting.",
+    "errBothCurrencies": "Qarz bitta valyutada beriladi. So‘m yoki dollar — ikkalasi emas."
   }
 }

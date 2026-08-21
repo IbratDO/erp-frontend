@@ -1,5 +1,5 @@
 {
-  "title": "Credit Sales",
+  "title": "Debts",
   "intro": "Sales where the goods left against a promise to pay. The debt falls as cash arrives; profit is recognized once the cost has been recovered.",
   "filters": {
     "title": "Filters",
@@ -29,7 +29,7 @@
     "customer": "Customer",
     "product": "Product",
     "status": "Status",
-    "principal": "Total debt",
+    "principal": "Total debt (USD)",
     "paid": "Paid",
     "remaining": "Remaining",
     "due": "Payment date",
@@ -38,7 +38,8 @@
     "hideHistory": "Hide",
     "collect": "Receive payment",
     "waive": "Waive",
-    "totalsLine": "total {{principal}} · paid {{paid}} · remaining {{remaining}}"
+    "totalsLine": "total {{principal}} · paid {{paid}} · remaining {{remaining}}",
+    "principalUzs": "Total debt (UZS)"
   },
   "collect": {
     "title": "Credit payment #{{id}}",
@@ -46,7 +47,9 @@
     "amount": "Payment amount ({{currency}})",
     "notes": "Notes (optional)",
     "record": "Record payment",
-    "recorded": "Payment recorded."
+    "recorded": "Payment recorded.",
+    "amountUzs": "Repaid (UZS)",
+    "amountUsd": "Repaid (USD)"
   },
   "waive": {
     "title": "Waive debt #{{id}}",
@@ -71,5 +74,21 @@
     "amountRequired": "Enter the payment amount.",
     "amountExceeds": "The payment cannot exceed the remaining debt ({{balance}}).",
     "reasonRequired": "Enter the reason for waiving the debt."
+  },
+  "create": {
+    "button": "Add debt",
+    "title": "New debt",
+    "intro": "Money lent with no sale behind it. Cash leaves the till and the same amount appears as a debt — the balance sheet does not move.",
+    "customer": "Customer",
+    "dueDate": "Repayment date",
+    "amountUzs": "Amount (UZS)",
+    "amountUsd": "Amount (USD)",
+    "notes": "Note",
+    "cashNote": "This amount leaves the till. It comes back when the debt is repaid. Profit is not affected either way.",
+    "record": "Record the debt",
+    "confirm": "Lend {{amount}}? This amount leaves the till.",
+    "errCustomer": "Choose the customer.",
+    "errAmount": "Enter the amount in som, in dollars, or in both.",
+    "errBothCurrencies": "A debt is lent in one currency. Enter som or dollars, not both."
   }
 }

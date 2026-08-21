@@ -32,7 +32,7 @@
     "cash": "Naqd",
     "bank": "Bank",
     "customerReceivables": "Mijoz debitorligi (to‘lanmagan sotuvlar)",
-    "creditSalesReceivable": "Nasiya savdolardan kutilayotgan tushum",
+    "creditSalesReceivable": "Qarzdorlikdan kutilayotgan tushum",
     "productReceivables": "Mahsulot debitorligi (oldindan to‘langan buyurtmalar, yo‘lda)",
     "unpaidOrderReceivables": "Mahsulot debitorligi (hali to‘lanmagan buyurtmalar)",
     "fixedAssetReceivables": "Asosiy vosita debitorligi (to‘langan, hali olinmagan)",
@@ -60,7 +60,7 @@
     "retainedEarnings": "Saqlangan daromad (oldingi davrlar)",
     "currentPeriodPl": "Joriy davr foyda / zarari (F&Z)",
     "expectedProfit": "Kutilayotgan foyda/zarar (sotilgan, to‘lanmagan)",
-    "expectedCreditProfit": "Nasiya savdolardan kutilayotgan foyda/zarar",
+    "expectedCreditProfit": "Qarzdorlikdan kutilayotgan foyda/zarar",
     "currencyConversionPl": "Valyuta operatsiyalari orqali yuzaga kelgan joriy farq (foyda/zarar)",
     "notionalFx": "Fiktiv valyuta farqi"
   },

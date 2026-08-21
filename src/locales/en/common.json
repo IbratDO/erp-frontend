@@ -14,7 +14,7 @@
     "returns": "Returns",
     "dispatchers": "Dispatchers",
     "receivablesPayables": "Receivables / Payables",
-    "creditSales": "Credit Sales",
+    "creditSales": "Debts",
     "finance": "Other Financial Records",
     "equity": "Equity",
     "fixedAssets": "Fixed Assets",
