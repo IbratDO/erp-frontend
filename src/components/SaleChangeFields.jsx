@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import AmountInput from './AmountInput';
 import { formatDisplayAmount } from '../utils/currencyFormat';
 import { changeAmountInSaleCurrency } from '../utils/saleCompletePayHelpers';
@@ -13,6 +13,13 @@ import { changeAmountInSaleCurrency } from '../utils/saleCompletePayHelpers';
  *
  * `required` is the surplus the customer is owed back, in the sale's currency. `form` needs
  * `apply_change`, `change_uzs` and `change_usd`.
+ *
+ * **The suggested amount follows `required`.** It used to be worked out once, when the box was
+ * ticked, and then never again — so correcting the amount the customer handed over left the
+ * change stuck on the old figure. $1,000 for a $950 item suggested $50; changing it to $1,500
+ * still suggested $50, and the panel then reported the shop as keeping the missing $500 and
+ * asked for it to be classified as profit. The number the shop is shown has to describe the
+ * numbers currently on the screen.
  */
 export default function SaleChangeFields({ form, setForm, sc, required, cbuRate, t }) {
   const currency = (sc || 'USD').toUpperCase();
@@ -32,6 +39,27 @@ export default function SaleChangeFields({ form, setForm, sc, required, cbuRate,
       : { change_uzs: '', change_usd: required.toFixed(2) };
   };
 
+  // Re-suggest whenever the amount owed back moves, while the box is ticked. Keyed on the
+  // rounded figure and not on `required` itself: the surplus is recomputed on every render and
+  // arrives carrying binary dust, so comparing the raw floats would rewrite the field on
+  // keystrokes that changed nothing.
+  const requiredKey = hasRequired && required > 0
+    ? (currency === 'UZS' ? String(Math.round(required)) : required.toFixed(2))
+    : '';
+  const lastApplied = useRef(null);
+  useEffect(() => {
+    if (!checked) {
+      // Cleared so that ticking the box again re-suggests rather than being skipped as
+      // "already applied" from a previous tick.
+      lastApplied.current = null;
+      return;
+    }
+    if (lastApplied.current === requiredKey) return;
+    lastApplied.current = requiredKey;
+    setForm((prev) => ({ ...prev, ...defaultChange() }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- requiredKey is the whole trigger
+  }, [checked, requiredKey]);
+
   return (
     <>
       <label
@@ -48,12 +76,14 @@ export default function SaleChangeFields({ form, setForm, sc, required, cbuRate,
           checked={checked}
           onChange={(e) => {
             const on = e.target.checked;
-            setForm((prev) => {
-              const alreadyTyped =
-                (parseFloat(prev.change_uzs) || 0) > 0 || (parseFloat(prev.change_usd) || 0) > 0;
-              if (!on) return { ...prev, apply_change: false, change_uzs: '', change_usd: '' };
-              return { ...prev, apply_change: true, ...(alreadyTyped ? {} : defaultChange()) };
-            });
+            // Only the flag here — filling the amounts in is the effect's job, so ticking and
+            // later correcting the payment both go through one path instead of two that can
+            // disagree about what the field should say.
+            setForm((prev) =>
+              on
+                ? { ...prev, apply_change: true }
+                : { ...prev, apply_change: false, change_uzs: '', change_usd: '' },
+            );
           }}
         />
         <span>{t('completePay.changeOption')}</span>

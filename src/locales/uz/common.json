@@ -61,6 +61,7 @@
   "roles": {
     "founder": "Asoschi",
     "admin": "Asoschi",
+    "administrator": "Admin",
     "ceo": "Bosh direktor",
     "senior_sales_manager": "Katta sotuv menejeri",
     "sales_manager": "Sotuv menejeri",

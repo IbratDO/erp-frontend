@@ -9,7 +9,10 @@
     "status": "Status",
     "statusAny": "Any status",
     "search": "Search",
-    "searchPlaceholder": "Customer, product or ID"
+    "searchPlaceholder": "Customer, product or ID",
+    "grouping": "Grouping",
+    "groupByCustomer": "By customer",
+    "flatList": "Flat list"
   },
   "status": {
     "unpaid": "Fully unpaid",
@@ -39,7 +42,8 @@
     "collect": "Receive payment",
     "waive": "Waive",
     "totalsLine": "total {{principal}} · paid {{paid}} · remaining {{remaining}}",
-    "principalUzs": "Total debt (UZS)"
+    "principalUzs": "Total debt (UZS)",
+    "groupCount": "({{open}} open / {{total}} total)"
   },
   "collect": {
     "title": "Credit payment #{{id}}",

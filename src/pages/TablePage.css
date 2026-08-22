@@ -796,6 +796,23 @@
   border-left: 4px solid #4f7fd6;
 }
 
+/*
+  Rows sitting underneath a group heading.
+
+  Smaller and indented so a customer's total is not read as just another debt — at the same
+  size the heading and its contents ran together. Only the type is set here: an overdue row
+  paints its own background inline, and that has to keep winning.
+*/
+.group-child-row td {
+  font-size: 12.5px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+}
+
+.group-child-row td:first-child {
+  padding-left: 2rem;
+}
+
 .sale-group-detail-row td {
   font-size: 12px;
   color: #4a5568;

@@ -43,6 +43,68 @@ export function creditRowBackground(row) {
 
 const num = (v) => parseFloat(v) || 0;
 
+/** Still owed something. Paid-off and forgiven debts stay visible but stop counting. */
+export function isOpenCredit(row) {
+  return row?.status === 'unpaid' || row?.status === 'partial';
+}
+
+/**
+ * One line per customer, with what they still owe.
+ *
+ * **Totals count open debts only.** The heading answers "how much is this person going to pay
+ * me?", so a settled debt would be a wrong answer to it — the row is still there underneath when
+ * the group is opened, it just adds nothing.
+ *
+ * **Currencies never merge.** A customer owing $150 and 2,000,000 so'm is owed both, not some
+ * dollar figure that only holds until the rate moves — the same rule the flat totals above the
+ * table already follow. So each currency keeps its own principal/paid/remaining, and a customer
+ * with both shows both on one line.
+ *
+ * Group order follows the order the rows arrive in, which is whatever the sorted table decided,
+ * so clicking a column heading reorders the customers too rather than leaving them fixed while
+ * their contents shuffle.
+ */
+export function groupCreditsByCustomer(rows) {
+  const groups = new Map();
+  for (const row of rows || []) {
+    const name = row.customer_name || '—';
+    if (!groups.has(name)) {
+      groups.set(name, {
+        name, rows: [], openTotals: {}, openCount: 0, soonestDays: null, soonestRow: null,
+      });
+    }
+    const group = groups.get(name);
+    group.rows.push(row);
+    if (!isOpenCredit(row)) continue;
+    group.openCount += 1;
+    const ccy = (row.currency || 'USD').toUpperCase();
+    if (!group.openTotals[ccy]) {
+      group.openTotals[ccy] = { principal: 0, paid: 0, remaining: 0 };
+    }
+    const totals = group.openTotals[ccy];
+    totals.principal += num(row.principal_amount);
+    totals.paid += num(row.paid_amount);
+    totals.remaining += num(row.remaining_amount);
+    // The heading takes its date and its colour from the most urgent debt underneath, so a
+    // customer with one overdue item reads as overdue even when the rest are months away.
+    const days = row.days_until_due;
+    if (days != null && (group.soonestDays == null || days < group.soonestDays)) {
+      group.soonestDays = days;
+      group.soonestRow = row;
+    }
+  }
+  return [...groups.values()];
+}
+
+/** The heading's colour, from the same scale as a single row. */
+export function creditGroupBackground(group) {
+  if (!group || group.openCount === 0) return '#d4edda';
+  if (group.soonestDays == null) return undefined;
+  if (group.soonestDays < 0) return '#f8d7da';
+  if (group.soonestDays <= 10) return '#fff3cd';
+  return undefined;
+}
+
 /** Module-level so the hook's memo keys stay stable across renders. */
 const SORT_ACCESSORS = {
   id: (r) => r.id,
@@ -65,7 +127,19 @@ export default function CreditSales() {
 
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState({ scope: 'open', status: '', search: '' });
+  const [filter, setFilter] = useState({ scope: 'open', status: '', search: '', grouped: true });
+
+  // Which customers are open. Empty to start: a folded list is the point of grouping, and the
+  // flat view is one dropdown away for anyone who wants every row at once.
+  const [expandedCustomers, setExpandedCustomers] = useState(() => new Set());
+  const toggleCustomer = (name) => {
+    setExpandedCustomers((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  };
 
   const [expandedId, setExpandedId] = useState(null);
   const [history, setHistory] = useState(null);
@@ -145,6 +219,7 @@ export default function CreditSales() {
 
   const tableSort = useClientTableSort(SORT_ACCESSORS);
   const sorted = useMemo(() => tableSort.sortRows(visibleRows), [tableSort, visibleRows]);
+  const groups = useMemo(() => groupCreditsByCustomer(sorted), [sorted]);
 
   // Debts in different currencies do not add up to one number, so they are never summed into
   // one. Each currency keeps its own total, which is also how the customer is owed it.
@@ -357,6 +432,130 @@ export default function CreditSales() {
     return `${date} · ${t('due.inDays', { days })}`;
   };
 
+  const dash = <span style={{ color: '#cbd5e0' }}>—</span>;
+
+  /** One currency's figure in the column that belongs to it, so it lines up under its heading. */
+  const groupAmountCell = (group, ccy, key) => {
+    const totals = group.openTotals[ccy];
+    if (!totals) return dash;
+    return formatDisplayAmount(totals[key], ccy);
+  };
+
+  /**
+   * Paid and Qolgan have one column between them and possibly two currencies to put in it.
+   * Stacked rather than joined with a plus, because "$100.00 + 1 500 000" invites reading the
+   * two as one sum, which is the one thing they are not.
+   */
+  const groupLegs = (group, key) => {
+    const entries = Object.entries(group.openTotals);
+    if (!entries.length) return dash;
+    return entries.map(([ccy, totals]) => (
+      <div key={ccy}>{formatDisplayAmount(totals[key], ccy)}</div>
+    ));
+  };
+
+  /**
+   * A single debt. The same row grouped or flat — `nested` only makes it smaller and indented,
+   * so a customer's total heading is not mistaken for one of the debts under it.
+   */
+  const debtRow = (row, nested = false) => {
+    const ccy = (row.currency || 'USD').toUpperCase();
+    const isOpen = isOpenCredit(row);
+    return (
+      <React.Fragment key={row.id}>
+        <tr
+          className={nested ? 'group-child-row' : undefined}
+          style={{ backgroundColor: creditRowBackground(row) }}
+        >
+          <td>#{row.id}</td>
+          <td>#{row.sale}</td>
+          <td>{row.customer_name || '—'}</td>
+          <td>{productLabel(row)}</td>
+          <td>{t(`status.${row.status}`)}</td>
+          <td>
+            {ccy === 'USD' ? formatDisplayAmount(num(row.principal_amount), 'USD') : dash}
+          </td>
+          <td>
+            {ccy === 'UZS' ? formatDisplayAmount(num(row.principal_amount), 'UZS') : dash}
+          </td>
+          <td>{formatDisplayAmount(num(row.paid_amount), ccy)}</td>
+          <td>
+            <strong>{formatDisplayAmount(num(row.remaining_amount), ccy)}</strong>
+          </td>
+          <td>{dueLabel(row)}</td>
+          <td>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+              <button type="button" className="btn-edit" onClick={() => toggleHistory(row)}>
+                {expandedId === row.id ? t('table.hideHistory') : t('table.history')}
+              </button>
+              {isOpen && canCollect && (
+                <ActionButton type="button" className="btn-primary" onClick={() => beginCollect(row)}>
+                  {t('table.collect')}
+                </ActionButton>
+              )}
+              {isOpen && canWaive && (
+                <button
+                  type="button"
+                  className="btn-danger-action"
+                  onClick={() => {
+                    setCollectTarget(null);
+                    setWaiveTarget(row);
+                    setWaiveReason('');
+                  }}
+                >
+                  {t('table.waive')}
+                </button>
+              )}
+            </div>
+          </td>
+        </tr>
+        {expandedId === row.id && (
+          <tr className={nested ? 'group-child-row' : undefined}>
+            <td colSpan={11} style={{ background: '#fafafa' }}>
+              {historyLoading ? (
+                <p style={{ margin: 8 }}>{t('actions.loading', { ns: 'common' })}</p>
+              ) : !history?.payments?.length ? (
+                <p style={{ margin: 8, color: '#666' }}>{t('history.empty')}</p>
+              ) : (
+                <table style={{ margin: 8, width: 'calc(100% - 16px)' }}>
+                  <thead>
+                    <tr>
+                      <th>{t('history.paidAt')}</th>
+                      <th>{t('history.amount')}</th>
+                      <th>{t('history.remainingAfter')}</th>
+                      <th>{t('history.by')}</th>
+                      <th>{t('history.notes')}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.payments.map((p) => (
+                      <tr key={p.id}>
+                        <td>{formatAppDateTime(p.paid_at)}</td>
+                        <td>{formatDisplayAmount(num(p.amount), p.currency)}</td>
+                        <td>{formatDisplayAmount(num(p.remaining_after), p.currency)}</td>
+                        <td>{p.created_by || '—'}</td>
+                        <td>{p.notes || '—'}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              {history?.waived_at && (
+                <p style={{ margin: 8, color: '#b45309' }}>
+                  {t('history.waived', {
+                    amount: formatDisplayAmount(num(history.waived_amount), history.currency),
+                    at: formatAppDateTime(history.waived_at),
+                    reason: history.waived_reason || '—',
+                  })}
+                </p>
+              )}
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    );
+  };
+
   return (
     <div className="page-container">
       <div className="page-header">
@@ -376,8 +575,25 @@ export default function CreditSales() {
       </div>
       <p style={{ color: '#666', margin: '0 0 16px', fontSize: '0.92rem' }}>{t('intro')}</p>
 
+      {/*
+        `filter-toolbar` is what lays the fields out in a row and bottom-aligns them. Without it
+        the panel's body stacks them as plain blocks, each label sitting above a full-width
+        control — which is how this page has looked since it was written, and why it did not
+        match Debitorlik or Sotuvlar.
+      */}
       <FilterPanel title={t('filters.title')} filters={filter}>
-                  <div className="filter-field">
+        <div className="filter-toolbar">
+          <div className="filter-field">
+            <label>{t('filters.grouping')}</label>
+            <select
+              value={filter.grouped ? 'grouped' : 'flat'}
+              onChange={(e) => setFilter({ ...filter, grouped: e.target.value === 'grouped' })}
+            >
+              <option value="grouped">{t('filters.groupByCustomer')}</option>
+              <option value="flat">{t('filters.flatList')}</option>
+            </select>
+          </div>
+          <div className="filter-field">
             <label>{t('filters.scope')}</label>
             <select
               value={filter.scope}
@@ -400,7 +616,8 @@ export default function CreditSales() {
               <option value="waived">{t('status.waived')}</option>
             </select>
           </div>
-          <div className="filter-field">
+          {/* Grows into whatever room is left: a search box is the one field worth widening. */}
+          <div className="filter-field filter-field--grow">
             <label>{t('filters.search')}</label>
             <input
               type="text"
@@ -409,6 +626,7 @@ export default function CreditSales() {
               onChange={(e) => setFilter({ ...filter, search: e.target.value })}
             />
           </div>
+        </div>
       </FilterPanel>
 
       {showCreate && canCreateDebt && (
@@ -656,117 +874,41 @@ export default function CreditSales() {
                 </tr>
               </thead>
               <tbody>
-                {sorted.map((row) => {
-                  const ccy = (row.currency || 'USD').toUpperCase();
-                  const isOpen = row.status === 'unpaid' || row.status === 'partial';
-                  return (
-                    <React.Fragment key={row.id}>
-                      <tr style={{ backgroundColor: creditRowBackground(row) }}>
-                        <td>#{row.id}</td>
-                        <td>#{row.sale}</td>
-                        <td>{row.customer_name || '—'}</td>
-                        <td>{productLabel(row)}</td>
-                        <td>{t(`status.${row.status}`)}</td>
-                        <td>
-                          {ccy === 'USD'
-                            ? formatDisplayAmount(num(row.principal_amount), 'USD')
-                            : <span style={{ color: '#cbd5e0' }}>—</span>}
+                {(filter.grouped
+                  ? groups.flatMap((group) => {
+                    const open = expandedCustomers.has(group.name);
+                    const header = (
+                      <tr
+                        key={`group-${group.name}`}
+                        className="sale-group-row"
+                        style={{
+                          backgroundColor: creditGroupBackground(group),
+                          cursor: 'pointer',
+                        }}
+                        onClick={() => toggleCustomer(group.name)}
+                      >
+                        <td colSpan={5} style={{ fontWeight: 600 }}>
+                          {open ? '▾' : '▸'} {group.name}{' '}
+                          <span style={{ fontWeight: 400, color: '#555' }}>
+                            {t('table.groupCount', {
+                              open: group.openCount,
+                              total: group.rows.length,
+                            })}
+                          </span>
                         </td>
-                        <td>
-                          {ccy === 'UZS'
-                            ? formatDisplayAmount(num(row.principal_amount), 'UZS')
-                            : <span style={{ color: '#cbd5e0' }}>—</span>}
-                        </td>
-                        <td>{formatDisplayAmount(num(row.paid_amount), ccy)}</td>
-                        <td>
-                          <strong>{formatDisplayAmount(num(row.remaining_amount), ccy)}</strong>
-                        </td>
-                        <td>{dueLabel(row)}</td>
-                        <td>
-                          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                            <button
-                              type="button"
-                              className="btn-edit"
-                              onClick={() => toggleHistory(row)}
-                            >
-                              {expandedId === row.id ? t('table.hideHistory') : t('table.history')}
-                            </button>
-                            {isOpen && canCollect && (
-                              <ActionButton
-                                type="button"
-                                className="btn-primary"
-                                onClick={() => beginCollect(row)}
-                              >
-                                {t('table.collect')}
-                              </ActionButton>
-                            )}
-                            {isOpen && canWaive && (
-                              <button
-                                type="button"
-                                className="btn-danger-action"
-                                onClick={() => {
-                                  setCollectTarget(null);
-                                  setWaiveTarget(row);
-                                  setWaiveReason('');
-                                }}
-                              >
-                                {t('table.waive')}
-                              </button>
-                            )}
-                          </div>
-                        </td>
+                        <td>{groupAmountCell(group, 'USD', 'principal')}</td>
+                        <td>{groupAmountCell(group, 'UZS', 'principal')}</td>
+                        <td>{groupLegs(group, 'paid')}</td>
+                        <td style={{ fontWeight: 600 }}>{groupLegs(group, 'remaining')}</td>
+                        <td>{group.soonestRow ? dueLabel(group.soonestRow) : '—'}</td>
+                        <td>—</td>
                       </tr>
-                      {expandedId === row.id && (
-                        <tr>
-                          <td colSpan={11} style={{ background: '#fafafa' }}>
-                            {historyLoading ? (
-                              <p style={{ margin: 8 }}>{t('actions.loading', { ns: 'common' })}</p>
-                            ) : !history?.payments?.length ? (
-                              <p style={{ margin: 8, color: '#666' }}>{t('history.empty')}</p>
-                            ) : (
-                              <table style={{ margin: 8, width: 'calc(100% - 16px)' }}>
-                                <thead>
-                                  <tr>
-                                    <th>{t('history.paidAt')}</th>
-                                    <th>{t('history.amount')}</th>
-                                    <th>{t('history.remainingAfter')}</th>
-                                    <th>{t('history.by')}</th>
-                                    <th>{t('history.notes')}</th>
-                                  </tr>
-                                </thead>
-                                <tbody>
-                                  {history.payments.map((p) => (
-                                    <tr key={p.id}>
-                                      <td>{formatAppDateTime(p.paid_at)}</td>
-                                      <td>{formatDisplayAmount(num(p.amount), p.currency)}</td>
-                                      <td>
-                                        {formatDisplayAmount(num(p.remaining_after), p.currency)}
-                                      </td>
-                                      <td>{p.created_by || '—'}</td>
-                                      <td>{p.notes || '—'}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            )}
-                            {history?.waived_at && (
-                              <p style={{ margin: 8, color: '#b45309' }}>
-                                {t('history.waived', {
-                                  amount: formatDisplayAmount(
-                                    num(history.waived_amount),
-                                    history.currency,
-                                  ),
-                                  at: formatAppDateTime(history.waived_at),
-                                  reason: history.waived_reason || '—',
-                                })}
-                              </p>
-                            )}
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
-                  );
-                })}
+                    );
+                    return open
+                      ? [header, ...group.rows.map((row) => debtRow(row, true))]
+                      : [header];
+                  })
+                  : sorted.map((row) => debtRow(row)))}
               </tbody>
             </table>
           </div>

@@ -71,6 +71,7 @@ export const ROLE_HIDDEN_MENU_PATHS = {
     '/balance-sheet',
   ],
   admin: ['/bonus-rules', '/change-password'],
+  administrator: ['/bonus-rules', '/change-password'],
   investor: ['/users', '/workers', '/audit-logs', '/bonus-rules'],
   sales_manager: ['/inventory/packages'],
 };
@@ -154,8 +155,18 @@ export function isCEO(user) {
   return getRoleCode(user) === 'ceo';
 }
 
+/**
+ * The two top roles. Mirrors FOUNDER_LEVEL_ROLE_CODES on the server.
+ *
+ * Founder and Admin carry the same authority today and are separated so they can stop doing so
+ * later. Anything asking "is this one of the people who run the place?" belongs here; anything
+ * asking "may this person do X?" belongs in a permission code instead, which is what will still
+ * be right once the two lists diverge.
+ */
+export const FOUNDER_LEVEL_ROLES = ['admin', 'administrator'];
+
 export function isAdmin(user) {
-  return getRoleCode(user) === 'admin';
+  return FOUNDER_LEVEL_ROLES.includes(getRoleCode(user));
 }
 
 /** Display label for role (Founder instead of Admin). Pass optional t from useTranslation('common'). */
@@ -169,6 +180,7 @@ export function getRoleDisplayName(user, t) {
     if (translated) return translated;
   }
   if (code === 'admin') return 'Founder';
+  if (code === 'administrator') return 'Admin';
   if (user.role_name) return user.role_name;
   return code.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
@@ -193,7 +205,7 @@ export function isReadOnly(user) {
 /** Admin, CEO, or Senior Sales Manager — full operational visibility (all sales/orders). */
 export function isOperationalSenior(user) {
   const role = getRoleCode(user);
-  return role === 'admin' || role === 'ceo' || role === 'senior_sales_manager';
+  return isAdmin(user) || role === 'ceo' || role === 'senior_sales_manager';
 }
 
 function pathAllowedForRole(user, path) {

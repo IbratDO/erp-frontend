@@ -13,6 +13,7 @@ import {
   YAxis,
 } from 'recharts';
 import { CHART_PALETTE } from '../utils/dashboardAnalytics';
+import { FOUNDER_LEVEL_ROLES } from '../utils/permissions';
 import useAppTranslation from '../hooks/useAppTranslation';
 
 function fmtUsd(n) {
@@ -77,7 +78,9 @@ function productLabel(p) {
 export default function ManagementKpisSectionLegacy({ roleCode, availableYears, active, marketingOnly = false }) {
   const { t, monthOptions } = useAppTranslation(['dashboard', 'common']);
   const isTargetologRole = roleCode === 'targetolog';
-  const showFull = !marketingOnly && (roleCode === 'admin' || roleCode === 'ceo' || roleCode === 'investor');
+  const showFull =
+    !marketingOnly
+    && (FOUNDER_LEVEL_ROLES.includes(roleCode) || roleCode === 'ceo' || roleCode === 'investor');
   const show = showFull || (marketingOnly && isTargetologRole);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);

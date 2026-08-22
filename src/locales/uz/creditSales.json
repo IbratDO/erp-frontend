@@ -9,7 +9,10 @@
     "status": "Holat",
     "statusAny": "Barcha holatlar",
     "search": "Qidiruv",
-    "searchPlaceholder": "Mijoz, mahsulot yoki ID"
+    "searchPlaceholder": "Mijoz, mahsulot yoki ID",
+    "grouping": "Guruhlash",
+    "groupByCustomer": "Mijoz bo‘yicha",
+    "flatList": "Oddiy ro‘yxat"
   },
   "status": {
     "unpaid": "To‘lanmagan",
@@ -39,7 +42,8 @@
     "collect": "To‘lov qabul qilish",
     "waive": "Kechirish",
     "totalsLine": "jami {{principal}} · to‘langan {{paid}} · qolgan {{remaining}}",
-    "principalUzs": "Jami qarz (so‘m)"
+    "principalUzs": "Jami qarz (so‘m)",
+    "groupCount": "({{open}} ta ochiq / {{total}} ta jami)"
   },
   "collect": {
     "title": "Nasiya to‘lovi #{{id}}",
