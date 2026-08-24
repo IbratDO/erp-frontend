@@ -91,7 +91,9 @@
     "loading": "Yuklanmoqda…",
     "loadingPage": "Sahifa yuklanmoqda…",
     "noData": "Ma’lumot yo‘q",
-    "accessDenied": "Kirish rad etildi"
+    "accessDenied": "Kirish rad etildi",
+    "downloadExcel": "⬇ Excel",
+    "downloadExcelHint": "Jadvalni Excel uchun CSV faylga yuklab olish"
   },
   "table": {
     "actions": "Amallar",

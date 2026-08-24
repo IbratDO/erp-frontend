@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
 import AmountInput from '../components/AmountInput';
@@ -14,6 +14,7 @@ import { useClientTableSort } from '../utils/tableSort';
 import './TablePage.css';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import ActionButton from '../components/ActionButton';
+import TableDownloadButton from '../components/TableDownloadButton';
 
 /**
  * Nasiya savdo — goods that left the shop against a promise.
@@ -118,6 +119,9 @@ const SORT_ACCESSORS = {
 };
 
 export default function CreditSales() {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t } = useAppTranslation(['creditSales', 'common']);
   const { hasPermission } = usePermissions();
   const canCollect = hasPermission('credit_sales.collect');
@@ -816,7 +820,14 @@ export default function CreditSales() {
       )}
 
       <div className="table-card">
-        <h2>{t('table.title')}</h2>
+        <div className="table-card__toolbar table-card__toolbar--with-title">
+          <h2>{t('table.title')}</h2>
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="qarzdorlik"
+            rowCount={sorted.length}
+          />
+        </div>
         {Object.keys(totalsByCurrency).length > 0 && (
           <p style={{ color: '#444', fontSize: '0.9em', margin: '0 0 10px' }}>
             {Object.entries(totalsByCurrency).map(([ccy, sums]) => (
@@ -837,7 +848,7 @@ export default function CreditSales() {
           <p>{t('table.empty')}</p>
         ) : (
           <div className="data-table-scroll">
-            <table className="data-table">
+            <table className="data-table" ref={tableRef}>
               <thead>
                 <tr>
                   <SortableTh columnId="id" sortCol={tableSort.sortCol} sortDir={tableSort.sortDir} onSort={tableSort.onHeaderClick}>

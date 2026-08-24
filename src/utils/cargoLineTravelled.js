@@ -58,3 +58,28 @@ export default function orderLineTravelled(order, poolMates) {
   );
   return !somethingElseLanded;
 }
+
+/**
+ * Items that came in the same delivery as this one and have not paid their freight.
+ *
+ * Purely for the warning in the cargo card. Paying from a row settles that row alone, so when
+ * the carrier gave one bill for the whole delivery these are the items whose share would
+ * otherwise have to be worked out by hand — the group button splits it by weight instead.
+ *
+ * A line already paid for is not listed: its bill is settled and nothing here can change it.
+ *
+ * @param {object} order - the line whose cargo card is open
+ * @param {object[]} all - every line on screen
+ */
+export function cargoPoolCompanions(order, all) {
+  if (!order || !order.cargo_pool_id) return [];
+  return (all || []).filter(
+    (other) =>
+      other
+      && other.id !== order.id
+      && other.cargo_pool_id === order.cargo_pool_id
+      && other.status !== 'cancelled'
+      && !other.cargo_is_paid
+      && orderLineTravelled(other, all),
+  );
+}

@@ -12,6 +12,7 @@ import FilterSearchableSelect from '../components/FilterSearchableSelect';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import ProductCatalogFilterFields from '../components/ProductCatalogFilterFields';
 import FilterPanel from '../components/FilterPanel';
+import TableDownloadButton from '../components/TableDownloadButton';
 import { matchesProductCatalogFilters, getCascadedFilterOptions, getCascadedDateOptions } from '../utils/productFilterUtils';
 import './TablePage.css';
 import {
@@ -117,6 +118,9 @@ function apiErrorMessage(error, fallback) {
 }
 
 const Products = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t, monthOptions } = useAppTranslation(['products', 'common']);
   const { hasPermission } = usePermissions();
 
@@ -1105,8 +1109,15 @@ const Products = () => {
       )}
 
       <div className="table-card">
+        <div className="table-card__toolbar">
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="mahsulotlar"
+            rowCount={filteredProducts.length}
+          />
+        </div>
         <div className="data-table-scroll">
-        <table className="data-table">
+        <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
               <SortableTh columnId="id" sortCol={productSort.sortCol} sortDir={productSort.sortDir} onSort={productSort.onHeaderClick}>

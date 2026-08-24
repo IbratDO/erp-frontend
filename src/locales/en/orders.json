@@ -106,7 +106,9 @@
     "noCustomer": "No customer",
     "shortfall": "Delivery",
     "allDeliveries": "All items",
-    "shortfallPending": "Not fully delivered"
+    "shortfallPending": "Not fully delivered",
+    "supplierCargo": "Cargo carrier",
+    "allSupplierCargos": "All carriers"
   },
   "actions": {
     "payOrder": "Pay for the Order",
@@ -189,7 +191,8 @@
   },
   "cargoForm": {
     "title": "Pay for Cargo - Order #{{id}}",
-    "intro": "Enter the UZS and/or USD amount. If cargo was free, enter 0 in both fields and submit."
+    "intro": "Enter the UZS and/or USD amount. If cargo was free, enter 0 in both fields and submit.",
+    "sharedDeliveryNotice": "{{ids}} arrived in the same delivery and their cargo is still unpaid. What you enter here is recorded for this item only. If the carrier gave one bill for the whole delivery, use the group \"Pay for Cargo\" button instead — it splits the amount across the items by weight."
   },
   "markOrderedForm": {
     "title": "Mark as Ordered - Order #{{id}}",

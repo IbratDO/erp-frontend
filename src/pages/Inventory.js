@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts, invalidateProductsCache } from '../utils/catalogCache';
@@ -24,6 +24,7 @@ import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
+import TableDownloadButton from '../components/TableDownloadButton';
 
 const EMPTY_FORM = {
   product: '',
@@ -153,6 +154,9 @@ const INVENTORY_SORT_ACCESSORS = {
 };
 
 const Inventory = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t, tStatus, monthOptions } = useAppTranslation(['inventory', 'common', 'status']);
   const { hasPermission } = usePermissions();
   const canAddInventory = hasPermission('inventory.create');
@@ -903,8 +907,15 @@ const Inventory = () => {
       )}
 
       <div className="table-card">
+        <div className="table-card__toolbar">
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="ombor-mahsulotlar"
+            rowCount={filteredInventory.length}
+          />
+        </div>
         <div className="data-table-scroll">
-        <table className="data-table">
+        <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
               <SortableTh columnId="category_type" sortCol={invSort.sortCol} sortDir={invSort.sortDir} onSort={invSort.onHeaderClick}>

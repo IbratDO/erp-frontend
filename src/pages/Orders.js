@@ -38,10 +38,18 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import PageTitle from '../components/PageTitle';
 import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import AmountInput from '../components/AmountInput';
-import orderLineTravelled from '../utils/cargoLineTravelled';
+import orderLineTravelled, { cargoPoolCompanions } from '../utils/cargoLineTravelled';
+import {
+  ORDER_TERMINAL_STATUSES,
+  availableGroupSteps,
+  availableOrderSteps,
+  showMarkAsOrderedAction,
+  showMarkAsReceivedAction,
+} from '../utils/orderWorkflowSteps';
 import ActionButton from '../components/ActionButton';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import FilterPanel from '../components/FilterPanel';
+import TableDownloadButton from '../components/TableDownloadButton';
 
 const categoryTypeLabel = (value, t) =>
   sharedCategoryTypeLabel(value, (key, opts) => t(key, { ns: 'orders', ...opts }));
@@ -55,85 +63,6 @@ const orderTypeShortLabel = (orderType, t) => {
 function formatOrderStatus(status, tStatus) {
   if (tStatus) return tStatus(status, 'order');
   return String(status ?? '').replace(/_/g, ' ');
-}
-
-function showMarkAsOrderedAction(order) {
-  return order.status === 'order_created';
-}
-
-function showMarkAsReceivedAction(order) {
-  return (
-    (order.status === 'ordered' || order.status === 'order_paid') &&
-    !order.has_ever_been_received
-  );
-}
-
-/**
- * Whether anything on this line actually arrived.
- *
- * A null count means "not counted yet" (or a line predating short-delivery tracking), which
- * reads as fully received — same rule the backend uses in `order_shortfall_utils.received_qty`.
- */
-function orderReceivedSomething(order) {
-  return order?.received_quantity == null || Number(order.received_quantity) > 0;
-}
-
-function orderReadyForInventoryActions(order) {
-  return (
-    (order.status === 'received' || order.status === 'order_paid') &&
-    order.order_is_paid &&
-    order.cargo_is_paid &&
-    // Nothing arrived, so there is nothing to shelve and nothing to hand a customer. The
-    // line's way out is the shortfall: receive it late, or close it as refunded / written
-    // off. Offering "finalize" here produced a dead Sotish button and an Omborda row holding
-    // no stock, which then went terminal and locked its own corrections away.
-    orderReceivedSomething(order)
-  );
-}
-
-/** Pipeline order of the workflow steps a row can be waiting on. */
-const ORDER_STEP_SEQUENCE = [
-  'mark_ordered',
-  'pay_order',
-  'mark_received',
-  'pay_cargo',
-  'finalize',
-];
-
-/**
- * The single workflow step an order line is waiting on, or null when it is finished.
- *
- * The supplier is paid *before* the goods are counted, because that is the real sequence:
- * the eShop takes the money when the order is placed. Recording it in that order means the
- * system already knows the order is paid at the moment a short delivery is discovered, so
- * money the supplier sends back is recorded as a genuine refund rather than silently
- * shrinking a bill that was never raised.
- *
- * Cargo stays after receiving — freight is weighed on arrival, so its cost is not known
- * until the shipment is in hand.
- *
- * Corrections and exceptions — cancel, editing cargo cost, resolving a short delivery — are
- * not steps and keep their own independent visibility.
- */
-function availableOrderSteps(order) {
-  if (ORDER_TERMINAL_STATUSES.has(order.status)) return [];
-  if (showMarkAsOrderedAction(order)) return ['mark_ordered'];
-  if (!order.order_is_paid) return ['pay_order'];
-  if (showMarkAsReceivedAction(order)) return ['mark_received'];
-  if (!order.cargo_is_paid) return ['pay_cargo'];
-  if (orderReadyForInventoryActions(order)) return ['finalize'];
-  return [];
-}
-
-/**
- * Earliest step still outstanding anywhere in a multi-item order, so a group never offers
- * to pay cargo while some of its lines have not been received.
- */
-function availableGroupSteps(groupOrders) {
-  const open = new Set();
-  (groupOrders || []).forEach((o) => availableOrderSteps(o).forEach((s) => open.add(s)));
-  const earliest = ORDER_STEP_SEQUENCE.find((s) => open.has(s));
-  return earliest ? [earliest] : [];
 }
 
 /** Colour of the "9 / 10" quantity badge, by how the short delivery ended up. */
@@ -203,8 +132,6 @@ const formatOrderAdvance = (o) => {
   }
   return formatDisplayAmount(o?.advance_payment_amount, o?.advance_payment_currency || 'USD');
 };
-
-const ORDER_TERMINAL_STATUSES = new Set(['in_inventory', 'sold', 'cancelled']);
 
 const ORDER_OPEN_STATUS_RANK = {
   order_created: 0,
@@ -489,6 +416,9 @@ function formatOrderedNoteDisplay(order) {
   return role ? `${role} - ${note}` : note;
 }
 const Orders = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t, tStatus, monthOptions } = useAppTranslation(['orders', 'common', 'status', 'sales']);
   const uzsLabel = t('currency.uzs', { ns: 'common' });
 
@@ -543,7 +473,44 @@ const Orders = () => {
   // Purchasing Agent must see stock + on-demand rows to mark Ordered.
   // Sales managers without stock workflow still see on-demand only.
   const canSeeStockOrders = canManageStockOrders || canMarkAsOrdered;
-  const orderTableColumnCount = canSeeStockOrders ? 28 : 27;
+  /**
+   * Columns the Purchasing Agent does not see.
+   *
+   * The role has two powers — look at Yaponiya orders, and confirm one was placed with the
+   * supplier. What the shop paid, what it plans to sell for, who ordered it and for whom are
+   * none of that job, and sixteen columns of it stood between them and the four that are.
+   *
+   * **This hides, it does not withhold.** The figures still arrive in the API response, so
+   * anyone who opens the browser's network tab can read them. If they must genuinely never be
+   * seen, the serializer has to leave them out for this role — say so and I'll do that instead.
+   */
+  const hiddenOrderColumns = useMemo(
+    () => (isPurchasingAgent(user)
+      ? new Set([
+        'order_type', 'customer', 'qty', 'weight',
+        'selling_price_unit', 'selling_price_unit_uzs',
+        'cost_per_unit', 'cost_per_unit_uzs', 'total_cost',
+        'order_uzs', 'order_usd',
+        'cargo_uzs', 'cargo_usd', 'cargo_unit_uzs', 'cargo_unit_usd',
+        'created_by',
+      ])
+      : new Set()),
+    [user],
+  );
+  const showCol = useCallback((key) => !hiddenOrderColumns.has(key), [hiddenOrderColumns]);
+  // 30 headers with Buyurtma turi, 29 without — counted from the table itself rather than
+  // remembered, because the last two cargo columns were added without this being updated and
+  // the empty-table row has been two cells short ever since.
+  const orderTableColumnCount = useMemo(() => {
+    const base = canSeeStockOrders ? 30 : 29;
+    let hidden = 0;
+    for (const key of hiddenOrderColumns) {
+      // Buyurtma turi only counts as removed if it was going to be there in the first place.
+      if (key === 'order_type' && !canSeeStockOrders) continue;
+      hidden += 1;
+    }
+    return base - hidden;
+  }, [canSeeStockOrders, hiddenOrderColumns]);
   const orderFooterLabelColSpan = canSeeStockOrders ? 15 : 14;
   /** Ledger totals for pay flows and move-to-inventory advance refunds (not bare status updates). */
   const needsLedgerForPayments = canPayOrder || canPayCargo || canMoveInventory;
@@ -580,6 +547,7 @@ const Orders = () => {
     order_type: '',
     status: '',
     shortfall: '',
+    supplier_cargo: '',
     customer: '',
     year: '',
     month: '',
@@ -625,6 +593,9 @@ const Orders = () => {
     uzs: '',
     usd: '',
     weight: '',
+    // Ids of items that came in the same delivery and have not paid their freight. Only used
+    // to warn — this form settles the one line it was opened for, whatever else is listed.
+    sharedWith: [],
   });
   const [showCargoForm, setShowCargoForm] = useState(false);
   const [markOrderedFormData, setMarkOrderedFormData] = useState({
@@ -812,6 +783,22 @@ const Orders = () => {
     );
   }, [customers, orders]);
 
+  /**
+   * The carriers that actually appear in the orders, rather than a fixed list.
+   *
+   * It is a free-text field on the order — "Tez Cargo", "Sof Impex", "Abu Sahiy" today — so the
+   * only honest set of choices is whatever has been typed. A new carrier shows up in the filter
+   * the moment the first order names it.
+   */
+  const supplierCargoFilterOptions = useMemo(() => {
+    const seen = new Set();
+    for (const o of orders) {
+      const name = String(o.supplier_cargo || '').trim();
+      if (name) seen.add(name);
+    }
+    return [...seen].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+  }, [orders]);
+
   const applyFilters = (ordersList) => {
     let filtered = ordersList;
 
@@ -840,6 +827,11 @@ const Orders = () => {
     }
     if (filters.shortfall === 'pending') {
       filtered = filtered.filter((order) => order.shortfall_status === 'pending');
+    }
+    if (filters.supplier_cargo) {
+      filtered = filtered.filter(
+        (order) => String(order.supplier_cargo || '').trim() === filters.supplier_cargo,
+      );
     }
     if (filters.customer) {
       if (filters.customer === '__none__') {
@@ -1522,6 +1514,7 @@ const Orders = () => {
       // Whether there is a parcel to weigh at all — see utils/cargoLineTravelled, which is
       // the browser's copy of cargo_allocation_utils.line_travelled.
       travelled: orderLineTravelled(order, orders),
+      sharedWith: cargoPoolCompanions(order, orders).map((o) => o.id),
     });
     setShowCargoForm(true);
     setTimeout(() => cargoFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
@@ -2125,7 +2118,7 @@ const Orders = () => {
 
       const res = await api.post(`/orders/${cargoFormData.orderId}/pay_cargo/`, { uzs, usd, weight });
       setShowCargoForm(false);
-      setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '' });
+      setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '', sharedWith: [] });
       await fetchOrders();
       showNotification(res.data?.message || t('notifications.cargoPaidSuccess'), 'success');
     } catch (error) {
@@ -2563,13 +2556,14 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
-        {canSeeStockOrders && (
+        {canSeeStockOrders && showCol('order_type') && (
         <td>
           <span className={`status-badge ${order.order_type === 'stock' ? 'confirmed' : 'pending'}`}>
             {orderTypeShortLabel(order.order_type, t)}
           </span>
         </td>
         )}
+        {showCol('customer') && (
         <td>
           {order.order_type === 'on_demand' ? (
             order.customer_detail ? (
@@ -2591,6 +2585,8 @@ const Orders = () => {
             <span style={{ color: '#aaa' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('qty') && (
         <td>
           {renderQuantityCell(
             order.ordered_quantity,
@@ -2599,6 +2595,8 @@ const Orders = () => {
             t,
           )}
         </td>
+        )}
+        {showCol('weight') && (
         <td>
           {parseFloat(order.weight) > 0 ? (
             `${formatAppNumber(parseFloat(order.weight))} kg`
@@ -2606,6 +2604,8 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('selling_price_unit') && (
         <td title={plannedSellingLabel || ''}>
           {plannedSellingLabel ? (
             <span>{plannedSellingLabel}</span>
@@ -2613,6 +2613,8 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('selling_price_unit_uzs') && (
         <td title={plannedSellingUzsLabel || ''}>
           {plannedSellingUzsLabel ? (
             <span>{plannedSellingUzsLabel}</span>
@@ -2620,7 +2622,11 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('cost_per_unit') && (
         <td>{plannedSupplierPerUnit(order)}</td>
+        )}
+        {showCol('cost_per_unit_uzs') && (
         <td>
           {plannedSupplierUzsLabel ? (
             <span>{plannedSupplierUzsLabel}</span>
@@ -2628,6 +2634,8 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('total_cost') && (
         <td title={plannedSupplierTotalLabel || ''}>
           {plannedSupplierTotalLabel ? (
             <span>{plannedSupplierTotalLabel}</span>
@@ -2635,18 +2643,24 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('order_uzs') && (
         <td>
           {(() => {
             const v = (parseFloat(order.order_payment_uzs_cash) || 0) + (parseFloat(order.order_payment_uzs_card) || 0);
             return v > 0 ? <span style={{ color: order.order_is_paid ? '#4caf50' : 'inherit' }}>{formatAppNumber(v)} {uzsLabel}</span> : <span style={{ color: '#bbb' }}>—</span>;
           })()}
         </td>
+        )}
+        {showCol('order_usd') && (
         <td>
           {(() => {
             const v = (parseFloat(order.order_payment_usd_cash) || 0) + (parseFloat(order.order_payment_usd_card) || 0);
             return v > 0 ? <span style={{ color: order.order_is_paid ? '#4caf50' : 'inherit' }}>${v.toFixed(2)}</span> : <span style={{ color: '#bbb' }}>—</span>;
           })()}
         </td>
+        )}
+        {showCol('cargo_uzs') && (
         <td>
           {lineCargoUzs > 0 ? (
             <span style={{ color: order.cargo_is_paid ? '#4caf50' : 'inherit' }}>
@@ -2661,6 +2675,8 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('cargo_usd') && (
         <td>
           {lineCargoUsd > 0 ? (
             <span style={{ color: order.cargo_is_paid ? '#4caf50' : 'inherit' }}>
@@ -2675,6 +2691,8 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('cargo_unit_uzs') && (
         <td>
           {lineCargoUzs > 0 ? (
             <span>
@@ -2689,6 +2707,8 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('cargo_unit_usd') && (
         <td>
           {lineCargoUsd > 0 ? (
             <span>
@@ -2703,7 +2723,10 @@ const Orders = () => {
             <span style={{ color: '#bbb' }}>—</span>
           )}
         </td>
+        )}
+        {showCol('created_by') && (
         <td>{order.created_by_detail?.username || '-'}</td>
+        )}
         <td>
           {(() => {
             const label = formatOrderedNoteDisplay(order);
@@ -2959,6 +2982,16 @@ const Orders = () => {
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('cargoForm.intro')}
           </p>
+          {/* Inside the card rather than a popup: this is something to read while typing the
+              amount, not a box to dismiss before seeing the form. */}
+          {cargoFormData.sharedWith?.length > 0 && (
+            <div className="cargo-shared-notice">
+              {t('cargoForm.sharedDeliveryNotice', {
+                ids: cargoFormData.sharedWith.map((id) => `#${id}`).join(', '),
+                count: cargoFormData.sharedWith.length,
+              })}
+            </div>
+          )}
           <BusyForm onSubmit={handleCargoPaymentSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -3010,7 +3043,7 @@ const Orders = () => {
                 className="btn-edit"
                 onClick={() => {
                   setShowCargoForm(false);
-                  setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '' });
+                  setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '', sharedWith: [] });
                 }}
               >
                 {t('actions.cancel', { ns: 'common' })}
@@ -3907,6 +3940,18 @@ const Orders = () => {
             </select>
           </div>
           <div className="filter-field">
+            <label>{t('filters.supplierCargo', { ns: 'orders' })}</label>
+            <select
+              value={filters.supplier_cargo}
+              onChange={(e) => setFilters({ ...filters, supplier_cargo: e.target.value })}
+            >
+              <option value="">{t('filters.allSupplierCargos', { ns: 'orders' })}</option>
+              {supplierCargoFilterOptions.map((name) => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-field">
             <label>{t('filters.customer', { ns: 'orders' })}</label>
             <CustomerSearchableSelect
               variant="filter"
@@ -3983,8 +4028,15 @@ const Orders = () => {
       )}
 
       <div className="table-card">
+        <div className="table-card__toolbar">
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="buyurtmalar"
+            rowCount={filteredOrders.length}
+          />
+        </div>
         <div className="data-table-scroll">
-        <table className="data-table">
+        <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
               <SortableTh columnId="id" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.id', { ns: 'common' })}</SortableTh>
@@ -4000,24 +4052,54 @@ const Orders = () => {
               <SortableTh columnId="supplier_country" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.supplierCountry', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="supplier_cargo" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.supplierCargo', { ns: 'orders' })}</SortableTh>
               <SortableTh columnId="eshop" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.eshop', { ns: 'orders' })}</SortableTh>
-              {canSeeStockOrders && (
+              {canSeeStockOrders && showCol('order_type') && (
               <SortableTh columnId="order_type" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderType', { ns: 'orders' })}</SortableTh>
               )}
+              {showCol('customer') && (
               <SortableTh columnId="customer" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.customer', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('qty') && (
               <SortableTh columnId="qty" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.qty', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('weight') && (
               <SortableTh columnId="weight" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.weight', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('selling_price_unit') && (
               <SortableTh columnId="selling_price_unit" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.sellingPerUnit', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('selling_price_unit_uzs') && (
               <SortableTh columnId="selling_price_unit_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.sellingPerUnitUzs', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('cost_per_unit') && (
               <SortableTh columnId="cost_per_unit" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.costPerUnit', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('cost_per_unit_uzs') && (
               <SortableTh columnId="cost_per_unit_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.costPerUnitUzs', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('total_cost') && (
               <SortableTh columnId="total_cost" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.totalCost', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('order_uzs') && (
               <SortableTh columnId="order_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderUzs', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('order_usd') && (
               <SortableTh columnId="order_usd" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderUsd', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('cargo_uzs') && (
               <SortableTh columnId="cargo_uzs" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.cargoUzs', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('cargo_usd') && (
               <SortableTh columnId="cargo_usd" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.cargoUsd', { ns: 'orders' })}</SortableTh>
+              )}
+              {showCol('cargo_unit_uzs') && (
               <th>{t('table.cargoUnitUzs', { ns: 'orders' })}</th>
+              )}
+              {showCol('cargo_unit_usd') && (
               <th>{t('table.cargoUnitUsd', { ns: 'orders' })}</th>
+              )}
+              {showCol('created_by') && (
               <SortableTh columnId="created_by" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.createdBy', { ns: 'orders' })}</SortableTh>
+              )}
               <SortableTh columnId="ordered_note" sortCol={orderSort.sortCol} sortDir={orderSort.sortDir} onSort={orderSort.onHeaderClick}>{t('table.orderedNote', { ns: 'orders' })}</SortableTh>
             </tr>
           </thead>
@@ -4039,8 +4121,10 @@ const Orders = () => {
                 const expanded = expandedOrderGroups.has(row.groupId);
                 const groupEshopLabel = formatEshopDisplay(first?.eshop, t);
                 const openLine = row.orders.find((o) => !ORDER_TERMINAL_STATUSES.has(o.status));
-                // One step for the whole shipment: the earliest thing any line still needs.
-                const groupSteps = availableGroupSteps(row.orders);
+                // One step for the parcel in hand: the earliest thing any line of it still
+                // needs. `orders` as well as `row.orders`, so a cargo pool reaching beyond
+                // this group is still judged against all of it.
+                const groupSteps = availableGroupSteps(row.orders, orders);
 
                 return (
                   <React.Fragment key={row.key}>
@@ -4175,13 +4259,14 @@ const Orders = () => {
                       <td title={groupEshopLabel || ''}>
                         {groupEshopLabel ? <span>{groupEshopLabel}</span> : <span style={{ color: '#bbb' }}>—</span>}
                       </td>
-                      {canSeeStockOrders && (
+                      {canSeeStockOrders && showCol('order_type') && (
                         <td>
                           <span className={`status-badge ${first?.order_type === 'stock' ? 'confirmed' : 'pending'}`}>
                             {orderTypeShortLabel(first?.order_type, t)}
                           </span>
                         </td>
                       )}
+                      {showCol('customer') && (
                       <td>
                         {first?.order_type === 'on_demand' ? (
                           first?.customer_detail ? (
@@ -4207,6 +4292,8 @@ const Orders = () => {
                           <span style={{ color: '#aaa' }}>—</span>
                         )}
                       </td>
+                      )}
+                      {showCol('qty') && (
                       <td>
                         {renderQuantityCell(
                           agg.quantity,
@@ -4215,7 +4302,9 @@ const Orders = () => {
                           t,
                         )}
                       </td>
+                      )}
                       {/* Whole-shipment weight; each line's own weight shows when expanded. */}
+                      {showCol('weight') && (
                       <td>
                         {agg.weightTotal > 0 ? (
                           `${formatAppNumber(agg.weightTotal)} kg`
@@ -4223,9 +4312,33 @@ const Orders = () => {
                           <span style={{ color: '#bbb' }}>—</span>
                         )}
                       </td>
+                      )}
+                      {showCol('selling_price_unit') && (
                       <td>—</td>
+                      )}
+                      {showCol('selling_price_unit_uzs') && (
                       <td>—</td>
+                      )}
+                      {/*
+                        Per-unit cost, both currencies. A group's lines each have their own, so
+                        the heading row shows nothing and the figures appear when it is opened —
+                        the same answer the two cargo-per-unit columns already give.
+
+                        These two cells were missing, and their absence shifted every number
+                        after them one heading to the left: the group's `costTotal` was printing
+                        under "Tannarx/dona", its order total in som under "Jami xarajat", and
+                        `created_by` under "Yuk/dona (USD)". 28 cells against 30 headings.
+                      */}
+                      {showCol('cost_per_unit') && (
+                      <td>—</td>
+                      )}
+                      {showCol('cost_per_unit_uzs') && (
+                      <td>—</td>
+                      )}
+                      {showCol('total_cost') && (
                       <td>{agg.costTotal > 0 ? `$${agg.costTotal.toFixed(2)}` : '—'}</td>
+                      )}
+                      {showCol('order_uzs') && (
                       <td>
                         {agg.orderUzs > 0 ? (
                           <span style={{ color: agg.allOrderPaid ? '#4caf50' : 'inherit' }}>{formatAppNumber(agg.orderUzs)} {uzsLabel}</span>
@@ -4233,6 +4346,8 @@ const Orders = () => {
                           <span style={{ color: '#bbb' }}>—</span>
                         )}
                       </td>
+                      )}
+                      {showCol('order_usd') && (
                       <td>
                         {agg.orderUsd > 0 ? (
                           <span style={{ color: agg.allOrderPaid ? '#4caf50' : 'inherit' }}>${agg.orderUsd.toFixed(2)}</span>
@@ -4240,6 +4355,8 @@ const Orders = () => {
                           <span style={{ color: '#bbb' }}>—</span>
                         )}
                       </td>
+                      )}
+                      {showCol('cargo_uzs') && (
                       <td>
                         {agg.cargoUzs > 0 ? (
                           <span style={{ color: agg.allCargoPaid ? '#4caf50' : 'inherit' }}>
@@ -4249,6 +4366,8 @@ const Orders = () => {
                           <span style={{ color: '#bbb' }}>—</span>
                         )}
                       </td>
+                      )}
+                      {showCol('cargo_usd') && (
                       <td>
                         {agg.cargoUsd > 0 ? (
                           <span style={{ color: agg.allCargoPaid ? '#4caf50' : 'inherit' }}>
@@ -4258,13 +4377,20 @@ const Orders = () => {
                           <span style={{ color: '#bbb' }}>—</span>
                         )}
                       </td>
+                      )}
+                      {showCol('cargo_unit_uzs') && (
                       <td title={t('table.cargoUnitVariesHint', { ns: 'orders' })}>
                         <span style={{ color: '#999' }}>—</span>
                       </td>
+                      )}
+                      {showCol('cargo_unit_usd') && (
                       <td title={t('table.cargoUnitVariesHint', { ns: 'orders' })}>
                         <span style={{ color: '#999' }}>—</span>
                       </td>
+                      )}
+                      {showCol('created_by') && (
                       <td>{first?.created_by_detail?.username || '-'}</td>
+                      )}
                       <td>—</td>
                     </tr>
                     {expanded &&
@@ -4274,6 +4400,12 @@ const Orders = () => {
               })
             )}
           </tbody>
+          {/*
+            Every figure in the totals row — quantity, weight, average selling, average cost,
+            and the four money totals — belongs to a column the Purchasing Agent does not see.
+            Keeping the row would print exactly the numbers the columns above it withhold.
+          */}
+          {showCol('qty') && (
           <tfoot>
             <tr>
               <td colSpan={orderFooterLabelColSpan} style={{ textAlign: 'right' }}>
@@ -4316,6 +4448,7 @@ const Orders = () => {
               <td colSpan="5">—</td>
             </tr>
           </tfoot>
+          )}
         </table>
         </div>
       </div>

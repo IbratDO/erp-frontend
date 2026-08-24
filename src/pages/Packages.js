@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
 import { cashBalanceTotalByCurrency, formatInsufficientLedgerMessage } from '../utils/currencyFormat';
@@ -11,6 +11,7 @@ import { formatAppDateTime, formatAppNumber } from '../utils/localeFormat';
 import './TablePage.css';
 import AmountInput from '../components/AmountInput';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
+import TableDownloadButton from '../components/TableDownloadButton';
 
 const PKG_INV_SORT = {
   package_type: (r) => String(r.package_type ?? '').toLowerCase(),
@@ -74,6 +75,9 @@ function formatApiError(data) {
 }
 
 const Packages = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t } = useAppTranslation(['packages', 'common']);
   const uzsLabel = t('currency.uzs', { ns: 'common' });
   const { hasPermission } = usePermissions();
@@ -741,12 +745,19 @@ const Packages = () => {
       )}
 
       <div className="table-card">
-        <h2 style={{ marginTop: 0 }}>{t('inventory.title')}</h2>
+        <div className="table-card__toolbar table-card__toolbar--with-title">
+          <h2 style={{ marginTop: 0 }}>{t('inventory.title')}</h2>
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="paketlar"
+            rowCount={displayInventory.length}
+          />
+        </div>
         <p style={{ color: '#666', fontSize: '0.85em', marginTop: 0 }}>
           {t('inventory.subtitle')}
         </p>
         <div className="data-table-scroll">
-        <table className="data-table">
+        <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
               <SortableTh columnId="package_type" sortCol={pkgInvSort.sortCol} sortDir={pkgInvSort.sortDir} onSort={pkgInvSort.onHeaderClick}>

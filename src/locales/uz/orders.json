@@ -106,7 +106,9 @@
     "noCustomer": "Mijoz yo‘q",
     "shortfall": "Yetkazib berish",
     "allDeliveries": "Barcha mahsulotlar",
-    "shortfallPending": "To‘liq yetib kelmagan"
+    "shortfallPending": "To‘liq yetib kelmagan",
+    "supplierCargo": "Yuk tashuvchi",
+    "allSupplierCargos": "Barcha yuk tashuvchilar"
   },
   "actions": {
     "payOrder": "Buyurtmani to‘lash",
@@ -189,7 +191,8 @@
   },
   "cargoForm": {
     "title": "Yukni to‘lash — Buyurtma #{{id}}",
-    "intro": "UZS va/yoki USD summasini kiriting. Yuk bepul bo‘lsa, ikkala maydonga ham 0 kiriting va yuboring."
+    "intro": "UZS va/yoki USD summasini kiriting. Yuk bepul bo‘lsa, ikkala maydonga ham 0 kiriting va yuboring.",
+    "sharedDeliveryNotice": "{{ids}} shu yetkazib berishda birga kelgan va ularning yuk haqi hali to‘lanmagan. Bu yerda kiritilgan summa faqat shu mahsulot uchun yoziladi. Agar yuk kompaniyasi butun yetkazib berish uchun bitta hisob bergan bo‘lsa, guruhdagi “Yukni to‘lash” tugmasidan foydalaning — u summani mahsulotlar orasida og‘irlik bo‘yicha taqsimlaydi."
   },
   "markOrderedForm": {
     "title": "Buyurtma berildi — Buyurtma #{{id}}",

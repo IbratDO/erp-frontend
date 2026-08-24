@@ -33,6 +33,7 @@ import {
 import AmountInput from '../components/AmountInput';
 import FilterPanel from '../components/FilterPanel';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
+import TableDownloadButton from '../components/TableDownloadButton';
 
 function returnProductPickerLabel(p, tr) {
   if (!p) return '';
@@ -187,6 +188,9 @@ const RETURNS_SORT_ACCESSORS = {
 };
 
 const Returns = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t, monthOptions } = useAppTranslation(['returns', 'common', 'status', 'products']);
   const categoryTypeLabel = (value) => sharedCategoryTypeLabel(value, t);
   const { hasPermission } = usePermissions();
@@ -1610,8 +1614,15 @@ const Returns = () => {
       )}
 
       <div className="table-card">
+        <div className="table-card__toolbar">
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="qaytarilgan"
+            rowCount={filteredReturns.length}
+          />
+        </div>
         <div className="data-table-scroll">
-        <table className="data-table">
+        <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
               <SortableTh columnId="id" sortCol={returnsSort.sortCol} sortDir={returnsSort.sortDir} onSort={returnsSort.onHeaderClick}>

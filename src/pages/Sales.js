@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import ActionButton from '../components/ActionButton';
 import AmountInput from '../components/AmountInput';
@@ -54,6 +54,7 @@ import SortableTh from '../components/SortableTh';
 import { useClientTableSort } from '../utils/tableSort';
 import PageTitle from '../components/PageTitle';
 import FilterPanel from '../components/FilterPanel';
+import TableDownloadButton from '../components/TableDownloadButton';
 import useAppTranslation from '../hooks/useAppTranslation';
 import {
   buildSaleDisplayRows,
@@ -354,6 +355,9 @@ function PackageLinesSelector({ lines, onChange, packages: pkgList }) {
 const EMPTY_PKG_LINES = () => [{ key: `${Date.now()}`, package_type: '', quantity: 1 }];
 
 const Sales = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t, tStatus, monthOptions } = useAppTranslation(['sales', 'common', 'status']);
   const { hasPermission, hasAnyPermission } = usePermissions();
 
@@ -3600,8 +3604,15 @@ const Sales = () => {
       )}
 
       <div className="table-card">
+        <div className="table-card__toolbar">
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="sotuvlar"
+            rowCount={filteredSales.length}
+          />
+        </div>
         <div className="data-table-scroll">
-        <table className="data-table">
+        <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
               <SortableTh columnId="id" sortCol={saleSort.sortCol} sortDir={saleSort.sortDir} onSort={saleSort.onHeaderClick}>{t('table.id', { ns: 'common' })}</SortableTh>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,6 +10,7 @@ import './TablePage.css';
 import AmountInput from '../components/AmountInput';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import ActionButton from '../components/ActionButton';
+import TableDownloadButton from '../components/TableDownloadButton';
 
 const CATEGORY_VALUES = [
   'vehicle',
@@ -44,6 +45,9 @@ function formatApiError(data) {
 }
 
 const FixedAssets = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t } = useAppTranslation(['fixedAssets', 'common']);
   const uzsLabel = t('currency.uzs', { ns: 'common' });
   const { hasPermission } = useAuth();
@@ -436,7 +440,14 @@ const FixedAssets = () => {
       )}
 
       <div className="table-card">
-        <table className="data-table">
+        <div className="table-card__toolbar">
+          <TableDownloadButton
+            tableRef={tableRef}
+            filename="asosiy-vositalar"
+            rowCount={assets.length}
+          />
+        </div>
+        <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
               <th>{t('table.name')}</th>

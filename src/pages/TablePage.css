@@ -68,6 +68,22 @@
   line-height: 1.55;
 }
 
+/*
+ * Something to read while typing the amount, not an error. Amber rather than red: paying one
+ * item's freight on its own is a legitimate choice, and the notice only exists because the
+ * other choice — one bill split across the delivery — lives behind a different button.
+ */
+.cargo-shared-notice {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  background: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 6px;
+  font-size: 0.9em;
+  color: #78350f;
+  line-height: 1.55;
+}
+
 .danger-callout ul {
   margin: 8px 0 0;
   padding-left: 1.25rem;
@@ -287,6 +303,33 @@
   /* Scroll lives in .data-table-scroll so headers + titles stay usable */
   overflow: visible;
   min-width: 0;
+}
+
+/*
+  The download button sits above its table, pushed to the right so it never competes with the
+  heading. `.table-card__toolbar` is the strip it lives in; a page with no heading still gets the
+  button in the same place because the strip supplies its own top margin either way.
+*/
+.table-card__toolbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 0 0 10px;
+}
+
+.table-card__toolbar--with-title {
+  justify-content: space-between;
+  margin-top: 0;
+}
+
+.table-card__toolbar--with-title h2 {
+  margin: 0;
+}
+
+.table-download-btn {
+  white-space: nowrap;
 }
 
 /* Constrain tall tables: scroll body, keep header row visible inside the box */

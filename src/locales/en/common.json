@@ -91,7 +91,9 @@
     "loading": "Loading...",
     "loadingPage": "Loading page...",
     "noData": "No data",
-    "accessDenied": "Access denied"
+    "accessDenied": "Access denied",
+    "downloadExcel": "⬇ Excel",
+    "downloadExcelHint": "Download this table as a CSV file for Excel"
   },
   "table": {
     "actions": "Amallar",

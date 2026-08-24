@@ -46,7 +46,12 @@ export default function SortableTh({
     >
       <span style={{ verticalAlign: 'middle' }}>
         {children}
-        {active ? (sortDir === 'asc' ? ' ▲' : ' ▼') : ''}
+        {/*
+          Classed, not bare text: the arrow is a control, not part of the column's name, and the
+          CSV export strips it by that class. Without it a downloaded file had "Ism ▲" as a
+          heading — and the arrow moves as you sort, so the heading changed between downloads.
+        */}
+        {active ? <span className="sort-indicator">{sortDir === 'asc' ? ' ▲' : ' ▼'}</span> : ''}
       </span>
     </th>
   );

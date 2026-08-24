@@ -70,7 +70,9 @@ export const ROLE_HIDDEN_MENU_PATHS = {
     '/receivables-payables',
     '/balance-sheet',
   ],
-  admin: ['/bonus-rules', '/change-password'],
+  // Founder no longer manages accounts — that moved to Admin with the role split — so the Users
+  // page goes and the self-service password page comes back in its place.
+  admin: ['/bonus-rules', '/users'],
   administrator: ['/bonus-rules', '/change-password'],
   investor: ['/users', '/workers', '/audit-logs', '/bonus-rules'],
   sales_manager: ['/inventory/packages'],
@@ -209,8 +211,11 @@ export function isOperationalSenior(user) {
 }
 
 function pathAllowedForRole(user, path) {
-  // Self-service password page: all roles except Founder (uses Users tab instead).
-  if (path === '/change-password') return !isAdmin(user);
+  // Self-service password page: hidden only from roles that reach the Users tab instead, which
+  // is now Admin alone. Founder used to be in that group, and hiding the Users page from Founder
+  // without this would have left the owner no way to change his own password at all. The rule
+  // lives in each role's hidden list rather than being spelled out here, so the two questions —
+  // who sees Users, who sees Change password — cannot drift apart again.
   if (path === '/users' && (isCEO(user) || isInvestor(user))) return false;
   const role = getRoleCode(user);
   const hidden = ROLE_HIDDEN_MENU_PATHS[role];

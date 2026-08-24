@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
 import { formatDisplayAmount, formatAmountByBalanceType, formatPlainAmount } from '../utils/currencyFormat';
@@ -12,6 +12,7 @@ import useAppTranslation from '../hooks/useAppTranslation';
 import { formatAppDateTime } from '../utils/localeFormat';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import ActionButton from '../components/ActionButton';
+import TableDownloadButton from '../components/TableDownloadButton';
 
 function customerProductLine(detail, t) {
   if (!detail) return '';
@@ -82,6 +83,9 @@ const BALANCE_TX_SORT_ACCESSORS = {
 };
 
 const Customers = () => {
+  // The rendered table, so the download button can read exactly what is on the screen —
+  // current filters, current sort, current columns. See utils/tableCsv.
+  const tableRef = useRef(null);
   const { t, tStatus } = useAppTranslation(['customers', 'common', 'status', 'sales']);
   const uzsLabel = t('currency.uzs', { ns: 'common' });
   const { hasPermission } = usePermissions();
@@ -410,8 +414,15 @@ const Customers = () => {
       <div style={{ display: 'flex', gap: '20px' }}>
         {/* Customers List */}
         <div className="table-card" style={{ flex: selectedCustomer ? '0 0 40%' : '1' }}>
+          <div className="table-card__toolbar">
+            <TableDownloadButton
+              tableRef={tableRef}
+              filename="mijozlar"
+              rowCount={filteredCustomers.length}
+            />
+          </div>
           <div className="data-table-scroll data-table-scroll--pane">
-          <table className="data-table">
+          <table className="data-table" ref={tableRef}>
             <thead>
               <tr>
                 <SortableTh columnId="name" sortCol={customerListSort.sortCol} sortDir={customerListSort.sortDir} onSort={customerListSort.onHeaderClick}>{t('table.name')}</SortableTh>
