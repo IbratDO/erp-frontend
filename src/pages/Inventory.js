@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts, invalidateProductsCache } from '../utils/catalogCache';
 import { productCostPickerLabel } from '../utils/productCost';
@@ -501,16 +502,21 @@ const Inventory = () => {
     <div className="page-container">
       <div className="page-header">
         <PageTitle ns="inventory" />
+        {/* Opens only; the dialog carries its own way out. */}
         {canAddInventory && (
-          <button className="btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? t('actions.cancel', { ns: 'common' }) : `+ ${t('addItem')}`}
+          <button className="btn-primary" onClick={() => setShowForm(true)}>
+            {`+ ${t('addItem')}`}
           </button>
         )}
       </div>
 
-      {showForm && canAddInventory && (
-        <div className="form-card">
-          <h2>{t('newItem')}</h2>
+      <Modal
+        open={showForm && canAddInventory}
+        onClose={() => setShowForm(false)}
+        title={t('newItem')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             {/*
               One row per item, all bought together. The buyer comes back from the market with a
@@ -760,13 +766,14 @@ const Inventory = () => {
               <SubmitButton className="btn-primary">
                 {t('form.create')}
               </SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {/* Filters */}
-      {!showForm && (
+      {/* Filters — the page behind a dialog stays intact. */}
         <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
@@ -904,7 +911,6 @@ const Inventory = () => {
           </div>
         </div>
         </FilterPanel>
-      )}
 
       <div className="table-card">
         <div className="table-card__toolbar">

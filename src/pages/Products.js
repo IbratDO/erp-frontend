@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
+import Modal from '../components/Modal';
 import ActionButton from '../components/ActionButton';
 import api from '../utils/api';
 import { getCachedProducts, invalidateProductsCache, setProductsCache } from '../utils/catalogCache';
@@ -369,6 +370,36 @@ const Products = () => {
     return set;
   }, [products]);
 
+  /**
+   * Clear every field the form owns.
+   *
+   * One copy, called from all three ways out — saving, closing, and opening a fresh one — since
+   * the old inline form reset itself in two places that had to be kept in step by hand.
+   */
+  const resetProductForm = useCallback(() => {
+    setEditingProduct(null);
+    setSelectedSizes([]);
+    setSelectedColors([]);
+    setPendingCustomColor('');
+    setPendingCustomSize('');
+    setColorDropdownOpen(false);
+    setSizeDropdownOpen(false);
+    setFormData({
+      name: '',
+      category_type: '',
+      category: '',
+      brand: '',
+      model: '',
+      size: '',
+      color: '',
+    });
+  }, []);
+
+  const closeProductForm = useCallback(() => {
+    setShowForm(false);
+    resetProductForm();
+  }, [resetProductForm]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     const payload = { ...formData };
@@ -476,23 +507,7 @@ const Products = () => {
           );
         }
       }
-      setShowForm(false);
-      setEditingProduct(null);
-      setSelectedSizes([]);
-      setSelectedColors([]);
-      setPendingCustomColor('');
-      setPendingCustomSize('');
-      setColorDropdownOpen(false);
-      setSizeDropdownOpen(false);
-      setFormData({
-        name: '',
-        category_type: '',
-        category: '',
-        brand: '',
-        model: '',
-        size: '',
-        color: '',
-      });
+      closeProductForm();
       fetchProducts();
     } catch (error) {
       console.error('Error saving product:', error);
@@ -560,37 +575,35 @@ const Products = () => {
       )}
       <div className="page-header">
         <PageTitle ns="products" />
+        {/* Opens only. The dialog carries its own way out — its close button, Cancel or Esc —
+            so this no longer has to double as Cancel and stop reading as the thing that adds a
+            product. */}
         {canCreate && (
-        <button className="btn-primary" onClick={() => {
-          setShowForm(!showForm);
-          // Clear editing state and reset form when canceling or opening new form
-          if (showForm || !showForm) {
-            setEditingProduct(null);
-            setSelectedSizes([]);
-            setSelectedColors([]);
-            setPendingCustomColor('');
-            setPendingCustomSize('');
-            setColorDropdownOpen(false);
-            setSizeDropdownOpen(false);
-            setFormData({
-              name: '',
-              category_type: '',
-              category: '',
-              brand: '',
-              model: '',
-              size: '',
-              color: '',
-            });
-          }
-        }}>
-          {showForm ? t('actions.cancel', { ns: 'common' }) : `+ ${t('addProduct')}`}
+        <button
+          className="btn-primary"
+          onClick={() => {
+            resetProductForm();
+            setShowForm(true);
+          }}
+        >
+          {`+ ${t('addProduct')}`}
         </button>
         )}
       </div>
 
-      {showForm && (canCreate || (canUpdate && editingProduct)) && (
-        <div className="form-card">
-          <h2>{editingProduct ? t('editProduct') : t('newProduct')}</h2>
+      {/* A window in front of the page rather than a card above the table: the form is long
+          enough that opening it used to push the table out of sight entirely. Editing opens the
+          same dialog — it is the same form, told apart by `editingProduct`.
+
+          The dark area does not close it: this form takes real typing, and several fields are
+          dropdowns whose stray click would land outside the dialog. */}
+      <Modal
+        open={showForm && (canCreate || (canUpdate && editingProduct))}
+        onClose={closeProductForm}
+        title={editingProduct ? t('editProduct') : t('newProduct')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -1016,13 +1029,17 @@ const Products = () => {
               <SubmitButton className="btn-primary">
                 {editingProduct ? t('form.update') : t('form.create')}
               </SubmitButton>
+              {/* The header button used to be the way out. Now that it only opens, the way out
+                  belongs beside the thing it cancels. */}
+              <button type="button" className="btn-edit" onClick={closeProductForm}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {/* Filters */}
-      {!showForm && (
+      {/* Filters — no longer hidden while the form is open. They were, because the form pushed
+          the page down; a dialog leaves the page behind it intact and it should look intact. */}
         <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">
@@ -1106,7 +1123,6 @@ const Products = () => {
           </div>
         </div>
         </FilterPanel>
-      )}
 
       <div className="table-card">
         <div className="table-card__toolbar">

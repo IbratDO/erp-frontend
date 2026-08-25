@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import { cashBalanceTotalByCurrency, formatInsufficientLedgerMessage } from '../utils/currencyFormat';
@@ -286,8 +287,8 @@ const FixedAssets = () => {
       <div className="page-header">
         <PageTitle ns="fixedAssets" />
         {isAdmin && (
-          <button type="button" className="btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? t('actions.cancel', { ns: 'common' }) : t('addAsset')}
+          <button type="button" className="btn-primary" onClick={() => setShowForm(true)}>
+            {t('addAsset')}
           </button>
         )}
       </div>
@@ -302,9 +303,13 @@ const FixedAssets = () => {
         {t('intro')}
       </p>
 
-      {showForm && isAdmin && (
-        <div className="form-card" style={{ marginBottom: 16 }}>
-          <h2>{t('form.newTitle')}</h2>
+      <Modal
+        open={showForm && isAdmin}
+        onClose={() => setShowForm(false)}
+        title={t('form.newTitle')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -376,10 +381,12 @@ const FixedAssets = () => {
               <SubmitButton className="btn-primary">
                 {form.pay_immediately ? t('form.payNowReceiveLater') : t('form.createPurchaseOrder')}
               </SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {showPaymentForm && (
         <div className="form-card" style={{ marginBottom: 16 }}>

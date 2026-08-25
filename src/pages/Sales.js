@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import ActionButton from '../components/ActionButton';
+import Modal from '../components/Modal';
 import AmountInput from '../components/AmountInput';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
@@ -2272,34 +2273,29 @@ const Sales = () => {
             type="button"
             className="btn-primary"
             onClick={() => {
-              if (showBatchForm) {
-                setShowBatchForm(false);
-                setBatchLines([]);
-              } else {
-                setShowBatchForm(true);
-                setBatchCustomer('');
-                setBatchDefaults({
-                  sale_type: 'bought_from_shop',
-                  sale_currency: 'USD',
-                });
-                setBatchLines([
-                  {
-                    key: `${Date.now()}-0`,
-                    category: '',
-                    layer: '',
-                    product: '',
-                    inventory_batch_id: '',
-                    quantity: '1',
-                    list_price: '',
-                    selling_price: '',
-                    discount_price: '',
-                    packageLines: EMPTY_PKG_LINES(),
-                  },
-                ]);
-              }
+              setShowBatchForm(true);
+              setBatchCustomer('');
+              setBatchDefaults({
+                sale_type: 'bought_from_shop',
+                sale_currency: 'USD',
+              });
+              setBatchLines([
+                {
+                  key: `${Date.now()}-0`,
+                  category: '',
+                  layer: '',
+                  product: '',
+                  inventory_batch_id: '',
+                  quantity: '1',
+                  list_price: '',
+                  selling_price: '',
+                  discount_price: '',
+                  packageLines: EMPTY_PKG_LINES(),
+                },
+              ]);
             }}
           >
-            {showBatchForm ? t('actions.cancel', { ns: 'common' }) : `+ ${t('newSale')}`}
+            {`+ ${t('newSale')}`}
           </button>
         )}
       </div>
@@ -3169,9 +3165,14 @@ const Sales = () => {
       )}
 
 
-      {showBatchForm && canBatchCreate && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
-          <h2>{t('batch.title')}</h2>
+      <Modal
+        open={showBatchForm && canBatchCreate}
+        onClose={() => { setShowBatchForm(false); setBatchLines([]); }}
+        title={t('batch.title')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        width={1100}
+      >
           <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
             {t('batch.intro')}
           </p>
@@ -3383,10 +3384,16 @@ const Sales = () => {
               <SubmitButton className="btn-primary">
                 {t('batch.createCount', { count: batchLines.filter((l) => l.layer).length })}
               </SubmitButton>
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() => { setShowBatchForm(false); setBatchLines([]); }}
+              >
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {showCustomerForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>
@@ -3453,7 +3460,7 @@ const Sales = () => {
       )}
 
       {/* Filters */}
-      {!showBatchForm && !showCustomerForm && !showDispatchForm && !completePaySale && !showCompleteFromOrderForm && !showCompleteFromOrderGroupForm && !showSellReservedForm && (
+      {!showCustomerForm && !showDispatchForm && !completePaySale && !showCompleteFromOrderForm && !showCompleteFromOrderGroupForm && !showSellReservedForm && (
         <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">

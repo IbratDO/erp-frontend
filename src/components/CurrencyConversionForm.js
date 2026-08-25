@@ -155,9 +155,10 @@ export default function CurrencyConversionForm({ onSuccess, onCancel }) {
   const tgtCur = form.direction === 'usd_to_uzs' ? 'UZS' : 'USD';
   const rateBusy = rateForDateLoading && form.conversion_date !== exchangeRate?.rate_date;
 
+  // No card of its own and no heading: it is rendered inside a Modal, which supplies both.
+  // Keeping them here gave a card inside a card and the title twice.
   return (
-    <div className="form-card" style={{ marginBottom: '20px' }}>
-      <h2>{t('conversion.title')}</h2>
+    <>
       <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '12px' }}>{t('conversion.intro')}</p>
       {exchangeRateError ? (
         <p style={{ fontSize: '0.85rem', color: '#dc3545', marginBottom: '12px' }}>{exchangeRateError}</p>
@@ -277,6 +278,6 @@ export default function CurrencyConversionForm({ onSuccess, onCancel }) {
           </SubmitButton>
         </div>
       </BusyForm>
-    </div>
+    </>
   );
 }

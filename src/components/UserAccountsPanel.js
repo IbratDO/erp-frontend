@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import Modal from './Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -256,9 +257,13 @@ const UserAccountsPanel = () => {
         </div>
       )}
 
-      {showForm && canManage && (
-        <div className="form-card">
-          <h2>{editingId ? t('editLogin') : t('newLogin')}</h2>
+      <Modal
+        open={showForm && canManage}
+        onClose={closeUserForm}
+        title={editingId ? t('editLogin') : t('newLogin')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -345,8 +350,7 @@ const UserAccountsPanel = () => {
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <div className="table-card">
         <div className="data-table-scroll">

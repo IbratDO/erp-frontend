@@ -47,6 +47,7 @@ import {
   showMarkAsReceivedAction,
 } from '../utils/orderWorkflowSteps';
 import ActionButton from '../components/ActionButton';
+import Modal from '../components/Modal';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import FilterPanel from '../components/FilterPanel';
 import TableDownloadButton from '../components/TableDownloadButton';
@@ -2753,18 +2754,15 @@ const Orders = () => {
           <button
             className="btn-primary"
             onClick={() => {
-              const next = !showBatchForm;
-              setShowBatchForm(next);
-              if (next) {
-                setBatchShared({
-                  order_type: canManageStockOrders ? 'stock' : 'on_demand',
-                  supplier_country: '', supplier_cargo: '', customer: '',
-                });
-                setBatchLines([newBatchLine()]);
-              }
+              setShowBatchForm(true);
+              setBatchShared({
+                order_type: canManageStockOrders ? 'stock' : 'on_demand',
+                supplier_country: '', supplier_cargo: '', customer: '',
+              });
+              setBatchLines([newBatchLine()]);
             }}
           >
-            {showBatchForm ? t('actions.cancel', { ns: 'common' }) : t('batch.newButton', { ns: 'orders' })}
+            {t('batch.newButton', { ns: 'orders' })}
           </button>
         )}
       </div>
@@ -3497,9 +3495,14 @@ const Orders = () => {
         </div>
       )}
 
-      {showBatchForm && (canManageStockOrders || canCreateOrder) && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
-          <h2>{t('batch.title', { ns: 'orders' })}</h2>
+      <Modal
+        open={showBatchForm && (canManageStockOrders || canCreateOrder)}
+        onClose={() => setShowBatchForm(false)}
+        title={t('batch.title', { ns: 'orders' })}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        width={1100}
+      >
           <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
             {t('batch.intro', { ns: 'orders' })}
           </p>
@@ -3785,10 +3788,12 @@ const Orders = () => {
                   ? t('creating', { ns: 'orders' })
                   : t('batch.createCount', { ns: 'orders', count: batchLines.filter((l) => l.product).length })}
               </SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowBatchForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {showCustomerForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>

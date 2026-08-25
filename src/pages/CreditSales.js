@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import AmountInput from '../components/AmountInput';
 import CustomerSearchableSelect from '../components/CustomerSearchableSelect';
@@ -570,10 +571,10 @@ export default function CreditSales() {
             onClick={() => {
               setCollectTarget(null);
               setWaiveTarget(null);
-              setShowCreate((open) => !open);
+              setShowCreate(true);
             }}
           >
-            {showCreate ? t('actions.cancel', { ns: 'common' }) : `+ ${t('create.button')}`}
+            {`+ ${t('create.button')}`}
           </button>
         )}
       </div>
@@ -633,9 +634,13 @@ export default function CreditSales() {
         </div>
       </FilterPanel>
 
-      {showCreate && canCreateDebt && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
-          <h2>{t('create.title')}</h2>
+      <Modal
+        open={showCreate && canCreateDebt}
+        onClose={() => setShowCreate(false)}
+        title={t('create.title')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <p style={{ color: '#666', marginBottom: 12, fontSize: '0.92rem' }}>{t('create.intro')}</p>
           <BusyForm onSubmit={handleCreateSubmit}>
             <div className="form-grid">
@@ -697,8 +702,7 @@ export default function CreditSales() {
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {collectTarget && canCollect && (
         <div className="form-card" style={{ marginBottom: 20 }}>

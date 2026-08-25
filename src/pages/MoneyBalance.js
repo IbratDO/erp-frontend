@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import SortableTh from '../components/SortableTh';
@@ -315,10 +316,10 @@ const MoneyBalance = () => {
                 className="btn-primary"
                 onClick={() => {
                   setShowConversionForm(false);
-                  setShowAdjustForm(!showAdjustForm);
+                  setShowAdjustForm(true);
                 }}
               >
-                {showAdjustForm ? t('actions.cancel', { ns: 'common' }) : `+ ${t('adjustBalance')}`}
+                {`+ ${t('adjustBalance')}`}
               </button>
             )}
             {canConvertCurrency && (
@@ -328,10 +329,10 @@ const MoneyBalance = () => {
                 style={{ background: '#0d6efd' }}
                 onClick={() => {
                   setShowAdjustForm(false);
-                  setShowConversionForm(!showConversionForm);
+                  setShowConversionForm(true);
                 }}
               >
-                {showConversionForm ? t('actions.cancel', { ns: 'common' }) : t('currencyConversion')}
+                {t('currencyConversion')}
               </button>
             )}
           </div>
@@ -364,7 +365,15 @@ const MoneyBalance = () => {
         ))}
       </div>
 
-      {showConversionForm && canConvertCurrency && (
+      {/* The form supplies no card or heading of its own — the dialog does, so the two are
+          not drawn twice. */}
+      <Modal
+        open={showConversionForm && canConvertCurrency}
+        onClose={() => setShowConversionForm(false)}
+        title={t('conversion.title')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
         <CurrencyConversionForm
           onSuccess={async () => {
             setShowConversionForm(false);
@@ -372,11 +381,15 @@ const MoneyBalance = () => {
           }}
           onCancel={() => setShowConversionForm(false)}
         />
-      )}
+      </Modal>
 
-      {showAdjustForm && canAdjustBalance && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('adjustTitle')}</h2>
+      <Modal
+        open={showAdjustForm && canAdjustBalance}
+        onClose={() => setShowAdjustForm(false)}
+        title={t('adjustTitle')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <p style={{ color: '#666', fontSize: '0.9rem', marginBottom: '12px' }}>{t('adjustIntro')}</p>
           <BusyForm onSubmit={handleAdjust}>
             <div className="form-grid">
@@ -424,10 +437,12 @@ const MoneyBalance = () => {
               <SubmitButton className="btn-primary">
                 {t('adjustBalance')}
               </SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowAdjustForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filter} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">

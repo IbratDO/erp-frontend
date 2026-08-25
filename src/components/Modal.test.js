@@ -1,0 +1,194 @@
+/**
+ * The window in front of the page.
+ *
+ * What is worth pinning is the behaviour a reader only notices when it is missing: Esc and the
+ * close button getting them out, the page behind not scrolling under the overlay, focus landing
+ * in the dialog and going back where it came from, and — the one that caused a real complaint
+ * elsewhere — a drag that starts inside the form and releases on the dark area NOT closing it
+ * and throwing the typing away.
+ */
+import React, { act } from 'react';
+import { createRoot } from 'react-dom/client';
+
+import Modal from './Modal';
+
+let container;
+let root;
+
+// Same as BusyForm.test.js: without it React warns on every act() in a concurrent root.
+beforeAll(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+});
+afterAll(() => {
+  globalThis.IS_REACT_ACT_ENVIRONMENT = false;
+});
+
+beforeEach(() => {
+  container = document.createElement('div');
+  document.body.appendChild(container);
+  root = createRoot(container);
+});
+
+afterEach(() => {
+  act(() => root.unmount());
+  container.remove();
+  document.body.style.overflow = '';
+});
+
+function render(props = {}) {
+  act(() => {
+    root.render(
+      <Modal open title="Mahsulot qo'shish" onClose={() => {}} {...props}>
+        <input data-testid="first" />
+        <button type="submit">Yaratish</button>
+      </Modal>,
+    );
+  });
+}
+
+const dialog = () => document.querySelector('.modal__dialog');
+const overlay = () => document.querySelector('.modal-overlay');
+
+describe('showing and hiding', () => {
+  test('renders nothing at all when closed', () => {
+    render({ open: false });
+    expect(overlay()).toBeNull();
+  });
+
+  test('renders onto document.body, not inside the page tree', () => {
+    render();
+    expect(overlay()).not.toBeNull();
+    // The portal is what stops an ancestor's overflow or stacking context clipping the dialog.
+    expect(container.contains(overlay())).toBe(false);
+  });
+
+  test('shows its title and its children', () => {
+    render();
+    expect(dialog().textContent).toContain("Mahsulot qo'shish");
+    expect(dialog().querySelector('[data-testid="first"]')).not.toBeNull();
+  });
+});
+
+describe('ways out', () => {
+  test('the close button closes it', () => {
+    const onClose = jest.fn();
+    render({ onClose });
+    act(() => {
+      document.querySelector('.modal__close').dispatchEvent(
+        new MouseEvent('click', { bubbles: true }),
+      );
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('Esc closes it', () => {
+    const onClose = jest.fn();
+    render({ onClose });
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('the dark area closes it when that is allowed', () => {
+    const onClose = jest.fn();
+    render({ onClose, closeOnBackdrop: true });
+    act(() => {
+      overlay().dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  test('the dark area does not close it when the form holds real typing', () => {
+    const onClose = jest.fn();
+    render({ onClose, closeOnBackdrop: false });
+    act(() => {
+      overlay().dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test('a press that lands inside the dialog never closes it', () => {
+    const onClose = jest.fn();
+    render({ onClose, closeOnBackdrop: true });
+    act(() => {
+      // Bubbles up to the overlay's handler, but started on the form — selecting text by
+      // dragging must not throw the form away.
+      dialog().dispatchEvent(new MouseEvent('mousedown', { bubbles: true }));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  test('no listeners are left behind once it closes', () => {
+    const onClose = jest.fn();
+    render({ onClose });
+    act(() => { root.render(<Modal open={false} onClose={onClose} />); });
+    act(() => {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    });
+    expect(onClose).not.toHaveBeenCalled();
+  });
+});
+
+describe('the page behind', () => {
+  test('cannot scroll while the dialog is open', () => {
+    render();
+    expect(document.body.style.overflow).toBe('hidden');
+  });
+
+  test('scrolls again once it closes', () => {
+    render();
+    act(() => { root.render(<Modal open={false} onClose={() => {}} />); });
+    expect(document.body.style.overflow).not.toBe('hidden');
+  });
+
+  test('whatever the page had set is put back, not blanked', () => {
+    document.body.style.overflow = 'scroll';
+    render();
+    expect(document.body.style.overflow).toBe('hidden');
+    act(() => { root.render(<Modal open={false} onClose={() => {}} />); });
+    expect(document.body.style.overflow).toBe('scroll');
+  });
+});
+
+describe('focus', () => {
+  test('moves into the dialog on open', () => {
+    render();
+    expect(document.activeElement).toBe(dialog().querySelector('[data-testid="first"]'));
+  });
+
+  test('goes back to whatever opened it', () => {
+    const opener = document.createElement('button');
+    document.body.appendChild(opener);
+    opener.focus();
+    expect(document.activeElement).toBe(opener);
+
+    render();
+    expect(document.activeElement).not.toBe(opener);
+
+    act(() => { root.render(<Modal open={false} onClose={() => {}} />); });
+    expect(document.activeElement).toBe(opener);
+    opener.remove();
+  });
+});
+
+describe('accessibility', () => {
+  test('announces itself as a dialog and names itself by its title', () => {
+    render();
+    expect(dialog().getAttribute('role')).toBe('dialog');
+    expect(dialog().getAttribute('aria-modal')).toBe('true');
+    const labelledBy = dialog().getAttribute('aria-labelledby');
+    expect(labelledBy).toBeTruthy();
+    expect(document.getElementById(labelledBy).textContent).toBe("Mahsulot qo'shish");
+  });
+
+  test('the close button carries a label, not just a symbol', () => {
+    render({ closeLabel: 'Yopish' });
+    expect(document.querySelector('.modal__close').getAttribute('aria-label')).toBe('Yopish');
+  });
+
+  test('with no title it does not point aria-labelledby at nothing', () => {
+    render({ title: undefined });
+    expect(dialog().getAttribute('aria-labelledby')).toBeNull();
+  });
+});

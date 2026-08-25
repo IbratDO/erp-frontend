@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { cashBalanceTotalByCurrency, formatInsufficientLedgerMessage } from '../utils/currencyFormat';
 import SortableTh from '../components/SortableTh';
@@ -516,16 +517,11 @@ const Packages = () => {
         <button
           className="btn-primary"
           onClick={() => {
-            if (showForm) {
-              setShowForm(false);
-              setEditingPackage(null);
-            } else {
-              setEditingPackage(null);
-              setShowForm(true);
-            }
+            setEditingPackage(null);
+            setShowForm(true);
           }}
         >
-          {showForm ? t('actions.cancel', { ns: 'common' }) : t('newOrder')}
+          {t('newOrder')}
         </button>
         )}
       </div>
@@ -534,13 +530,15 @@ const Packages = () => {
         {t('intro')}
       </p>
 
-      {showForm && canCreate && (
-        <div className="form-card">
-          <h2>
-            {editingPackage
-              ? t('form.addStockTitle', { type: editingPackage.package_type })
-              : t('form.orderTitle')}
-          </h2>
+      <Modal
+        open={showForm && canCreate}
+        onClose={() => { setShowForm(false); setEditingPackage(null); }}
+        title={editingPackage
+          ? t('form.addStockTitle', { type: editingPackage.package_type })
+          : t('form.orderTitle')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -644,10 +642,16 @@ const Packages = () => {
               <SubmitButton className="btn-primary">
                 {formData.pay_immediately ? t('form.submitPayReceive') : t('form.submitCreateOrder')}
               </SubmitButton>
+              <button
+                type="button"
+                className="btn-edit"
+                onClick={() => { setShowForm(false); setEditingPackage(null); }}
+              >
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {showPaymentForm && (
         <div className="form-card" style={{ marginBottom: '20px' }}>

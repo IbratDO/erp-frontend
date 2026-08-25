@@ -7,6 +7,7 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
+  Cell,
   Legend,
   Line,
   LineChart,
@@ -17,6 +18,7 @@ import {
 } from 'recharts';
 import {
   buildMonthlyStacked,
+  buildMonthlyTopSlots,
   buildNetMonthlyStacked,
   buildNetWeekdayAverages,
   buildOnDemandMonthly,
@@ -26,6 +28,8 @@ import {
   crossFilterSummary,
   EMPTY_CROSS_FILTER,
   filterFacts,
+  OTHERS_SLOT,
+  slotKey,
   toggleCrossFilter,
 } from '../utils/dashboardAnalytics';
 import {
@@ -140,6 +144,153 @@ function ChartPanel({
           </BarChart>
         )}
       </ResponsiveContainer>
+    </div>
+  );
+}
+
+/** The leftover group is grey on purpose: it is a remainder, not a category to read into. */
+const OTHERS_FILL = '#94a3b8';
+
+/**
+ * Units sold by category, where each month shows only its own biggest sellers.
+ *
+ * Its own component rather than a `ChartPanel` variant, because it is drawn on a different
+ * principle. `ChartPanel` renders one series per category, which fixes the segment order for
+ * the whole chart and puts every category — including the ones that sold nothing — into every
+ * month's tooltip. Here the series are positional slots, so each bar can be ordered biggest-at-
+ * the-bottom on its own figures and can leave out whatever did not sell.
+ *
+ * That trade costs two things, and both are rebuilt by hand below:
+ *
+ * * **The tooltip**, because Recharts would name the series, and the series are called `slot0`.
+ *   The real category travels beside each value in the row and is read from there.
+ * * **The legend**, for the same reason, and because a slot has no colour of its own — colour
+ *   belongs to the category, which is what stops a colour meaning two different things in two
+ *   different bars.
+ */
+function CategoryTopSlotsChart({
+  title,
+  emptyLabel,
+  series,
+  labels,
+  onLegendClick,
+  activeCross,
+}) {
+  const { data, slotCount, hasOthers, categoryColors, namedCategories } = series;
+
+  const dimFor = (name) => (activeCross && activeCross !== name ? 0.3 : 0.9);
+
+  const renderTooltip = ({ active, payload }) => {
+    if (!active || !payload?.length) return null;
+    const row = payload[0]?.payload;
+    if (!row) return null;
+
+    const entries = [];
+    for (let i = 0; i < slotCount; i += 1) {
+      const name = row[`${slotKey(i)}Name`];
+      const value = row[slotKey(i)];
+      // A slot this month did not fill, or a category that sold none: neither belongs on hover.
+      if (name && value > 0) entries.push({ name, value, fill: categoryColors[name] });
+    }
+    const others = row[OTHERS_SLOT] || 0;
+    if (others > 0) {
+      entries.push({
+        name: labels.othersCount(row.othersNames?.length || 0),
+        value: others,
+        fill: OTHERS_FILL,
+      });
+    }
+    if (!entries.length) return null;
+    const total = entries.reduce((sum, e) => sum + e.value, 0);
+
+    return (
+      <div className="dash-chart-tooltip">
+        <div className="dash-chart-tooltip__month">{row.monthLabel}</div>
+        {entries.map((e) => (
+          <div className="dash-chart-tooltip__row" key={e.name}>
+            <span className="dash-chart-legend__swatch" style={{ background: e.fill }} />
+            <span className="dash-chart-tooltip__name">{e.name}</span>
+            <span className="dash-chart-tooltip__value">{e.value}</span>
+          </div>
+        ))}
+        <div className="dash-chart-tooltip__row dash-chart-tooltip__total">
+          <span className="dash-chart-tooltip__name">{labels.total}</span>
+          <span className="dash-chart-tooltip__value">{total}</span>
+        </div>
+      </div>
+    );
+  };
+
+  if (!data?.length || slotCount === 0) {
+    return (
+      <div className="dash-chart-card">
+        <h3>{title}</h3>
+        <p className="dash-empty">{emptyLabel}</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="dash-chart-card">
+      <h3>{title}</h3>
+      <ResponsiveContainer width="100%" height={280}>
+        <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+          <Tooltip content={renderTooltip} cursor={{ fill: 'rgba(148, 163, 184, 0.12)' }} />
+          {/* slot0 first, so Recharts puts the month's biggest seller at the base. */}
+          {Array.from({ length: slotCount }, (_, i) => (
+            <Bar key={slotKey(i)} dataKey={slotKey(i)} stackId="stack">
+              {data.map((row, rowIndex) => {
+                const name = row[`${slotKey(i)}Name`];
+                return (
+                  <Cell
+                    key={row.month_key || rowIndex}
+                    fill={categoryColors[name] || 'transparent'}
+                    fillOpacity={dimFor(name)}
+                  />
+                );
+              })}
+            </Bar>
+          ))}
+          {hasOthers ? (
+            <Bar
+              dataKey={OTHERS_SLOT}
+              stackId="stack"
+              fill={OTHERS_FILL}
+              fillOpacity={activeCross ? 0.3 : 0.9}
+            />
+          ) : null}
+        </BarChart>
+      </ResponsiveContainer>
+      <div className="dash-chart-legend">
+        {namedCategories.map((name) => (
+          <button
+            key={name}
+            type="button"
+            className={
+              'dash-chart-legend__item dash-chart-legend__item--clickable'
+              + (activeCross && activeCross !== name ? ' dash-chart-legend__item--dim' : '')
+            }
+            onClick={() => onLegendClick && onLegendClick(name)}
+          >
+            <span
+              className="dash-chart-legend__swatch"
+              style={{ background: categoryColors[name] }}
+            />
+            {name}
+          </button>
+        ))}
+        {hasOthers ? (
+          // Not clickable: it is a different set of categories in each month, so there is
+          // nothing single to filter the rest of the dashboard down to.
+          <span className="dash-chart-legend__item">
+            <span className="dash-chart-legend__swatch" style={{ background: OTHERS_FILL }} />
+            {labels.others}
+          </span>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -357,6 +508,11 @@ const DashboardModern = () => {
     () => buildNetMonthlyStacked(filteredFacts, filteredReturnFacts, 'category'),
     [filteredFacts, filteredReturnFacts],
   );
+  // Recast into each month's own top sellers — see `buildMonthlyTopSlots`.
+  const monthlyCategoryTop = useMemo(
+    () => buildMonthlyTopSlots(monthlyCategories, 5),
+    [monthlyCategories],
+  );
   const monthlyCustomers = useMemo(
     () => buildNetMonthlyStacked(filteredFacts, filteredReturnFacts, 'customer_type'),
     [filteredFacts, filteredReturnFacts],
@@ -454,6 +610,13 @@ const DashboardModern = () => {
   }
 
   const chartEmpty = td('noChartData');
+  // Plain object, not memoized: this sits below the loading/error returns, where a hook would
+  // not run on every render. It is three strings and a closure.
+  const categoryChartLabels = {
+    others: td('chartOthers'),
+    othersCount: (count) => td('chartOthersCount', { count }),
+    total: td('chartMonthTotal'),
+  };
 
   const formatRefundSummary = (usd, uzs) => {
     const parts = [];
@@ -640,13 +803,11 @@ const DashboardModern = () => {
             <p className="dash-section-hint">{td('returnsChartHint')}</p>
             <div className="dash-charts-row">
               {!targetologView ? (
-                <ChartPanel
+                <CategoryTopSlotsChart
                   emptyLabel={chartEmpty}
                   title={td('chartUnitsByCategory')}
-                  data={monthlyCategories.data}
-                  seriesKeys={monthlyCategories.keys}
-                  xKey="monthLabel"
-                  chartType="bar"
+                  series={monthlyCategoryTop}
+                  labels={categoryChartLabels}
                   onLegendClick={handleLegendCategory}
                   activeCross={crossFilter.category}
                 />

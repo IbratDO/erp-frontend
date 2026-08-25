@@ -281,3 +281,93 @@ export function buildOnDemandMonthly(facts, labels) {
     keys: [labels.sold, labels.inProcess, labels.cancelled],
   };
 }
+
+/** Slot dataKey for the leftover group; every bar's top segment when there is one. */
+export const OTHERS_SLOT = 'slot_others';
+
+/** Slot dataKeys are positional — `slot0` is the biggest seller of that month, not a category. */
+export const slotKey = (index) => `slot${index}`;
+
+/**
+ * Recast a stacked-by-category series so each month shows only its own biggest sellers.
+ *
+ * The chart it replaces drew one series per category that had *ever* sold, so a month listed
+ * every category in the business on hover, most of them zero, and the ones that mattered were
+ * lost among them.
+ *
+ * **Slots, not categories.** Each bar is built from `slot0…slot{limit-1}` plus the leftovers,
+ * where `slot0` is that month's biggest seller — so the segments are ordered biggest-at-the-
+ * bottom within each bar, and a category can sit in a different slot from one month to the
+ * next. That is what "the top 5 of each month" means and it cannot be done with one series per
+ * category, because the series order is fixed for the whole chart.
+ *
+ * The cost of slots is that position no longer identifies a category, so **colour has to**:
+ * `categoryColors` maps each category to one colour for the life of the chart, and the caller
+ * paints each segment from the name travelling beside it (`slot0Name` and friends). Without
+ * that the same colour would mean a different category in every bar, which is the one thing
+ * that makes a stacked chart unreadable.
+ *
+ * Zero-selling categories are dropped outright rather than drawn flat: a segment of no height
+ * is invisible on screen but still shows up on hover, which is the complaint this answers.
+ *
+ * @param {{data: object[], keys: string[]}} series - output of `buildNetMonthlyStacked`
+ * @param {number} limit - how many named categories each month keeps
+ */
+export function buildMonthlyTopSlots(series, limit = 5) {
+  const rows = series?.data || [];
+  const keys = series?.keys || [];
+
+  // One colour per category for the whole chart, handed out by overall size so the biggest
+  // sellers get the front of the palette and keep their colour as months come and go.
+  const totals = new Map();
+  for (const key of keys) {
+    let sum = 0;
+    for (const row of rows) sum += Number(row[key]) || 0;
+    if (sum > 0) totals.set(key, sum);
+  }
+  const ranked = [...totals.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([name]) => name);
+  const categoryColors = {};
+  ranked.forEach((name, i) => {
+    categoryColors[name] = CHART_PALETTE[i % CHART_PALETTE.length];
+  });
+
+  let slotCount = 0;
+  let anyOthers = false;
+  const data = rows.map((row) => {
+    const sold = keys
+      .map((name) => ({ name, value: Number(row[name]) || 0 }))
+      .filter((entry) => entry.value > 0)
+      .sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
+
+    const top = sold.slice(0, limit);
+    const rest = sold.slice(limit);
+    slotCount = Math.max(slotCount, top.length);
+
+    const next = { month_key: row.month_key, monthLabel: row.monthLabel };
+    top.forEach((entry, i) => {
+      next[slotKey(i)] = entry.value;
+      next[`${slotKey(i)}Name`] = entry.name;
+    });
+    if (rest.length) {
+      anyOthers = true;
+      next[OTHERS_SLOT] = rest.reduce((sum, entry) => sum + entry.value, 0);
+      next.othersNames = rest.map((entry) => entry.name);
+    }
+    return next;
+  });
+
+  return {
+    data,
+    slotCount,
+    hasOthers: anyOthers,
+    categoryColors,
+    /** Categories that reach some month's top slots — what the legend can offer. */
+    namedCategories: [...new Set(
+      data.flatMap((row) => Array.from(
+        { length: slotCount }, (_, i) => row[`${slotKey(i)}Name`],
+      ).filter(Boolean)),
+    )].sort((a, b) => (totals.get(b) || 0) - (totals.get(a) || 0) || a.localeCompare(b)),
+  };
+}

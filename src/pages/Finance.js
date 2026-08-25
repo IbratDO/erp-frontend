@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Trans } from 'react-i18next';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -344,13 +345,13 @@ const Finance = () => {
         {canCreateManual && (
           <div style={{ display: 'flex', gap: 8 }}>
             {canCreateIncome && (
-              <button className="btn-primary" onClick={() => { setShowIncomeForm(!showIncomeForm); setShowExpenseForm(false); }}>
-                {showIncomeForm ? t('actions.cancel', { ns: 'common' }) : t('addIncome')}
+              <button className="btn-primary" onClick={() => { setShowIncomeForm(true); setShowExpenseForm(false); }}>
+                {t('addIncome')}
               </button>
             )}
             {canCreateExpense && (
-              <button className="btn-edit" onClick={() => { setShowExpenseForm(!showExpenseForm); setShowIncomeForm(false); }}>
-                {showExpenseForm ? t('actions.cancel', { ns: 'common' }) : t('addExpense')}
+              <button className="btn-edit" onClick={() => { setShowExpenseForm(true); setShowIncomeForm(false); }}>
+                {t('addExpense')}
               </button>
             )}
           </div>
@@ -361,9 +362,13 @@ const Finance = () => {
         <Trans i18nKey="intro" ns="finance" components={{ strong: <strong /> }} />
       </p>
 
-      {showExpenseForm && canCreateExpense && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('expenseForm.title')}</h2>
+      <Modal
+        open={showExpenseForm && canCreateExpense}
+        onClose={() => setShowExpenseForm(false)}
+        title={t('expenseForm.title')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleExpenseSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -462,14 +467,20 @@ const Finance = () => {
               <SubmitButton className="btn-primary">
                 {t('expenseForm.submit')}
               </SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowExpenseForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showIncomeForm && canCreateIncome && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('incomeForm.title')}</h2>
+      <Modal
+        open={showIncomeForm && canCreateIncome}
+        onClose={() => setShowIncomeForm(false)}
+        title={t('incomeForm.title')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleIncomeSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -516,10 +527,12 @@ const Finance = () => {
             </div>
             <div className="form-actions">
               <SubmitButton className="btn-primary">{t('incomeForm.submit')}</SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowIncomeForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <div className="metrics-grid" style={{ marginBottom: '20px' }}>
           <div className="metric-card">
@@ -561,8 +574,7 @@ const Finance = () => {
           </div>
         </div>
 
-      {/* Filters */}
-      {!showExpenseForm && !showIncomeForm && (
+      {/* Filters — the page behind a dialog stays intact. */}
         <FilterPanel title={t('filters.title')} filters={filter} style={{ marginBottom: '16px' }}>
           <div className="filter-toolbar">
               <div className="filter-field">
@@ -651,7 +663,6 @@ const Finance = () => {
           </div>
         </div>
       </FilterPanel>
-      )}
 
       <div className="table-card">
           <div className="data-table-scroll">

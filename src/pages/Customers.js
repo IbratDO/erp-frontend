@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { formatDisplayAmount, formatAmountByBalanceType, formatPlainAmount } from '../utils/currencyFormat';
 import PageTitle from '../components/PageTitle';
@@ -304,19 +305,24 @@ const Customers = () => {
         <PageTitle ns="customers" />
         {canCreate && (
         <button className="btn-primary" onClick={() => {
-          setShowForm(!showForm);
-          if (!showForm) {
-            setFormData({ name: '', telephone: '+998', instagram: '', region: 'tashkent_city', notes: '' });
-          }
+          setShowForm(true);
+          setFormData({ name: '', telephone: '+998', instagram: '', region: 'tashkent_city', notes: '' });
         }}>
-          {showForm ? t('actions.cancel', { ns: 'common' }) : t('newCustomer')}
+          {t('newCustomer')}
         </button>
         )}
       </div>
 
-      {showForm && (canCreate || canUpdate) && (
-        <div className="form-card">
-          <h2>{formData.id ? t('form.editTitle') : t('form.newTitle')}</h2>
+      <Modal
+        open={showForm && (canCreate || canUpdate)}
+        onClose={() => {
+          setShowForm(false);
+          setFormData({ name: '', telephone: '+998', instagram: '', region: 'tashkent_city', notes: '' });
+        }}
+        title={formData.id ? t('form.editTitle') : t('form.newTitle')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -382,11 +388,9 @@ const Customers = () => {
                 </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {/* Filters */}
-      {!showForm && (
+      {/* Filters — the page behind a dialog stays intact. */}
         <FilterPanel title={t('filters.title')} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field filter-field--grow">
@@ -409,7 +413,6 @@ const Customers = () => {
           </div>
         </div>
         </FilterPanel>
-      )}
 
       <div style={{ display: 'flex', gap: '20px' }}>
         {/* Customers List */}

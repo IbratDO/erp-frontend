@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { usePermissions } from '../hooks/usePermissions';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -195,9 +196,13 @@ const Jarimalar = () => {
         </button>
       </div>
 
-      {showForm && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
-          <h2>{editing ? t('form.editTitle') : t('form.newTitle')}</h2>
+      <Modal
+        open={showForm}
+        onClose={() => setShowForm(false)}
+        title={editing ? t('form.editTitle') : t('form.newTitle')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -271,10 +276,9 @@ const Jarimalar = () => {
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {!showForm && (
+      {/* Filters — the page behind a dialog stays intact. */}
         <FilterPanel title={t('filters.title')} filters={filters} style={{ marginBottom: '16px' }}>
           <div className="filter-toolbar">
             <div className="filter-field">
@@ -354,7 +358,6 @@ const Jarimalar = () => {
             </div>
           </div>
         </FilterPanel>
-      )}
 
       <div className="table-card">
         <div className="data-table-scroll">

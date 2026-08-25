@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import api from '../utils/api';
+import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { useAuth } from '../contexts/AuthContext';
 import useAppTranslation from '../hooks/useAppTranslation';
@@ -138,8 +139,8 @@ const Equity = () => {
       <div className="page-header">
         <PageTitle ns="equity" />
         {isAdmin && (
-          <button type="button" className="btn-primary" onClick={() => setShowForm(!showForm)}>
-            {showForm ? t('actions.cancel', { ns: 'common' }) : t('newTransaction')}
+          <button type="button" className="btn-primary" onClick={() => setShowForm(true)}>
+            {t('newTransaction')}
           </button>
         )}
       </div>
@@ -162,9 +163,13 @@ const Equity = () => {
         </div>
       </div>
 
-      {showForm && isAdmin && (
-        <div className="form-card" style={{ marginBottom: 16 }}>
-          <h2>{t('form.title')}</h2>
+      <Modal
+        open={showForm && isAdmin}
+        onClose={() => setShowForm(false)}
+        title={t('form.title')}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -238,10 +243,12 @@ const Equity = () => {
             </div>
             <div className="form-actions">
               <SubmitButton className="btn-primary">{t('actions.save', { ns: 'common' })}</SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {/* Who holds what. Contributions add, share reductions subtract; withdrawals are
           drawings and never appear here. */}
