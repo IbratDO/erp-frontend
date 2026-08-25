@@ -47,7 +47,7 @@ import {
   showMarkAsReceivedAction,
 } from '../utils/orderWorkflowSteps';
 import ActionButton from '../components/ActionButton';
-import Modal from '../components/Modal';
+import Modal, { WIDE } from '../components/Modal';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import FilterPanel from '../components/FilterPanel';
 import TableDownloadButton from '../components/TableDownloadButton';
@@ -604,22 +604,18 @@ const Orders = () => {
     notes: '',
   });
   const [showMarkOrderedForm, setShowMarkOrderedForm] = useState(false);
-  const markOrderedFormRef = useRef(null);
 
   const [showMarkOrderedGroupForm, setShowMarkOrderedGroupForm] = useState(false);
   const [markOrderedGroupData, setMarkOrderedGroupData] = useState({
     groupId: null,
     notes: '',
   });
-  const markOrderedGroupFormRef = useRef(null);
 
   const [showCargoGroupForm, setShowCargoGroupForm] = useState(false);
   const [cargoGroupData, setCargoGroupData] = useState({ groupId: null, uzs: '', usd: '', weightTotal: '', lines: [] });
-  const cargoGroupFormRef = useRef(null);
 
   const [showPayOrderGroupForm, setShowPayOrderGroupForm] = useState(false);
   const [payOrderGroupData, setPayOrderGroupData] = useState({ groupId: null, lines: [] });
-  const payOrderGroupFormRef = useRef(null);
 
   // Mark-as-received: the physical count happens here, so the quantity is captured per line
   // rather than assumed equal to what was ordered. `groupId` is set for a whole-shipment
@@ -630,12 +626,8 @@ const Orders = () => {
     lines: [],
     note: '',
   });
-  const receiveFormRef = useRef(null);
 
   const [showMoveToInventoryForm, setShowMoveToInventoryForm] = useState(false);
-  const paymentFormRef = useRef(null);
-  const cargoFormRef = useRef(null);
-  const moveToInventoryFormRef = useRef(null);
   const [moveToInventoryData, setMoveToInventoryData] = useState({
     orderId: null,
     return_advance: false,
@@ -1254,10 +1246,70 @@ const Orders = () => {
     }
     setReceiveData({ groupId, lines: ordersToReceive.map(buildReceiveLine), note: '' });
     setShowReceiveForm(true);
-    setTimeout(
-      () => receiveFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-      50,
-    );
+  };
+
+  /*
+   * Closing one of the stage dialogs.
+   *
+   * Each clears its own draft as well as hiding the dialog, so reopening it for a different order
+   * starts blank rather than showing the last one's figures. That mattered less when these were
+   * cards on the page — you could see what was in them — and matters more now that a dialog opens
+   * over whatever you clicked.
+   *
+   * Named rather than written inline because each is used twice, by Cancel and by the dialog's
+   * own X and Esc, and the two must do the same thing.
+   */
+  const closePaymentForm = () => {
+    setShowPaymentForm(false);
+    setPaymentFormData({
+      orderId: null, uzs: '', usd: '', is_pay_order: false,
+      is_received_and_pay: false, status_notes: '',
+    });
+  };
+
+  const closeMoveToInventoryForm = () => {
+    setShowMoveToInventoryForm(false);
+    setMoveToInventoryData({
+      orderId: null, return_advance: false,
+      return_payment_currency: 'USD', return_advance_amount: '',
+    });
+  };
+
+  const closeCargoForm = () => {
+    setShowCargoForm(false);
+    setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '', sharedWith: [] });
+  };
+
+  const closeMarkOrderedForm = () => {
+    setShowMarkOrderedForm(false);
+    setMarkOrderedFormData({ orderId: null, notes: '' });
+  };
+
+  const closeMarkOrderedGroupForm = () => {
+    setShowMarkOrderedGroupForm(false);
+    setMarkOrderedGroupData({ groupId: null, notes: '' });
+  };
+
+  const closeCargoGroupForm = () => {
+    setShowCargoGroupForm(false);
+    setCargoGroupData({ groupId: null, uzs: '', usd: '', weightTotal: '', lines: [] });
+  };
+
+  const closeReceiveForm = () => {
+    setShowReceiveForm(false);
+    setReceiveData({ groupId: null, lines: [], note: '' });
+  };
+
+  const closePayOrderGroupForm = () => {
+    setShowPayOrderGroupForm(false);
+    setPayOrderGroupData({ groupId: null, lines: [] });
+  };
+
+  const closeCustomerForm = () => {
+    setShowCustomerForm(false);
+    setNewCustomerData({
+      name: '', telephone: '+998', instagram: '', region: 'tashkent_city', notes: '',
+    });
   };
 
   const handleMarkReceived = (orderId) => {
@@ -1434,7 +1486,6 @@ const Orders = () => {
       notes: order.ordered_note || '',
     });
     setShowMarkOrderedForm(true);
-    setTimeout(() => markOrderedFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   const handleMarkAsOrderedSubmit = async (e) => {
@@ -1493,7 +1544,6 @@ const Orders = () => {
       status_notes: '',
     });
     setShowPaymentForm(true);
-    setTimeout(() => paymentFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   const handlePayCargo = async (orderId) => {
@@ -1518,7 +1568,6 @@ const Orders = () => {
       sharedWith: cargoPoolCompanions(order, orders).map((o) => o.id),
     });
     setShowCargoForm(true);
-    setTimeout(() => cargoFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   const handleMarkAsOrderedGroup = (groupOrders) => {
@@ -1528,7 +1577,6 @@ const Orders = () => {
     }
     setMarkOrderedGroupData({ groupId: groupOrders[0].order_group, notes: '' });
     setShowMarkOrderedGroupForm(true);
-    setTimeout(() => markOrderedGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   const handleMarkAsOrderedGroupSubmit = async (e) => {
@@ -1677,7 +1725,6 @@ const Orders = () => {
       lines,
     });
     setShowCargoGroupForm(true);
-    setTimeout(() => cargoGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   /** A line that never arrived weighs nothing here, whatever is still stored on it. */
@@ -1902,7 +1949,6 @@ const Orders = () => {
     );
     setPayOrderGroupData({ groupId, lines });
     setShowPayOrderGroupForm(true);
-    setTimeout(() => payOrderGroupFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
   };
 
   const updatePayOrderGroupLine = (orderId, field, value) => {
@@ -2196,7 +2242,6 @@ const Orders = () => {
             : '',
       });
       setShowMoveToInventoryForm(true);
-      setTimeout(() => moveToInventoryFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
     } else {
       // No advance payment, just move to inventory
       await moveToInventoryFromOrder(orderId, { return_advance: false });
@@ -2811,20 +2856,20 @@ const Orders = () => {
         </div>
       )}
 
-      {showPaymentForm && (
-        <div
-          className="form-card"
-          style={{ marginBottom: '20px' }}
-          ref={paymentFormRef}
-          key={`pay-form-${paymentFormData.orderId}-${paymentFormData.is_pay_order}`}
-        >
-          <h2>
-            {paymentFormData.is_pay_order
-              ? t('paymentForm.payOrderTitle')
-              : paymentFormData.is_received_and_pay
-                ? t('paymentForm.receivedAndPayTitle')
-                : t('paymentForm.moveAndPayTitle')}
-          </h2>
+      <Modal
+        open={showPaymentForm}
+        onClose={closePaymentForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        key={`pay-form-${paymentFormData.orderId}-${paymentFormData.is_pay_order}`}
+        title={
+          paymentFormData.is_pay_order
+            ? t('paymentForm.payOrderTitle')
+            : paymentFormData.is_received_and_pay
+              ? t('paymentForm.receivedAndPayTitle')
+              : t('paymentForm.moveAndPayTitle')
+        }
+      >
           {renderOrderContextCard(paymentFormData.orderId)}
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('paymentForm.intro')}
@@ -2863,21 +2908,20 @@ const Orders = () => {
                     ? t('actions.markReceivedAndPay', { ns: 'orders' })
                     : t('actions.confirmMoveToInventory', { ns: 'orders' })}
               </SubmitButton>
-              <button type="button" className="btn-edit"
-                onClick={() => {
-                  setShowPaymentForm(false);
-                  setPaymentFormData({ orderId: null, uzs: '', usd: '', is_pay_order: false, is_received_and_pay: false, status_notes: '' });
-                }}>
+              <button type="button" className="btn-edit" onClick={closePaymentForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showMoveToInventoryForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={moveToInventoryFormRef}>
-          <h2>{t('moveForm.title', { id: moveToInventoryData.orderId })}</h2>
+      <Modal
+        open={showMoveToInventoryForm}
+        onClose={closeMoveToInventoryForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('moveForm.title', { id: moveToInventoryData.orderId })}
+      >
           {renderOrderContextCard(moveToInventoryData.orderId)}
           <BusyForm onSubmit={handleMoveToInventorySubmit}>
             <div className="form-grid">
@@ -2953,29 +2997,20 @@ const Orders = () => {
               <SubmitButton className="btn-primary">
                 {t('actions.moveToInventory', { ns: 'orders' })}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowMoveToInventoryForm(false);
-                  setMoveToInventoryData({
-                    orderId: null,
-                    return_advance: false,
-                    return_payment_currency: 'USD',
-                    return_advance_amount: '',
-                  });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeMoveToInventoryForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showCargoForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={cargoFormRef}>
-          <h2>{t('cargoForm.title', { id: cargoFormData.orderId })}</h2>
+      <Modal
+        open={showCargoForm}
+        onClose={closeCargoForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('cargoForm.title', { id: cargoFormData.orderId })}
+      >
           {renderOrderContextCard(cargoFormData.orderId, { showCargo: true })}
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('cargoForm.intro')}
@@ -3036,27 +3071,24 @@ const Orders = () => {
               <SubmitButton className="btn-primary">
                 {t('actions.payCargo', { ns: 'orders' })}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowCargoForm(false);
-                  setCargoFormData({ orderId: null, uzs: '', usd: '', weight: '', sharedWith: [] });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeCargoForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showMarkOrderedForm && canMarkAsOrdered && (() => {
+      {(() => {
         const markOrderedOrder = orders.find((o) => o.id === markOrderedFormData.orderId);
         const markOrderedNotesRequired = markOrderedOrder?.supplier_country === PURCHASING_AGENT_SUPPLIER_COUNTRY;
         return (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={markOrderedFormRef}>
-          <h2>{t('markOrderedForm.title', { id: markOrderedFormData.orderId })}</h2>
+        <Modal
+          open={showMarkOrderedForm && canMarkAsOrdered}
+          onClose={closeMarkOrderedForm}
+          closeLabel={t('actions.close', { ns: 'common' })}
+          closeOnBackdrop={false}
+          title={t('markOrderedForm.title', { id: markOrderedFormData.orderId })}
+        >
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('markOrderedForm.intro')}
           </p>
@@ -3077,28 +3109,26 @@ const Orders = () => {
               <SubmitButton className="btn-primary">
                 {t('actions.markAsOrdered', { ns: 'orders' })}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowMarkOrderedForm(false);
-                  setMarkOrderedFormData({ orderId: null, notes: '' });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeMarkOrderedForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
+        </Modal>
         );
       })()}
 
-      {showMarkOrderedGroupForm && canMarkAsOrdered && (() => {
+      {(() => {
         const markOrderedGroupOrder = orders.find((o) => o.order_group === markOrderedGroupData.groupId);
         const markOrderedGroupNotesRequired = markOrderedGroupOrder?.supplier_country === PURCHASING_AGENT_SUPPLIER_COUNTRY;
         return (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={markOrderedGroupFormRef}>
-          <h2>{t('batch.markOrderedGroupTitle', { ns: 'orders' })}</h2>
+        <Modal
+          open={showMarkOrderedGroupForm && canMarkAsOrdered}
+          onClose={closeMarkOrderedGroupForm}
+          closeLabel={t('actions.close', { ns: 'common' })}
+          closeOnBackdrop={false}
+          title={t('batch.markOrderedGroupTitle', { ns: 'orders' })}
+        >
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('markOrderedForm.intro')}
           </p>
@@ -3119,25 +3149,22 @@ const Orders = () => {
               <SubmitButton className="btn-primary">
                 {t('actions.markAsOrdered', { ns: 'orders' })}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowMarkOrderedGroupForm(false);
-                  setMarkOrderedGroupData({ groupId: null, notes: '' });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeMarkOrderedGroupForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
+        </Modal>
         );
       })()}
 
-      {showCargoGroupForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={cargoGroupFormRef}>
-          <h2>{t('batch.payCargoGroupTitle', { ns: 'orders' })}</h2>
+      <Modal
+        open={showCargoGroupForm}
+        onClose={closeCargoGroupForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('batch.payCargoGroupTitle', { ns: 'orders' })}
+      >
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('batch.payCargoGroupIntro', { ns: 'orders' })}
           </p>
@@ -3289,24 +3316,21 @@ const Orders = () => {
               <SubmitButton className="btn-primary">
                 {t('actions.payCargo', { ns: 'orders' })}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowCargoGroupForm(false);
-                  setCargoGroupData({ groupId: null, uzs: '', usd: '', weightTotal: '', lines: [] });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeCargoGroupForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showReceiveForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={receiveFormRef}>
-          <h2>{t('batch.receiveTitle', { ns: 'orders' })}</h2>
+      <Modal
+        open={showReceiveForm}
+        onClose={closeReceiveForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        width={WIDE}
+        title={t('batch.receiveTitle', { ns: 'orders' })}
+      >
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('batch.receiveIntro', { ns: 'orders' })}
           </p>
@@ -3409,24 +3433,21 @@ const Orders = () => {
               <SubmitButton className="btn-primary">
                 {t('batch.confirmReceive', { ns: 'orders' })}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowReceiveForm(false);
-                  setReceiveData({ groupId: null, lines: [], note: '' });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeReceiveForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showPayOrderGroupForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }} ref={payOrderGroupFormRef}>
-          <h2>{t('batch.payOrderGroupTitle', { ns: 'orders' })}</h2>
+      <Modal
+        open={showPayOrderGroupForm}
+        onClose={closePayOrderGroupForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        width={WIDE}
+        title={t('batch.payOrderGroupTitle', { ns: 'orders' })}
+      >
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('batch.payOrderGroupIntro', { ns: 'orders' })}
           </p>
@@ -3480,20 +3501,12 @@ const Orders = () => {
               <SubmitButton className="btn-primary">
                 {t('actions.payOrder', { ns: 'orders' })}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowPayOrderGroupForm(false);
-                  setPayOrderGroupData({ groupId: null, lines: [] });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closePayOrderGroupForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <Modal
         open={showBatchForm && (canManageStockOrders || canCreateOrder)}
@@ -3501,7 +3514,7 @@ const Orders = () => {
         title={t('batch.title', { ns: 'orders' })}
         closeLabel={t('actions.close', { ns: 'common' })}
         closeOnBackdrop={false}
-        width={1100}
+        width={WIDE}
       >
           <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
             {t('batch.intro', { ns: 'orders' })}
@@ -3795,9 +3808,13 @@ const Orders = () => {
           </BusyForm>
       </Modal>
 
-      {showCustomerForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('customerForm.title')}</h2>
+      <Modal
+        open={showCustomerForm}
+        onClose={closeCustomerForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('customerForm.title')}
+      >
           <BusyForm onSubmit={handleCreateCustomer}>
             <div className="form-grid">
               <div className="form-group">
@@ -3847,20 +3864,18 @@ const Orders = () => {
               <button
                 type="button"
                 className="btn-edit"
-                onClick={() => {
-                  setShowCustomerForm(false);
-                  setNewCustomerData({ name: '', telephone: '+998', instagram: '', region: 'tashkent_city', notes: '' });
-                }}
+                onClick={closeCustomerForm}
               >
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {/* Filters */}
-      {!showPaymentForm && !showCargoForm && !showMoveToInventoryForm && !showCustomerForm && (
+      {/* Filters. These used to be hidden whenever a stage form was open, because the form was a
+          card on this page and the filters were noise stacked above it. A dialog covers the page
+          on its own, so the filters simply stay where they are. */}
+      {(
         <FilterPanel title={t('filters.title', { ns: 'orders' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">

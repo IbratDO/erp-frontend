@@ -321,6 +321,13 @@ const Returns = () => {
   const refundGap = refundSettlementGap(refundMeta) ?? 0;
   const refundGapNeedsClassification = refundGapIsSignificant(refundMeta);
 
+  // Used by Cancel and by the dialog's own X and Esc, so all three leave the same clean slate.
+  const closeRefundForm = () => {
+    setShowRefundForm(false);
+    setRefundFormData({ returnId: null, uzs: '', usd: '' });
+    setRefundDifference({ pl: false, fx: false, plAmount: '' });
+  };
+
   const fetchReturns = async () => {
     try {
       const response = await apiGetAll('/returns/');
@@ -1343,9 +1350,13 @@ const Returns = () => {
           </BusyForm>
       </Modal>
 
-      {showRefundForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('markRefundedModal.title', { id: refundFormData.returnId })}</h2>
+      <Modal
+        open={showRefundForm}
+        onClose={closeRefundForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('markRefundedModal.title', { id: refundFormData.returnId })}
+      >
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('markRefundedModal.intro')}
           </p>
@@ -1485,21 +1496,12 @@ const Returns = () => {
               <SubmitButton className="btn-primary">
                 {t('table.markRefunded')}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowRefundForm(false);
-                  setRefundFormData({ returnId: null, uzs: '', usd: '' });
-                  setRefundDifference({ pl: false, fx: false, plAmount: '' });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeRefundForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {/* Filters */}
       {!showRefundForm && (

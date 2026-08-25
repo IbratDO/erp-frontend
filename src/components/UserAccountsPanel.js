@@ -211,9 +211,14 @@ const UserAccountsPanel = () => {
 
       <p style={{ color: '#666', marginBottom: 16, fontSize: '0.9em', maxWidth: 820 }}>{t('intro')}</p>
 
-      {showClearForm && canClearData && (
-        <div className="form-card form-card--danger" style={{ marginBottom: 20 }}>
-          <h2>{t('clearDataTitle')}</h2>
+      <Modal
+        open={showClearForm && canClearData}
+        onClose={closeClearForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        className="form-card--danger"
+        title={t('clearDataTitle')}
+      >
           <div className="danger-callout">
             <div>{t('clearDataWarningIntro')}</div>
             <ul>
@@ -254,8 +259,7 @@ const UserAccountsPanel = () => {
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <Modal
         open={showForm && canManage}

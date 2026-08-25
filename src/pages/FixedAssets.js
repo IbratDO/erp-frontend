@@ -271,6 +271,12 @@ const FixedAssets = () => {
     }
   };
 
+  // Used by Cancel and by the dialog's own X and Esc, so all three leave the same clean slate.
+  const closePaymentForm = () => {
+    setShowPaymentForm(false);
+    setPaymentForm(defaultPaymentState);
+  };
+
   const paymentTitle = () => {
     const a = assets.find((x) => x.id === paymentForm.assetId);
     if (!a) return t('payment.title');
@@ -388,9 +394,13 @@ const FixedAssets = () => {
           </BusyForm>
       </Modal>
 
-      {showPaymentForm && (
-        <div className="form-card" style={{ marginBottom: 16 }}>
-          <h2>{paymentTitle()}</h2>
+      <Modal
+        open={showPaymentForm}
+        onClose={closePaymentForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={paymentTitle()}
+      >
           <BusyForm onSubmit={handlePaymentSubmit}>
             {paymentForm.action !== 'receive' && (
               <div className="form-grid">
@@ -431,20 +441,12 @@ const FixedAssets = () => {
             )}
             <div className="form-actions" style={{ marginTop: 12 }}>
               <SubmitButton className="btn-primary">{t('payment.confirm')}</SubmitButton>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={() => {
-                  setShowPaymentForm(false);
-                  setPaymentForm(defaultPaymentState);
-                }}
-              >
+              <button type="button" className="btn-secondary" onClick={closePaymentForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <div className="table-card">
         <div className="table-card__toolbar">

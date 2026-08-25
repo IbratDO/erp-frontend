@@ -20,19 +20,39 @@ import { createPortal } from 'react-dom';
  * there is room and, unlike `align-items: center`, never takes a tall dialog's top edge out of
  * reach by pushing it above the scrollable area.
  */
+/**
+ * For dialogs built round the `batch-sale-lines` table — Inventory, Orders and Sales all lay
+ * their lines out as one row per item. That table will not go below 58rem without scrolling, so
+ * the ordinary width leaves it scrolling sideways inside the dialog on every screen.
+ */
+export const WIDE = 1400;
+
 export default function Modal({
   open,
   onClose,
   title,
   children,
   closeLabel = 'Close',
-  /** Width of the dialog; forms with a two-column grid want the default. */
-  width = 900,
+  /**
+   * Width of the dialog. The default suits a `form-grid` of ordinary fields; forms built round
+   * the `batch-sale-lines` table pass `WIDE`, which is what stops that table — 58rem at its
+   * narrowest — from having to scroll sideways inside the dialog.
+   *
+   * Always applied as `min(100%, …)`, so a width wider than the screen is not one that has to be
+   * scrolled to; it simply becomes the screen.
+   */
+  width = 1200,
   /**
    * Whether clicking the dark area closes the dialog. Off for anything where a stray click
    * would lose typing that cannot be recovered.
    */
   closeOnBackdrop = true,
+  /**
+   * Extra classes for the dialog itself. `form-card--danger` is the one in use, and it is worth
+   * keeping: the red edge is how a destructive form announces itself everywhere else in the app,
+   * and a dialog that drops it looks like any other form right up until it runs.
+   */
+  className = '',
 }) {
   const dialogRef = useRef(null);
   const previouslyFocused = useRef(null);
@@ -121,8 +141,11 @@ export default function Modal({
       }}
     >
       <div
-        className="modal__dialog form-card"
-        style={{ width: `min(100%, ${width}px)` }}
+        className={`modal__dialog form-card${className ? ` ${className}` : ''}`}
+        // `width: 100%` capped by `max-width`, rather than `width: min(100%, Xpx)`. Same result
+        // in a browser, but it is two long-supported properties instead of one CSS function, and
+        // it is a value that can actually be read back and asserted on.
+        style={{ width: '100%', maxWidth: `${width}px` }}
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? titleId.current : undefined}

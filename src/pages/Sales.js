@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import ActionButton from '../components/ActionButton';
-import Modal from '../components/Modal';
+import Modal, { WIDE } from '../components/Modal';
 import AmountInput from '../components/AmountInput';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
@@ -48,6 +48,7 @@ import { usePermissions } from '../hooks/usePermissions';
 import { formatAppDateTime } from '../utils/localeFormat';
 import './TablePage.css';
 import {
+  categoryTypeLabel,
   productCategoryTypeOptions,
   useProductCategoryTypes,
 } from '../utils/productCategoryTypes';
@@ -502,6 +503,66 @@ const Sales = () => {
     }
   };
   
+  /*
+   * Closing one of the stage dialogs.
+   *
+   * Each clears its own draft as well as hiding the dialog, so reopening it for a different sale
+   * starts blank rather than carrying the last one's figures — which matters more now that a
+   * dialog opens over whatever was clicked instead of appearing as a card you could see.
+   *
+   * Named rather than inline because each is used twice, by Cancel and by the dialog's own X and
+   * Esc, and the two have to do the same thing.
+   */
+  const closeCustomerForm = () => {
+    setShowCustomerForm(false);
+    setNewCustomerData({ name: '', telephone: '+998', instagram: '', region: 'tashkent_city' });
+  };
+
+  const closeDispatchForm = () => {
+    setShowDispatchForm(false);
+    setDispatchFormData({
+      saleId: null,
+      delivery_cost: '',
+      tracking_number: '',
+      dispatch_type: 'dostavshik',
+      dispatcher: '',
+      is_paid: false,
+      currency: 'UZS',
+      dispatch_notes: '',
+    });
+  };
+
+  const closeCompleteFromOrderForm = () => {
+    setShowCompleteFromOrderForm(false);
+    setCompleteFromOrderPackageLines(EMPTY_PKG_LINES());
+    setCompleteFromOrderData({
+      saleId: null, customer: '', selling_price: '', sale_type: 'bought_from_shop',
+      now_uzs: '', now_usd: '', deposit_received: false, deposit_amount: '', deposit_currency: 'USD',
+      balance_shortfall_type: '', balance_shortfall_amount: '',
+      apply_credit: false, credit_amount: '', credit_due_date: '',
+      apply_currency_conversion_difference: false,
+      apply_change: false, change_uzs: '', change_usd: '',
+    });
+  };
+
+  const closeCompleteFromOrderGroupForm = () => {
+    setShowCompleteFromOrderGroupForm(false);
+    setCompleteFromOrderGroupData({
+      saleGroupId: null, sale_type: 'bought_from_shop',
+      deposit_received: false, deposit_amount: '', deposit_currency: 'USD', lines: [],
+    });
+  };
+
+  const closeSellReservedForm = () => {
+    setShowSellReservedForm(false);
+    setSellReservedData({
+      saleId: null, uzs: '', usd: '', balance_shortfall_type: '',
+      balance_shortfall_amount: '', apply_currency_conversion_difference: false,
+      apply_additional_profit: false,
+      apply_change: false, change_uzs: '', change_usd: '',
+    });
+  };
+
   const handleCreateCustomer = async (e) => {
     e.preventDefault();
     const name = String(newCustomerData.name || '').trim();
@@ -2174,9 +2235,9 @@ const Sales = () => {
           )}
         </td>
         <td className={detailClass}>
-          {sale.product_detail?.category_type
-            ? t(`categoryTypes.${sale.product_detail.category_type}`)
-            : (
+          {/* Through the shared helper like every other page: a bare `t()` here printed the key
+              itself, so a type the shop invented read as `categoryTypes.Классика`. */}
+          {categoryTypeLabel(sale.product_detail?.category_type, t) || (
             <span style={{ color: '#999' }}>—</span>
           )}
         </td>
@@ -2300,9 +2361,13 @@ const Sales = () => {
         )}
       </div>
 
-      {showDispatchForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('dispatch.title')}</h2>
+      <Modal
+        open={showDispatchForm}
+        onClose={closeDispatchForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('dispatch.title')}
+      >
           <BusyForm onSubmit={handleDispatchSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -2389,33 +2454,20 @@ const Sales = () => {
               <SubmitButton className="btn-primary">
                 {t('dispatch.create')}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowDispatchForm(false);
-                  setDispatchFormData({
-                    saleId: null,
-                    delivery_cost: '',
-                    tracking_number: '',
-                    dispatch_type: 'dostavshik',
-                    dispatcher: '',
-                    is_paid: false,
-                    currency: 'UZS',
-                    dispatch_notes: '',
-                  });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeDispatchForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showCompleteFromOrderForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('completeFromOrder.title', { id: completeFromOrderData.saleId })}</h2>
+      <Modal
+        open={showCompleteFromOrderForm}
+        onClose={closeCompleteFromOrderForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('completeFromOrder.title', { id: completeFromOrderData.saleId })}
+      >
           {(() => {
             const cfoSale = sales.find((s) => s.id === completeFromOrderData.saleId);
             if (!cfoSale) return null;
@@ -2670,32 +2722,21 @@ const Sales = () => {
               <SubmitButton className="btn-primary">
                 {t('completeSale')}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowCompleteFromOrderForm(false);
-                  setCompleteFromOrderPackageLines(EMPTY_PKG_LINES());
-                  setCompleteFromOrderData({
-                    saleId: null, customer: '', selling_price: '', sale_type: 'bought_from_shop',
-                    now_uzs: '', now_usd: '', deposit_received: false, deposit_amount: '', deposit_currency: 'USD',
-                    balance_shortfall_type: '', balance_shortfall_amount: '',
-                    apply_credit: false, credit_amount: '', credit_due_date: '',
-                    apply_currency_conversion_difference: false,
-                    apply_change: false, change_uzs: '', change_usd: '',
-                  });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeCompleteFromOrderForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {showCompleteFromOrderGroupForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('completeFromOrder.titleGroup', { count: completeFromOrderGroupData.lines.length })}</h2>
+      <Modal
+        open={showCompleteFromOrderGroupForm}
+        onClose={closeCompleteFromOrderGroupForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        width={WIDE}
+        title={t('completeFromOrder.titleGroup', { count: completeFromOrderGroupData.lines.length })}
+      >
           <BusyForm onSubmit={handleCompleteFromOrderGroupSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -2911,23 +2952,12 @@ const Sales = () => {
               <SubmitButton className="btn-primary">
                 {t('completeSale')}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowCompleteFromOrderGroupForm(false);
-                  setCompleteFromOrderGroupData({
-                    saleGroupId: null, sale_type: 'bought_from_shop',
-                    deposit_received: false, deposit_amount: '', deposit_currency: 'USD', lines: [],
-                  });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeCompleteFromOrderGroupForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       {completePaySale && shopDeliverySettlementRequiredForGroup(completePaySale) && (
         <SaleDeliverySettlementForm
@@ -2953,9 +2983,13 @@ const Sales = () => {
         />
       )}
 
-      {showSellReservedForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('sellReserved.title', { id: sellReservedData.saleId })}</h2>
+      <Modal
+        open={showSellReservedForm}
+        onClose={closeSellReservedForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('sellReserved.title', { id: sellReservedData.saleId })}
+      >
           <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>
             {t('sellReserved.intro')}
           </p>
@@ -3144,25 +3178,12 @@ const Sales = () => {
               <SubmitButton className="btn-primary">
                 {t('completeSale')}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowSellReservedForm(false);
-                  setSellReservedData({
-                    saleId: null, uzs: '', usd: '', balance_shortfall_type: '',
-                    balance_shortfall_amount: '', apply_currency_conversion_difference: false,
-                    apply_additional_profit: false,
-                    apply_change: false, change_uzs: '', change_usd: '',
-                  });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeSellReservedForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
 
       <Modal
@@ -3171,7 +3192,7 @@ const Sales = () => {
         title={t('batch.title')}
         closeLabel={t('actions.close', { ns: 'common' })}
         closeOnBackdrop={false}
-        width={1100}
+        width={WIDE}
       >
           <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
             {t('batch.intro')}
@@ -3181,7 +3202,7 @@ const Sales = () => {
               <div className="form-group">
                 <label>{t('batch.customerRequired')}</label>
                 <div className="sales-batch-header-row__customer">
-                  <div style={{ flex: 1 }}>
+                  <div className="sales-batch-header-row__customer-field">
                     <CustomerSearchableSelect
                       asyncSearch
                       customers={customers}
@@ -3194,9 +3215,8 @@ const Sales = () => {
                   </div>
                   <button
                     type="button"
-                    className="btn-edit"
+                    className="btn-edit sales-batch-header-row__customer-add"
                     onClick={() => setShowCustomerForm(true)}
-                    style={{ whiteSpace: 'nowrap', padding: '10px 14px', fontSize: '14px', borderRadius: '5px' }}
                   >
                     + {t('actions.add', { ns: 'common' })}
                   </button>
@@ -3395,9 +3415,13 @@ const Sales = () => {
           </BusyForm>
       </Modal>
 
-      {showCustomerForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('customer.addTitle')}</h2>
+      <Modal
+        open={showCustomerForm}
+        onClose={closeCustomerForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('customer.addTitle')}
+      >
           <BusyForm onSubmit={handleCreateCustomer}>
             <div className="form-grid">
               <div className="form-group">
@@ -3444,23 +3468,16 @@ const Sales = () => {
               <SubmitButton className="btn-primary">
                 {t('customer.addButton')}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowCustomerForm(false);
-                  setNewCustomerData({ name: '', telephone: '+998', instagram: '', region: 'tashkent_city' });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closeCustomerForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {/* Filters */}
-      {!showCustomerForm && !showDispatchForm && !completePaySale && !showCompleteFromOrderForm && !showCompleteFromOrderGroupForm && !showSellReservedForm && (
+      {/* Filters. The long list of "not while this form is open" guards went with the cards:
+          a dialog covers the page by itself, so the filters just stay put. */}
+      {(
         <FilterPanel title={t('filters.title', { ns: 'common' })} filters={filters} style={{ marginBottom: '16px' }}>
         <div className="filter-toolbar">
           <div className="filter-field">

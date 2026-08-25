@@ -154,7 +154,12 @@ export default function CustomerSearchableSelect({
   const noCustomers = !asyncSearch && !customers.length && !allowEmpty && !extraOptions.length;
 
   const rootClassName = [className, isFilter ? 'filter-searchable-select' : ''].filter(Boolean).join(' ');
-  const mergedTriggerClassName = [triggerClassName, isFilter ? 'filter-searchable-select__trigger' : '']
+  // In a form this button stands in for a `select`, so it carries the shared control height and
+  // lines up with the real fields beside it. A filter trigger is sized by the filter bar instead.
+  const mergedTriggerClassName = [
+    triggerClassName,
+    isFilter ? 'filter-searchable-select__trigger' : 'form-control-trigger',
+  ]
     .filter(Boolean)
     .join(' ');
 

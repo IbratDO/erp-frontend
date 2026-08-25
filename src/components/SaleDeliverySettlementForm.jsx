@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import BusyForm, { SubmitButton } from './BusyForm';
+import Modal, { WIDE } from './Modal';
 import ActionButton from './ActionButton';
 import api from '../utils/api';
 import AmountInput from './AmountInput';
@@ -619,7 +620,6 @@ export default function SaleDeliverySettlementForm({
   // fallback for the times he has already gone.
   const [reimburseChange, setReimburseChange] = useState(true);
   const [step3Combined, setStep3Combined] = useState({ uzs: '', usd: '' });
-  const cardRef = useRef(null);
   const initedIdsRef = useRef(new Set());
   const combinedStep2InitedRef = useRef(false);
   const combinedStep3InitedRef = useRef(false);
@@ -634,13 +634,6 @@ export default function SaleDeliverySettlementForm({
       ? [saleProp.id]
       : [];
   const lineIdsKey = lineIds.join(',');
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }, 50);
-    return () => clearTimeout(timer);
-  }, [saleProp?.id]);
 
   const reloadLines = async () => {
     if (!lineIds.length) {
@@ -1471,9 +1464,16 @@ export default function SaleDeliverySettlementForm({
   };
 
   return (
-    <div ref={cardRef} style={{ marginBottom: 20 }}>
+    <Modal
+      open
+      onClose={onClose}
+      closeLabel={t('actions.close', { ns: 'common' })}
+      closeOnBackdrop={false}
+      width={WIDE}
+      title={t('deliverySettlement.settlementTitle', { id: saleProp?.id })}
+    >
       {allDone ? (
-        <div className="form-card" style={{ marginBottom: 20 }}>
+        <div className="modal-section">
           <p style={{ color: '#666', margin: 0, fontSize: '0.9rem' }}>
             {t('deliverySettlement.allDone', { id: saleProp?.id })}
           </p>
@@ -1481,7 +1481,7 @@ export default function SaleDeliverySettlementForm({
       ) : null}
 
       {step1Lines.length > 0 && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
+        <div className="modal-section">
           <h2>
             {step1Lines.length > 1
               ? t('deliverySettlement.step1GroupTitle', { count: step1Lines.length })
@@ -1687,8 +1687,7 @@ export default function SaleDeliverySettlementForm({
 
       {pendingReturnLines.length > 0 && (
         <div
-          className="form-card"
-          style={{ marginBottom: 20, background: '#fffbeb', border: '1px solid #fcd34d' }}
+          className="modal-section modal-section--warn"
         >
           <h2 style={{ color: '#92400e' }}>{t('deliverySettlement.returnPendingTitle')}</h2>
           <p style={{ color: '#92400e', marginBottom: 16, fontSize: '0.9em' }}>
@@ -1722,7 +1721,7 @@ export default function SaleDeliverySettlementForm({
       )}
 
       {step2Lines.length > 0 && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
+        <div className="modal-section">
           <h2>
             {step2Lines.length > 1
               ? t('deliverySettlement.step2GroupTitle', { count: step2Lines.length })
@@ -1968,7 +1967,7 @@ export default function SaleDeliverySettlementForm({
       )}
 
       {step3Lines.length > 0 && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
+        <div className="modal-section">
           <h2>{t('deliverySettlement.step3TitlePay', { id: step3Lines[0].id })}</h2>
           {!canPayDispatchFee ? (
             <p style={{ color: '#666', margin: 0, fontSize: '0.9em', lineHeight: 1.45 }}>
@@ -2090,6 +2089,6 @@ export default function SaleDeliverySettlementForm({
           {t('actions.close', { ns: 'common' })}
         </button>
       </div>
-    </div>
+    </Modal>
   );
 }

@@ -10,7 +10,7 @@
 import React, { act } from 'react';
 import { createRoot } from 'react-dom/client';
 
-import Modal from './Modal';
+import Modal, { WIDE } from './Modal';
 
 let container;
 let root;
@@ -190,5 +190,35 @@ describe('accessibility', () => {
   test('with no title it does not point aria-labelledby at nothing', () => {
     render({ title: undefined });
     expect(dialog().getAttribute('aria-labelledby')).toBeNull();
+  });
+});
+
+describe('sizing and variants', () => {
+  test('defaults wide enough for a three-column form, and never wider than the screen', () => {
+    render();
+    expect(dialog().style.maxWidth).toBe('1200px');
+    // The cap is a cap, not a fixed size: on a narrower screen the dialog shrinks to fit
+    // rather than making the reader scroll sideways to find its edge.
+    expect(dialog().style.width).toBe('100%');
+  });
+
+  test('WIDE is what the line-item tables need to avoid scrolling sideways', () => {
+    // `.batch-sale-lines` will not go below 58rem (928px); the dialog has to clear that plus
+    // its own padding, or Inventory, Orders and Sales all scroll inside the window.
+    expect(WIDE).toBeGreaterThan(928 + 40);
+    render({ width: WIDE });
+    expect(dialog().style.maxWidth).toBe(`${WIDE}px`);
+  });
+
+  test('a destructive form keeps the red edge it has everywhere else', () => {
+    render({ className: 'form-card--danger' });
+    expect(dialog().classList.contains('form-card--danger')).toBe(true);
+    // Still a form card, so the variant styles it rather than replacing it.
+    expect(dialog().classList.contains('form-card')).toBe(true);
+  });
+
+  test('no className leaves no stray whitespace class', () => {
+    render();
+    expect(dialog().className).toBe('modal__dialog form-card');
   });
 });

@@ -18,7 +18,7 @@ import {
 } from 'recharts';
 import {
   buildMonthlyStacked,
-  buildMonthlyTopSlots,
+  buildTopSlots,
   buildNetMonthlyStacked,
   buildNetWeekdayAverages,
   buildOnDemandMonthly,
@@ -152,12 +152,16 @@ function ChartPanel({
 const OTHERS_FILL = '#94a3b8';
 
 /**
- * Units sold by category, where each month shows only its own biggest sellers.
+ * Units by category, where each bar shows only its own biggest sellers.
+ *
+ * Drives both category charts on the Sotuv tab — the monthly totals and the weekday averages.
+ * They differ only in which field labels the bar and whether the values are whole numbers, so
+ * `xKey` and `allowDecimals` carry that and the rest is shared.
  *
  * Its own component rather than a `ChartPanel` variant, because it is drawn on a different
  * principle. `ChartPanel` renders one series per category, which fixes the segment order for
  * the whole chart and puts every category — including the ones that sold nothing — into every
- * month's tooltip. Here the series are positional slots, so each bar can be ordered biggest-at-
+ * bar's tooltip. Here the series are positional slots, so each bar can be ordered biggest-at-
  * the-bottom on its own figures and can leave out whatever did not sell.
  *
  * That trade costs two things, and both are rebuilt by hand below:
@@ -175,6 +179,8 @@ function CategoryTopSlotsChart({
   labels,
   onLegendClick,
   activeCross,
+  xKey = 'monthLabel',
+  allowDecimals = false,
 }) {
   const { data, slotCount, hasOthers, categoryColors, namedCategories } = series;
 
@@ -201,11 +207,12 @@ function CategoryTopSlotsChart({
       });
     }
     if (!entries.length) return null;
-    const total = entries.reduce((sum, e) => sum + e.value, 0);
+    // Weekday values are averages, so the total is rounded rather than printed raw.
+    const total = Math.round(entries.reduce((sum, e) => sum + e.value, 0) * 100) / 100;
 
     return (
       <div className="dash-chart-tooltip">
-        <div className="dash-chart-tooltip__month">{row.monthLabel}</div>
+        <div className="dash-chart-tooltip__month">{row[xKey]}</div>
         {entries.map((e) => (
           <div className="dash-chart-tooltip__row" key={e.name}>
             <span className="dash-chart-legend__swatch" style={{ background: e.fill }} />
@@ -236,17 +243,17 @@ function CategoryTopSlotsChart({
       <ResponsiveContainer width="100%" height={280}>
         <BarChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
           <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-          <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
-          <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
+          <XAxis dataKey={xKey} tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} allowDecimals={allowDecimals} />
           <Tooltip content={renderTooltip} cursor={{ fill: 'rgba(148, 163, 184, 0.12)' }} />
-          {/* slot0 first, so Recharts puts the month's biggest seller at the base. */}
+          {/* slot0 first, so Recharts puts the bar's biggest seller at the base. */}
           {Array.from({ length: slotCount }, (_, i) => (
             <Bar key={slotKey(i)} dataKey={slotKey(i)} stackId="stack">
               {data.map((row, rowIndex) => {
                 const name = row[`${slotKey(i)}Name`];
                 return (
                   <Cell
-                    key={row.month_key || rowIndex}
+                    key={row.month_key || row[xKey] || rowIndex}
                     fill={categoryColors[name] || 'transparent'}
                     fillOpacity={dimFor(name)}
                   />
@@ -283,7 +290,7 @@ function CategoryTopSlotsChart({
           </button>
         ))}
         {hasOthers ? (
-          // Not clickable: it is a different set of categories in each month, so there is
+          // Not clickable: it is a different set of categories in each bar, so there is
           // nothing single to filter the rest of the dashboard down to.
           <span className="dash-chart-legend__item">
             <span className="dash-chart-legend__swatch" style={{ background: OTHERS_FILL }} />
@@ -508,9 +515,9 @@ const DashboardModern = () => {
     () => buildNetMonthlyStacked(filteredFacts, filteredReturnFacts, 'category'),
     [filteredFacts, filteredReturnFacts],
   );
-  // Recast into each month's own top sellers — see `buildMonthlyTopSlots`.
+  // Recast into each month's own top sellers — see `buildTopSlots`.
   const monthlyCategoryTop = useMemo(
-    () => buildMonthlyTopSlots(monthlyCategories, 5),
+    () => buildTopSlots(monthlyCategories, 5),
     [monthlyCategories],
   );
   const monthlyCustomers = useMemo(
@@ -531,6 +538,11 @@ const DashboardModern = () => {
   const weekdayCategories = useMemo(
     () => buildNetWeekdayAverages(filteredFacts, filteredReturnFacts, 'category'),
     [filteredFacts, filteredReturnFacts],
+  );
+  // Same treatment as the monthly chart: each weekday keeps its own five, the rest grouped.
+  const weekdayCategoryTop = useMemo(
+    () => buildTopSlots(weekdayCategories, 5),
+    [weekdayCategories],
   );
   const weekdayCustomers = useMemo(
     () => buildNetWeekdayAverages(filteredFacts, filteredReturnFacts, 'customer_type'),
@@ -831,13 +843,13 @@ const DashboardModern = () => {
             <p className="dash-section-hint">{td('weekdayHint')}</p>
             <div className="dash-charts-row">
               {!targetologView ? (
-                <ChartPanel
+                <CategoryTopSlotsChart
                   emptyLabel={chartEmpty}
                   title={td('chartAvgByCategory')}
-                  data={weekdayCategories.data}
-                  seriesKeys={weekdayCategories.keys}
+                  series={weekdayCategoryTop}
+                  labels={categoryChartLabels}
                   xKey="weekday_label"
-                  chartType="weekday"
+                  allowDecimals
                   onLegendClick={handleLegendCategory}
                   activeCross={crossFilter.category}
                 />

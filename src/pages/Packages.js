@@ -379,6 +379,12 @@ const Packages = () => {
     return 'pending';
   };
 
+  // Used by Cancel and by the dialog's own X and Esc, so all three leave the same clean slate.
+  const closePaymentForm = () => {
+    setShowPaymentForm(false);
+    setPaymentFormData({ historyId: null, quantity_received: '', ...defaultPaymentState });
+  };
+
   const handlePaymentSubmit = async (e) => {
     e.preventDefault();
     try {
@@ -653,15 +659,19 @@ const Packages = () => {
           </BusyForm>
       </Modal>
 
-      {showPaymentForm && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>
-            {paymentFormData.action === 'pay'
-              ? t('paymentForm.payTitle', { id: paymentFormData.historyId })
-              : paymentFormData.action === 'receive'
-                ? t('paymentForm.receiveTitle', { id: paymentFormData.historyId })
-                : t('paymentForm.payReceiveTitle', { id: paymentFormData.historyId })}
-          </h2>
+      <Modal
+        open={showPaymentForm}
+        onClose={closePaymentForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={
+          paymentFormData.action === 'pay'
+            ? t('paymentForm.payTitle', { id: paymentFormData.historyId })
+            : paymentFormData.action === 'receive'
+              ? t('paymentForm.receiveTitle', { id: paymentFormData.historyId })
+              : t('paymentForm.payReceiveTitle', { id: paymentFormData.historyId })
+        }
+      >
           <BusyForm onSubmit={handlePaymentSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -729,24 +739,12 @@ const Packages = () => {
                     ? t('paymentForm.receiveInventory')
                     : t('paymentForm.payAndReceive')}
               </SubmitButton>
-              <button
-                type="button"
-                className="btn-edit"
-                onClick={() => {
-                  setShowPaymentForm(false);
-                  setPaymentFormData({
-                    historyId: null,
-                    quantity_received: '',
-                    ...defaultPaymentState,
-                  });
-                }}
-              >
+              <button type="button" className="btn-edit" onClick={closePaymentForm}>
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <div className="table-card">
         <div className="table-card__toolbar table-card__toolbar--with-title">

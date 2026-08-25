@@ -252,7 +252,12 @@ export default function FormSearchableSelect({
         aria-controls={listboxId}
         aria-haspopup="listbox"
         aria-label={ariaLabel}
-        className={triggerClassName || undefined}
+        // On a form row this stands in for a `select`, so it takes the shared control height and
+        // the one-line clipping that goes with it. Inside a line table it is sized by the cell,
+        // and `form-control-trigger`'s `display: block` would undo that variant's flex layout.
+        className={[triggerClassName, tableTrigger ? '' : 'form-control-trigger']
+          .filter(Boolean)
+          .join(' ') || undefined}
         onClick={() => { if (!disabled) setOpen((o) => !o); }}
         onKeyDown={(e) => {
           if (!disabled && (e.key === 'Enter' || e.key === ' ' || e.key === 'ArrowDown')) {

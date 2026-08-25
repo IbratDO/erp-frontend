@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import BusyForm, { SubmitButton } from './BusyForm';
+import Modal from './Modal';
 import AmountInput from './AmountInput';
 import SaleChangeFields from './SaleChangeFields';
 import api from '../utils/api';
@@ -249,9 +250,16 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
     onClose?.();
   };
 
+  // The caller only renders this component when there is a sale to settle, so it is open
+  // whenever it exists; `onClose` unmounts it from the parent's side.
   return (
-    <div className="form-card" style={{ marginBottom: '20px' }}>
-      <h2>{t('completePay.title', { id: sale.id })}</h2>
+    <Modal
+      open
+      onClose={handleCancel}
+      closeLabel={t('actions.close', { ns: 'common' })}
+      closeOnBackdrop={false}
+      title={t('completePay.title', { id: sale.id })}
+    >
       <p style={{ color: '#666', marginBottom: '16px', fontSize: '0.9em' }}>{t('completePay.intro')}</p>
       {exchangeRate?.label && (
         <p style={{ color: '#4a5568', marginBottom: '12px', fontSize: '0.85em' }}>{exchangeRate.label}</p>
@@ -581,6 +589,6 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
           </button>
         </div>
       </BusyForm>
-    </div>
+    </Modal>
   );
 }

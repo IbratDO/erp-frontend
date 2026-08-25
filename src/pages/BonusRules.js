@@ -1,3 +1,4 @@
+import Modal from '../components/Modal';
 import React, { useState, useEffect, useCallback } from 'react';
 import api from '../utils/api';
 import apiGetAll from '../utils/fetchAllPages';
@@ -134,9 +135,13 @@ const BonusRules = () => {
         )}
       </div>
 
-      {showForm && canManage && (
-        <div className="form-card" style={{ marginBottom: 16 }}>
-          <h2>{editingId ? t('form.editTitle') : t('form.newTitle')}</h2>
+      <Modal
+        open={showForm && canManage}
+        onClose={() => setShowForm(false)}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={editingId ? t('form.editTitle') : t('form.newTitle')}
+      >
           <BusyForm onSubmit={handleSubmit}>
             <div className="form-grid">
               <label>
@@ -203,8 +208,7 @@ const BonusRules = () => {
               <button type="button" className="btn-edit" onClick={() => setShowForm(false)}>{t('actions.cancel', { ns: 'common' })}</button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <div className="table-card" style={{ marginBottom: 24 }}>
         <h3 style={{ padding: '12px 16px', margin: 0 }}>{t('rulesTable.title')}</h3>

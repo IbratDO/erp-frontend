@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import api from '../utils/api';
-import Modal from '../components/Modal';
+import Modal, { WIDE } from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import { getCachedProducts, invalidateProductsCache } from '../utils/catalogCache';
 import { productCostPickerLabel } from '../utils/productCost';
@@ -516,6 +516,7 @@ const Inventory = () => {
         title={t('newItem')}
         closeLabel={t('actions.close', { ns: 'common' })}
         closeOnBackdrop={false}
+        width={WIDE}
       >
           <BusyForm onSubmit={handleSubmit}>
             {/*

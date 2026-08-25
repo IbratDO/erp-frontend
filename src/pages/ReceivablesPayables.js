@@ -1,3 +1,4 @@
+import Modal from '../components/Modal';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Trans } from 'react-i18next';
 import api from '../utils/api';
@@ -492,6 +493,12 @@ const ReceivablesPayables = () => {
       amount: defAmount,
       notes: '',
     });
+  };
+
+  // Used by Cancel and by the dialog's own X and Esc, so all three leave the same clean slate.
+  const closeCollectForm = () => {
+    setCollectTarget(null);
+    setCollectForm({ amount: '', notes: '' });
   };
 
   const handleCollectReceivableSubmit = async (e) => {
@@ -1052,14 +1059,15 @@ const ReceivablesPayables = () => {
       {/* Receivables Table */}
       {activeTab === 'receivables' && (
         <>
-          {collectTarget && canCollect && (
-            <div className="form-card" style={{ marginBottom: '20px' }}>
-              <h2>
-                {t('collect.title', { id: collectTarget.id })}{' '}
-                <small style={{ color: '#555', fontWeight: 400 }}>
-                  {t('collect.saleRef', { sale: collectTarget.sale })}
-                </small>
-              </h2>
+          <Modal
+              open={!!collectTarget && canCollect}
+              onClose={closeCollectForm}
+              closeLabel={t('actions.close', { ns: 'common' })}
+              closeOnBackdrop={false}
+              title={collectTarget
+                ? `${t('collect.title', { id: collectTarget.id })} ${t('collect.saleRef', { sale: collectTarget.sale })}`
+                : ''}
+            >
               <p style={{ color: '#666', marginBottom: '12px', fontSize: '0.92rem' }}>
                 <Trans
                   i18nKey="collect.hint"
@@ -1096,23 +1104,12 @@ const ReceivablesPayables = () => {
                 </div>
                 <div className="form-actions">
                   <SubmitButton className="btn-primary">{t('collect.record')}</SubmitButton>
-                  <button
-                    type="button"
-                    className="btn-edit"
-                    onClick={() => {
-                      setCollectTarget(null);
-                      setCollectForm({
-                        amount: '',
-                        notes: '',
-                      });
-                    }}
-                  >
+                  <button type="button" className="btn-edit" onClick={closeCollectForm}>
                     {t('actions.cancel', { ns: 'common' })}
                   </button>
                 </div>
               </BusyForm>
-            </div>
-          )}
+            </Modal>
         <div className="table-card">
           <h2>{t('receivablesTable.title')}</h2>
           <p style={{ color: '#666', fontSize: '0.9em', margin: '0 0 10px' }}>

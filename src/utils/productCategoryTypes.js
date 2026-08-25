@@ -47,10 +47,24 @@ export function useProductCategoryTypes() {
   return known;
 }
 
-/** Display text for one value: translated when known, shown as typed when not. */
+/**
+ * Display text for one value: translated when known, shown as typed when not.
+ *
+ * **`defaultValue` is the whole point.** Without it i18next answers a missing key with the key
+ * itself, and there is no `parseMissingKeyHandler` configured to soften that — so a type the shop
+ * invented renders as the literal string `categoryTypes.Классика` on the page. Only `sports` and
+ * `casual` are in the locale files, and by design: a word a shop made up last week cannot be in a
+ * translation file, so the typed value is the correct label for it.
+ *
+ * `t` is optional. It used to be required and unchecked, which meant calling this without one
+ * threw rather than degrading — and the page that got it wrong crashed instead of showing a
+ * slightly less translated word. Falling back to the raw value is the honest answer: it is what
+ * `defaultValue` would have produced for anything outside those two keys anyway.
+ */
 export function categoryTypeLabel(value, t) {
   const raw = String(value ?? '').trim();
   if (!raw) return '';
+  if (typeof t !== 'function') return raw;
   return t(`categoryTypes.${raw}`, { defaultValue: raw });
 }
 

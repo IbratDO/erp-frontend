@@ -1,3 +1,4 @@
+import Modal from '../components/Modal';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import CourierAccountBand from '../components/CourierAccountBand';
 import api from '../utils/api';
@@ -574,9 +575,13 @@ const Dispatchers = () => {
         </p>
       )}
 
-      {showForm && canManagePartners && formData.id && (
-        <div className="form-card" style={{ marginBottom: '20px' }}>
-          <h2>{t('form.editTitle')}</h2>
+      <Modal
+        open={showForm && canManagePartners && !!formData.id}
+        onClose={() => setShowForm(false)}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={t('form.editTitle')}
+      >
           <BusyForm onSubmit={handleDispatcherSubmit}>
             <div className="form-grid">
               <div className="form-group">
@@ -623,10 +628,12 @@ const Dispatchers = () => {
               <SubmitButton className="btn-primary">
                 {t('actions.save', { ns: 'common' })}
               </SubmitButton>
+              <button type="button" className="btn-edit" onClick={() => setShowForm(false)}>
+                {t('actions.cancel', { ns: 'common' })}
+              </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
         {!isDispatcherRole && (

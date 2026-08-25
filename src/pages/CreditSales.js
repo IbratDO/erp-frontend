@@ -391,6 +391,12 @@ export default function CreditSales() {
     }
   };
 
+  // Used by Cancel and by the dialog's own X and Esc, so all three leave the same clean slate.
+  const closeWaiveForm = () => {
+    setWaiveTarget(null);
+    setWaiveReason('');
+  };
+
   const handleWaiveSubmit = async (e) => {
     e.preventDefault();
     if (!waiveTarget) return;
@@ -704,9 +710,13 @@ export default function CreditSales() {
           </BusyForm>
       </Modal>
 
-      {collectTarget && canCollect && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
-          <h2>{t('collect.title', { id: collectTarget.id })}</h2>
+      <Modal
+        open={!!collectTarget && canCollect}
+        onClose={() => setCollectTarget(null)}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={collectTarget ? t('collect.title', { id: collectTarget.id }) : ''}
+      >
           <p style={{ color: '#666', marginBottom: 12, fontSize: '0.92rem' }}>
             {t('collect.hint', {
               customer: collectTarget.customer_name || '—',
@@ -777,12 +787,15 @@ export default function CreditSales() {
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
-      {waiveTarget && canWaive && (
-        <div className="form-card" style={{ marginBottom: 20 }}>
-          <h2>{t('waive.title', { id: waiveTarget.id })}</h2>
+      <Modal
+        open={!!waiveTarget && canWaive}
+        onClose={closeWaiveForm}
+        closeLabel={t('actions.close', { ns: 'common' })}
+        closeOnBackdrop={false}
+        title={waiveTarget ? t('waive.title', { id: waiveTarget.id }) : ''}
+      >
           <p style={{ color: '#b45309', marginBottom: 12, fontSize: '0.92rem' }}>
             {t('waive.hint', {
               amount: formatDisplayAmount(
@@ -811,17 +824,13 @@ export default function CreditSales() {
               <button
                 type="button"
                 className="btn-edit"
-                onClick={() => {
-                  setWaiveTarget(null);
-                  setWaiveReason('');
-                }}
+                onClick={closeWaiveForm}
               >
                 {t('actions.cancel', { ns: 'common' })}
               </button>
             </div>
           </BusyForm>
-        </div>
-      )}
+      </Modal>
 
       <div className="table-card">
         <div className="table-card__toolbar table-card__toolbar--with-title">

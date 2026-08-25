@@ -289,16 +289,16 @@ export const OTHERS_SLOT = 'slot_others';
 export const slotKey = (index) => `slot${index}`;
 
 /**
- * Recast a stacked-by-category series so each month shows only its own biggest sellers.
+ * Recast a stacked-by-category series so each bar shows only its own biggest sellers.
  *
- * The chart it replaces drew one series per category that had *ever* sold, so a month listed
+ * The charts it replaces drew one series per category that had *ever* sold, so a bar listed
  * every category in the business on hover, most of them zero, and the ones that mattered were
  * lost among them.
  *
  * **Slots, not categories.** Each bar is built from `slot0…slot{limit-1}` plus the leftovers,
- * where `slot0` is that month's biggest seller — so the segments are ordered biggest-at-the-
- * bottom within each bar, and a category can sit in a different slot from one month to the
- * next. That is what "the top 5 of each month" means and it cannot be done with one series per
+ * where `slot0` is that bar's biggest seller — so the segments are ordered biggest-at-the-
+ * bottom within each bar, and a category can sit in a different slot from one bar to the
+ * next. That is what "the top 5 of each bar" means and it cannot be done with one series per
  * category, because the series order is fixed for the whole chart.
  *
  * The cost of slots is that position no longer identifies a category, so **colour has to**:
@@ -310,10 +310,15 @@ export const slotKey = (index) => `slot${index}`;
  * Zero-selling categories are dropped outright rather than drawn flat: a segment of no height
  * is invisible on screen but still shows up on hover, which is the complaint this answers.
  *
- * @param {{data: object[], keys: string[]}} series - output of `buildNetMonthlyStacked`
- * @param {number} limit - how many named categories each month keeps
+ * Takes months (`buildNetMonthlyStacked`) or weekdays (`buildNetWeekdayAverages`) alike: the
+ * bucket's own fields — `month_key`/`monthLabel`, or `weekday_label` — are whatever is on the
+ * row besides the categories, and are copied through untouched for the axis to label with.
+ * Weekday rows carry averages, so values are not assumed to be whole numbers.
+ *
+ * @param {{data: object[], keys: string[]}} series - a stacked-by-category series
+ * @param {number} limit - how many named categories each bar keeps
  */
-export function buildMonthlyTopSlots(series, limit = 5) {
+export function buildTopSlots(series, limit = 5) {
   const rows = series?.data || [];
   const keys = series?.keys || [];
 
@@ -333,6 +338,7 @@ export function buildMonthlyTopSlots(series, limit = 5) {
     categoryColors[name] = CHART_PALETTE[i % CHART_PALETTE.length];
   });
 
+  const categoryFields = new Set(keys);
   let slotCount = 0;
   let anyOthers = false;
   const data = rows.map((row) => {
@@ -345,14 +351,23 @@ export function buildMonthlyTopSlots(series, limit = 5) {
     const rest = sold.slice(limit);
     slotCount = Math.max(slotCount, top.length);
 
-    const next = { month_key: row.month_key, monthLabel: row.monthLabel };
+    // Everything that is not a category is the bucket's own identity — the month key and
+    // label, or the weekday label. Copied through so the axis has something to print.
+    const next = {};
+    for (const [field, value] of Object.entries(row)) {
+      if (!categoryFields.has(field)) next[field] = value;
+    }
     top.forEach((entry, i) => {
       next[slotKey(i)] = entry.value;
       next[`${slotKey(i)}Name`] = entry.name;
     });
     if (rest.length) {
       anyOthers = true;
-      next[OTHERS_SLOT] = rest.reduce((sum, entry) => sum + entry.value, 0);
+      // Rounded because weekday rows are averages: adding 1.1 and 2.2 raw prints
+      // 3.3000000000000003 on hover. Whole-number months are unaffected.
+      next[OTHERS_SLOT] = Math.round(
+        rest.reduce((sum, entry) => sum + entry.value, 0) * 100,
+      ) / 100;
       next.othersNames = rest.map((entry) => entry.name);
     }
     return next;

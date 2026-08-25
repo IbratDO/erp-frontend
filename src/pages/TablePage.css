@@ -199,17 +199,96 @@
   outline-offset: 2px;
 }
 
+/*
+ * A block within a dialog — the delivery settlement's three steps, which arrive as one window
+ * rather than three, because they are stages of a single job and only one is ever actionable.
+ *
+ * Deliberately not `.form-card`: that carries a white background and a drop shadow, which read
+ * as a card sitting on a page. Inside a dialog, which is already that card, the same styling
+ * stacks a raised white panel on a raised white panel. A hairline and a tint of grey say
+ * "section of this window" instead.
+ */
+.modal-section {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  background: #fbfcfd;
+}
+
+.modal-section:last-of-type {
+  margin-bottom: 0;
+}
+
+.modal-section > h2 {
+  margin-bottom: 16px;
+  color: #2c3e50;
+  font-size: 1.15rem;
+}
+
+/* The step that is waiting on someone else — amber, as it is elsewhere in the app. */
+.modal-section--warn {
+  border-color: #fcd34d;
+  background: #fffbeb;
+}
+
+.modal-section--warn > h2 {
+  color: #92400e;
+}
+
 @media (max-width: 767px) {
   .modal-overlay {
     padding: 12px 8px;
   }
+
+  .modal-section {
+    padding: 12px;
+  }
 }
 
+/*
+ * `auto-fill`, not `auto-fit`. They differ only when a row is short of items, and that is
+ * exactly the case worth getting right: `auto-fit` collapses the unused tracks, so a form whose
+ * last row holds one field stretched that field across the full width and left it three times
+ * wider than the fields above it. `auto-fill` keeps the empty tracks, so every field in the form
+ * is the same size and the columns line up top to bottom.
+ *
+ * The track floor rose with it. Widening the dialog alone would have made fields *narrower*:
+ * more columns fit, and each still takes an equal share. 320px holds the column count where it
+ * was and spends the extra width on the fields themselves, which is the point.
+ *
+ * `min(320px, 100%)` because a bare 320px floor is a floor — on a narrow phone the track would
+ * refuse to shrink below it and push the dialog into a sideways scroll.
+ */
 .form-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(320px, 100%), 1fr));
   gap: 15px;
   margin-bottom: 20px;
+}
+
+/*
+ * Free-text boxes are the exception, and keep the full width: a column is enough for a price or
+ * a dropdown, but a sentence typed into one is read three words at a time.
+ *
+ * `:has()` is unsupported in older browsers, where this rule is simply dropped — the textarea
+ * then sits in its own column like any other field, which is tidy rather than broken.
+ */
+.form-grid > .form-group:has(textarea) {
+  grid-column: 1 / -1;
+}
+
+/*
+ * Grid cells in a row are all as tall as the tallest, so a label that wraps to two lines used to
+ * leave its neighbours' inputs sitting a line higher than its own. Packing each cell's contents
+ * to the bottom puts every input on the same line across the row, and spends the slack above the
+ * short labels where nobody is reading.
+ *
+ * Done on the cell rather than on the input so it holds for the wrapped controls too — the
+ * searchable selects render a div, not a bare `select`.
+ */
+.form-grid > .form-group {
+  justify-content: flex-end;
 }
 
 /* Delivery settlement Step 1: UZS + USD + Accepted/Declined dropdown in one row per product. */
@@ -340,6 +419,45 @@
   border: 1px solid #ddd;
   border-radius: 5px;
   font-size: 14px;
+}
+
+/*
+ * One height for everything that sits on a form row.
+ *
+ * A native `select` and a `button` standing in for one do not come out the same height on their
+ * own: each browser gives them its own default line box, and the difference shows up as a
+ * control sitting a few pixels proud of the ones beside it. Stating both the line height and the
+ * overall height settles it — and it is stated once here rather than per control, so a field
+ * that lands on a row later inherits the alignment instead of having to be nudged into it.
+ *
+ * Radios and checkboxes are excluded: they are the one case where a fixed row height would drag
+ * a tick box out to the size of a text field.
+ */
+:root {
+  --form-control-height: 41px;
+}
+
+.form-group input:not([type="radio"]):not([type="checkbox"]),
+.form-group select,
+.form-control-trigger {
+  min-height: var(--form-control-height);
+  line-height: 1.35;
+}
+
+/*
+ * The picker is a `button`, and a button wraps its text. A native `select` never does — it clips
+ * to one line — so a long option or placeholder ("— Mijozni tanlang (majburiy) —") ran onto a
+ * second line and made the control a row taller than the fields beside it. Anything stretching
+ * to match it, such as the "+ Qo'shish" button, grew with it.
+ *
+ * One line and an ellipsis is what the control it stands in for does, and it is what keeps the
+ * shared height a height rather than a floor.
+ */
+.form-control-trigger {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* Rounded text-input rules stretch flex rows; keep radios/tight rows compact */
@@ -851,11 +969,32 @@
   align-items: flex-end;
 }
 
+/*
+ * Mijoz is two controls sharing one field: the picker, and the button that adds a customer who
+ * is not on the list yet. They read as one field only if they are the same height as each other
+ * and as Sotuv turi and Valyuta next to them, which is what the shared control height is for —
+ * `align-items: stretch` alone matched them to each other while both sat proud of the row.
+ */
 .sales-batch-header-row__customer {
   display: flex;
   gap: 10px;
   align-items: stretch;
   min-width: 0;
+}
+
+.sales-batch-header-row__customer-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.sales-batch-header-row__customer-add {
+  flex: none;
+  min-height: var(--form-control-height);
+  padding: 10px 14px;
+  border-radius: 5px;
+  font-size: 14px;
+  line-height: 1.35;
+  white-space: nowrap;
 }
 
 .sales-batch-header-row__customer select {
