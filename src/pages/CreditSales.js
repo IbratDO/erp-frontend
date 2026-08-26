@@ -710,12 +710,16 @@ export default function CreditSales() {
           </BusyForm>
       </Modal>
 
-      <Modal
-        open={!!collectTarget && canCollect}
+      {/* Guarded, not just `open={...}`: JSX children are built before Modal ever runs, so a
+          body that reads the target crashes the page the moment there is no target. `open` alone
+          decides what is shown; only the guard decides what is built. */}
+      {collectTarget && canCollect && (
+        <Modal
+          open
         onClose={() => setCollectTarget(null)}
         closeLabel={t('actions.close', { ns: 'common' })}
         closeOnBackdrop={false}
-        title={collectTarget ? t('collect.title', { id: collectTarget.id }) : ''}
+          title={t('collect.title', { id: collectTarget.id })}
       >
           <p style={{ color: '#666', marginBottom: 12, fontSize: '0.92rem' }}>
             {t('collect.hint', {
@@ -787,14 +791,19 @@ export default function CreditSales() {
               </button>
             </div>
           </BusyForm>
-      </Modal>
+        </Modal>
+      )}
 
-      <Modal
-        open={!!waiveTarget && canWaive}
+      {/* Guarded, not just `open={...}`: JSX children are built before Modal ever runs, so a
+          body that reads the target crashes the page the moment there is no target. `open` alone
+          decides what is shown; only the guard decides what is built. */}
+      {waiveTarget && canWaive && (
+        <Modal
+          open
         onClose={closeWaiveForm}
         closeLabel={t('actions.close', { ns: 'common' })}
         closeOnBackdrop={false}
-        title={waiveTarget ? t('waive.title', { id: waiveTarget.id }) : ''}
+          title={t('waive.title', { id: waiveTarget.id })}
       >
           <p style={{ color: '#b45309', marginBottom: 12, fontSize: '0.92rem' }}>
             {t('waive.hint', {
@@ -830,7 +839,8 @@ export default function CreditSales() {
               </button>
             </div>
           </BusyForm>
-      </Modal>
+        </Modal>
+      )}
 
       <div className="table-card">
         <div className="table-card__toolbar table-card__toolbar--with-title">

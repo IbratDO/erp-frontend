@@ -1059,14 +1059,16 @@ const ReceivablesPayables = () => {
       {/* Receivables Table */}
       {activeTab === 'receivables' && (
         <>
-          <Modal
-              open={!!collectTarget && canCollect}
+          {/* Guarded, not just `open={...}`: JSX children are built before Modal ever runs,
+              so a body that reads the target crashes the page the moment there is no target.
+              `open` alone decides what is shown; only the guard decides what is built. */}
+          {collectTarget && canCollect && (
+            <Modal
+              open
               onClose={closeCollectForm}
               closeLabel={t('actions.close', { ns: 'common' })}
               closeOnBackdrop={false}
-              title={collectTarget
-                ? `${t('collect.title', { id: collectTarget.id })} ${t('collect.saleRef', { sale: collectTarget.sale })}`
-                : ''}
+              title={`${t('collect.title', { id: collectTarget.id })} ${t('collect.saleRef', { sale: collectTarget.sale })}`}
             >
               <p style={{ color: '#666', marginBottom: '12px', fontSize: '0.92rem' }}>
                 <Trans
@@ -1110,6 +1112,7 @@ const ReceivablesPayables = () => {
                 </div>
               </BusyForm>
             </Modal>
+          )}
         <div className="table-card">
           <h2>{t('receivablesTable.title')}</h2>
           <p style={{ color: '#666', fontSize: '0.9em', margin: '0 0 10px' }}>

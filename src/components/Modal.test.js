@@ -222,3 +222,54 @@ describe('sizing and variants', () => {
     expect(dialog().className).toBe('modal__dialog form-card');
   });
 });
+
+/**
+ * The trap that took the Qarzdorlik page down after the form-window conversion.
+ *
+ * `open={false}` makes Modal render nothing — but React builds the children *before* Modal is
+ * ever called, so a body that reads `collectTarget.customer_name` throws while the page is
+ * merely sitting there with nothing selected. Replacing `{target && (<div>…</div>)}` with
+ * `<Modal open={!!target}>…</Modal>` therefore looks equivalent and is not.
+ *
+ * `open` decides what is *shown*. Only a guard around the element decides what is *built*.
+ */
+describe('children are built even while closed', () => {
+  test('a closed Modal still evaluates its children', () => {
+    const built = jest.fn();
+    const Child = () => { built(); return <span>x</span>; };
+    act(() => {
+      root.render(<Modal open={false} onClose={() => {}}>{Child()}</Modal>);
+    });
+    expect(document.querySelector('.modal__dialog')).toBeNull();
+    // Nothing on screen, yet the body ran. This is the whole hazard in one assertion.
+    expect(built).toHaveBeenCalled();
+  });
+
+  test('so a body that reads a missing target throws despite open={false}', () => {
+    const target = null;
+    expect(() => {
+      act(() => {
+        root.render(
+          <Modal open={false} onClose={() => {}}>
+            <span>{target.customer_name}</span>
+          </Modal>,
+        );
+      });
+    }).toThrow(/customer_name/);
+  });
+
+  test('guarding the element instead is what actually keeps the body from running', () => {
+    const target = null;
+    expect(() => {
+      act(() => {
+        root.render(
+          <div>{target && (
+            <Modal open onClose={() => {}}>
+              <span>{target.customer_name}</span>
+            </Modal>
+          )}</div>,
+        );
+      });
+    }).not.toThrow();
+  });
+});
