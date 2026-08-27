@@ -41,7 +41,8 @@
     "productsReturnableInCategory": "«{{category}}» da qaytariladigan mahsulotlar",
     "filteredBy": "Filtr:",
     "saleOption": "Sotuv #{{id}} — {{brand}} {{model}}{{customer}}",
-    "customerPaid": "Mijoz to‘lagan:"
+    "customerPaid": "Mijoz to‘lagan:",
+    "nothingWasReceived": "Bu sotuv uchun hech narsa olinmagan (bepul berilgan yoki to‘liq chegirma), shuning uchun qaytariladigan pul yo‘q. Mahsulot omborga qaytariladi."
   },
   "reasons": {
     "defective": "Nuqsonli",
@@ -178,6 +179,7 @@
     "refundDue": "Qaytarish summasi:",
     "enteredInCurrency": "Kiritilgan ({{currency}}):",
     "totalAtCbu": "MB kursi bo‘yicha jami ({{currency}}):",
-    "belowDue": "— qarzdorlikdan {{short}} kam"
+    "belowDue": "— qarzdorlikdan {{short}} kam",
+    "nothingOwed": "Bu sotuv uchun hech narsa olinmagan (bepul berilgan yoki to‘liq chegirma), shuning uchun qaytariladigan pul yo‘q. Mahsulot allaqachon o‘z tannarxi bilan omborga qaytarilgan. «0» qoldirib tasdiqlashingiz mumkin — kassadan pul chiqmaydi."
   }
 }

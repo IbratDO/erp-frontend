@@ -90,7 +90,12 @@
     "confirmSplitLineUzs": "- {{amount}}",
     "confirmSplitLineUsdWithEquiv": "- {{amount}} (MB kursi bo‘yicha {{equiv}} ga teng)",
     "confirmSplitLineUsd": "- {{amount}}",
-    "confirmSplitTotal": "Jami to‘lov ({{currency}}): {{total}}"
+    "confirmSplitTotal": "Jami to‘lov ({{currency}}): {{total}}",
+    "giveawayOption": "Bepul berish (pul olinmaydi)",
+    "giveawayHint": "Bu mahsulot bepul beriladi. {{amount}} {{currency}} to‘liq hisobdan chiqariladi va mahsulotning tannarxi zarar sifatida yoziladi.",
+    "confirmGiveawayTitle": "Mahsulot bepul beriladi.",
+    "confirmGiveawayAmount": "Hech qanday pul olinmaydi. {{amount}} to‘liq hisobdan chiqariladi.",
+    "confirmGiveawayEffect": "Mahsulotning tannarxi zarar sifatida yoziladi va bu «Bepul berilgan» hisobotida ko‘rinadi."
   },
   "cancelReserved": "Band qilishni bekor qilish",
   "fromOrder": "Buyurtmadan",

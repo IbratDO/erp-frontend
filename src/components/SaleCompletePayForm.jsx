@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import BusyForm, { SubmitButton } from './BusyForm';
 import Modal from './Modal';
+import usePermissions from '../hooks/usePermissions';
 import AmountInput from './AmountInput';
 import SaleChangeFields from './SaleChangeFields';
 import api from '../utils/api';
@@ -17,6 +18,7 @@ import {
   buildSplitCurrencyConfirmMessage,
   buildAdditionalProfitConfirmMessage,
   buildCreditConfirmMessage,
+  buildGiveawayConfirmMessage,
   saleHasOrderAdvance,
   saleAcceptsChange,
 } from '../utils/saleCompletePayHelpers';
@@ -26,6 +28,8 @@ import {
  */
 export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNotification }) {
   const { t } = useAppTranslation(['sales', 'common']);
+  const { hasPermission } = usePermissions();
+  const canGiveaway = hasPermission('sales.giveaway');
   const groupSales = sale?.groupSales?.length ? sale.groupSales : null;
   const [paymentFormData, setPaymentFormData] = useState(() => emptyPaymentFormState());
   const [exchangeRate, setExchangeRate] = useState(null);
@@ -85,6 +89,14 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
   // and the server would reject it, so the box should not be there to tick.
   const creditAvailable = shortfallMeta.short != null && shortfallMeta.short > changeTol;
   const onCredit = !!paymentFormData.apply_credit;
+  // Bepul is offered only when the sale really is free: nothing typed in either currency, and
+  // something actually owing. Part-paid is a discount on a real sale, and the server refuses
+  // the flag in that case anyway — so showing the box there would only invite a rejection.
+  const nothingReceived =
+    !(parseFloat(paymentFormData.uzs) > 0) && !(parseFloat(paymentFormData.usd) > 0);
+  const giveawayAvailable =
+    canGiveaway && nothingReceived && shortfallMeta.due != null && shortfallMeta.due > 0;
+  const isGiveaway = !!paymentFormData.apply_giveaway;
   const changeAvailable =
     saleAcceptsChange(sale)
     && (
@@ -176,6 +188,12 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
       ) {
         showNotification(t('completePay.errDiscountAmount'), 'error');
         return;
+      }
+
+      // Asked before anything is sent, because this is the one completion where the shop ends
+      // up with less than it started and nobody hands anything over to make that obvious.
+      if (paymentFormData.apply_giveaway) {
+        if (!window.confirm(buildGiveawayConfirmMessage(meta))) return;
       }
 
       const wantsCredit = !!paymentFormData.apply_credit;
@@ -460,6 +478,52 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
                 </p>
               )}
 
+            </div>
+          )}
+
+          {/*
+            Bepul — stock handed over as a gift.
+
+            Outside the shortfall block for the same reason credit is: that block reacts to money
+            that was typed and fell short, and here nothing is typed at all. It appears only when
+            the sale really is free, and only for the three roles allowed to take that loss, so
+            for everyone else the option is not there to reach for.
+          */}
+          {giveawayAvailable && (
+            <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'inline-flex', alignItems: 'center', gap: 10, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={isGiveaway}
+                  onChange={(e) => {
+                    const checked = e.target.checked;
+                    // A gift cannot also be a debt or a discount: the whole price is written
+                    // off, so there is nothing left for either of them to name.
+                    setPaymentFormData({
+                      ...paymentFormData,
+                      apply_giveaway: checked,
+                      ...(checked
+                        ? {
+                          apply_credit: false,
+                          credit_amount: '',
+                          credit_due_date: '',
+                          balance_shortfall_type: '',
+                          balance_shortfall_amount: '',
+                        }
+                        : {}),
+                    });
+                  }}
+                />
+                <span>{t('completePay.giveawayOption')}</span>
+              </label>
+              {isGiveaway && (
+                <p style={{ margin: '8px 0 0', fontSize: '0.85em', color: '#b45309', lineHeight: 1.45 }}>
+                  {t('completePay.giveawayHint', {
+                    amount: formatDisplayAmount(finalDue, shortfallMeta.sc),
+                    currency: shortfallMeta.sc,
+                  })}
+                </p>
+              )}
             </div>
           )}
 

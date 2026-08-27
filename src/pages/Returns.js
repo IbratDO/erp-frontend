@@ -614,7 +614,17 @@ const Returns = () => {
       showNotification(t('notifications.invalidRefund'), 'error');
       return;
     }
-    if (refundUzs <= 0 && refundUsd <= 0) {
+    // Zero is the right answer for a sale that took nothing — a Bepul gift, or a price
+    // discounted away entirely. Refusing it here left the goods out of stock with no way to
+    // record them coming back, which is the other half of the sale #350 problem.
+    const saleForRefund = formData.sale
+      ? sales.find((x) => x.id === parseInt(formData.sale, 10))
+      : null;
+    const nothingWasReceived = (() => {
+      const legs = salePaidLegs(saleForRefund, formData.quantity);
+      return legs.uzs <= 0 && legs.usd <= 0;
+    })();
+    if (refundUzs <= 0 && refundUsd <= 0 && !nothingWasReceived) {
       showNotification(t('notifications.invalidRefundGreaterZero'), 'error');
       return;
     }
@@ -706,7 +716,15 @@ const Returns = () => {
     const returnItem = refundReturnItem;
     const uzs = parseFloat(refundFormData.uzs) || 0;
     const usd = parseFloat(refundFormData.usd) || 0;
-    if (uzs + usd === 0) {
+    // Zero is the whole answer when nothing is owed — a Bepul gift, or a price discounted away
+    // entirely. The goods are already back in stock at their cost and no payable was raised, so
+    // this step just records that the return is finished.
+    //
+    // Still required when something *is* owed: zero there would close the obligation while the
+    // customer is still waiting for their money.
+    const refundDue = computeReturnRefundDueLegs(returnItem);
+    const nothingIsOwed = !(refundDue.uzs > 0) && !(refundDue.usd > 0);
+    if (uzs + usd === 0 && !nothingIsOwed) {
       showNotification(t('notifications.refundAmountRequired'), 'error');
       return;
     }
@@ -1306,7 +1324,15 @@ const Returns = () => {
                   <small style={{ color: '#666', marginTop: '6px', display: 'block' }}>
                     {t('form.refundAmountHint')}
                   </small>
-                  {!formReturnDuePresent && (
+                  {/* Two different reasons for an empty amount, and they must not read alike:
+                      nothing chosen yet, versus a sale that genuinely took no money. The second
+                      is a complete answer, not a missing one. */}
+                  {!formReturnDuePresent && formData.sale && (
+                    <small style={{ color: '#b45309', marginTop: '4px', display: 'block' }}>
+                      {t('form.nothingWasReceived')}
+                    </small>
+                  )}
+                  {!formReturnDuePresent && !formData.sale && (
                     <small style={{ color: '#888', marginTop: '4px', display: 'block' }}>
                       {t('form.selectSaleForDue')}
                     </small>
@@ -1368,6 +1394,29 @@ const Returns = () => {
           {exchangeRateError && (
             <p style={{ color: '#b45309', marginBottom: '12px', fontSize: '0.85em' }}>{exchangeRateError}</p>
           )}
+
+          {/* Says why the amounts are empty and why that is finished rather than unfinished.
+              Without it a zero refund reads as a form somebody forgot to fill in. */}
+          {refundReturnItem && (() => {
+            const due = computeReturnRefundDueLegs(refundReturnItem);
+            if (due.uzs > 0 || due.usd > 0) return null;
+            return (
+              <div
+                style={{
+                  marginBottom: 16,
+                  padding: '12px 14px',
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: 6,
+                  fontSize: '0.9em',
+                  color: '#78350f',
+                  lineHeight: 1.55,
+                }}
+              >
+                {t('markRefundedModal.nothingOwed')}
+              </div>
+            );
+          })()}
           {refundMeta.due != null && !refundMeta.dueUnavailable && (
             <div
               style={{

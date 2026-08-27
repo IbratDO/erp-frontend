@@ -90,7 +90,12 @@
     "confirmSplitLineUzs": "- {{amount}}",
     "confirmSplitLineUsdWithEquiv": "- {{amount}} (equivalent to {{equiv}} at CBU rate)",
     "confirmSplitLineUsd": "- {{amount}}",
-    "confirmSplitTotal": "Total payment (in {{currency}}): {{total}}"
+    "confirmSplitTotal": "Total payment (in {{currency}}): {{total}}",
+    "giveawayOption": "Give away free (no payment)",
+    "giveawayHint": "This item is being given away. The full {{amount}} {{currency}} is written off and the goods' cost is recorded as a loss.",
+    "confirmGiveawayTitle": "This item is being given away free.",
+    "confirmGiveawayAmount": "Nothing will be received. The full {{amount}} is written off.",
+    "confirmGiveawayEffect": "The goods' cost is recorded as a loss and appears in the “Given away” total."
   },
   "cancelReserved": "Cancel reservation",
   "fromOrder": "From order",

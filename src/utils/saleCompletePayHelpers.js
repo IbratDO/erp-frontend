@@ -446,6 +446,27 @@ export function buildCreditConfirmMessage(meta, dueDate) {
     .join('\n\n');
 }
 
+/**
+ * The popup before stock leaves the shop for nothing.
+ *
+ * States the loss in terms of what the goods cost, not what they were priced at: the price was
+ * never anyone's money, and naming it here would make the gift look four times more expensive
+ * than it is. The cost is what actually left.
+ */
+export function buildGiveawayConfirmMessage(meta) {
+  const sc = (meta?.sc || 'USD').toUpperCase();
+  return [
+    cp('confirmGiveawayTitle'),
+    cp('confirmGiveawayAmount', {
+      amount: formatAmountForCurrency(meta?.due ?? 0, sc),
+    }),
+    cp('confirmGiveawayEffect'),
+    cp('confirmContinue'),
+  ]
+    .filter(Boolean)
+    .join('\n\n');
+}
+
 export const emptyPaymentFormState = () => ({
   saleId: null,
   uzs: '',
@@ -461,6 +482,7 @@ export const emptyPaymentFormState = () => ({
   // gap can be part forgiven and part owed at once and that field holds one answer. Blank
   // `credit_amount` means "whatever is left after the discount", which is the common case.
   apply_credit: false,
+  apply_giveaway: false,
   credit_amount: '',
   // Required whenever credit is on: a debt with no date is one nobody is ever reminded about.
   credit_due_date: '',
@@ -898,6 +920,11 @@ export function buildCompleteSaleRequest(paymentFormData, meta, exchangeRate) {
     if (Number.isFinite(disc) && disc > 0) {
       requestData.balance_shortfall_amount = disc;
     }
+  }
+  // A gift names nothing else: the server writes off the whole amount due and refuses the flag
+  // outright if any money came with it, so there is no amount for the form to compute here.
+  if (paymentFormData.apply_giveaway) {
+    requestData.apply_giveaway = true;
   }
   if (paymentFormData.apply_credit) {
     requestData.apply_credit = true;

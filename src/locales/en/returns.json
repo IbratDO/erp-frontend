@@ -41,7 +41,8 @@
     "productsReturnableInCategory": "Products with returnable sales in {{category}}",
     "filteredBy": "Filtered by:",
     "saleOption": "Sale #{{id}} — {{brand}} {{model}}{{customer}}",
-    "customerPaid": "Customer paid:"
+    "customerPaid": "Customer paid:",
+    "nothingWasReceived": "Nothing was received for this sale (given free, or fully discounted), so there is no money to refund. The goods return to stock."
   },
   "reasons": {
     "defective": "Defective",
@@ -178,6 +179,7 @@
     "refundDue": "Refund due:",
     "enteredInCurrency": "Entered (in {{currency}}):",
     "totalAtCbu": "Total at CBU rate (in {{currency}}):",
-    "belowDue": "— below due by {{short}}"
+    "belowDue": "— below due by {{short}}",
+    "nothingOwed": "Nothing was received for this sale (given free, or fully discounted), so there is no money to refund. The item is already back in stock at its cost. Confirm with 0 — no cash leaves the till."
   }
 }

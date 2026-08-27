@@ -68,7 +68,15 @@ export function computeReturnRefundDue(returnItem) {
   if (uzs <= 0 && usd <= 0) {
     const sale = returnItem?.sale_detail;
     const currency = (sale?.sale_currency || 'USD').toUpperCase();
-    return { amount: null, currency, unitPrice: NaN };
+    // **Zero, not null.** Null here meant "no figure could be worked out", and the page refuses
+    // to settle a refund it cannot size — "Ushbu qaytarish uchun qarz summasi mavjud emas". But
+    // nothing owed is a figure: it is zero. Conflating the two made a Bepul gift, which owes
+    // nothing by definition, look like a return whose debt could not be read, so it could never
+    // be closed.
+    //
+    // The genuine unknown is still null, at the end of this function: a debt live in both
+    // currencies has no single-currency size until a rate is known.
+    return { amount: 0, currency, unitPrice: NaN };
   }
   if (uzs > 0 && usd <= 0) {
     return { amount: uzs, currency: 'UZS', unitPrice: qty > 0 ? uzs / qty : NaN };
