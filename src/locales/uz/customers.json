@@ -100,5 +100,10 @@
     "deleteConfirm": "Ushbu mijozni o‘chirmoqchimisiz?",
     "deleteError": "Mijozni o‘chirishda xatolik",
     "historyError": "Mijoz tarixini yuklashda xatolik"
+  },
+  "quickAdd": {
+    "errName": "Mijoz ismini kiriting.",
+    "errPhone": "Mijoz telefon raqamini kiriting.",
+    "created": "Mijoz muvaffaqiyatli qo‘shildi!"
   }
 }

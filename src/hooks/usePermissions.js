@@ -12,6 +12,7 @@ import {
   isInvestor,
   isTargetolog,
   isReadOnly,
+  seesFullDashboard,
 } from '../utils/permissions';
 
 export function usePermissions() {
@@ -27,6 +28,7 @@ export function usePermissions() {
       isInvestor: isInvestor(user),
       isTargetolog: isTargetolog(user),
       isReadOnly: isReadOnly(user),
+      seesFullDashboard: seesFullDashboard(user),
       hasPermission: (code) => hasPermission(user, code),
       hasAnyPermission: (codes) => hasAnyPermission(user, codes),
       hasAllPermissions: (codes) => hasAllPermissions(user, codes),

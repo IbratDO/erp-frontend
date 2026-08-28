@@ -3,6 +3,7 @@ import api from '../utils/api';
 import Modal from '../components/Modal';
 import apiGetAll from '../utils/fetchAllPages';
 import AmountInput from '../components/AmountInput';
+import CustomerQuickAddModal from '../components/CustomerQuickAddModal';
 import CustomerSearchableSelect from '../components/CustomerSearchableSelect';
 import FilterPanel from '../components/FilterPanel';
 import PageTitle from '../components/PageTitle';
@@ -171,6 +172,17 @@ export default function CreditSales() {
   // Only fetched once the card is opened: the page itself never needs the customer list, and a
   // shop with a long one should not pay for it on every visit to look at debts.
   const [customers, setCustomers] = useState([]);
+  // A customer who is being lent money is often a customer the shop has only just met, and
+  // sending the user to the Mijozlar page to add them would throw away the amount and the due
+  // date they had already typed.
+  const [showCustomerForm, setShowCustomerForm] = useState(false);
+  const handleCustomerCreated = (created) => {
+    if (!created?.id) return;
+    // Added to the local list rather than refetched: the picker reads this array, and the new
+    // customer has to be in it before the id below can select anything.
+    setCustomers((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+    setCreateForm((prev) => ({ ...prev, customer: String(created.id) }));
+  };
   useEffect(() => {
     if (!showCreate || customers.length) return;
     let alive = true;
@@ -654,12 +666,25 @@ export default function CreditSales() {
                 <label>
                   {t('create.customer')} <span style={{ color: '#e53e3e' }}>*</span>
                 </label>
-                <CustomerSearchableSelect
-                  customers={customers}
-                  value={createForm.customer}
-                  onChange={(v) => setCreateForm({ ...createForm, customer: v })}
-                  aria-label={t('create.customer')}
-                />
+                {/* Same shape as the Sotuv form's customer row: the picker takes the space it
+                    needs and the add button sits beside it at the same height. */}
+                <div className="sales-batch-header-row__customer">
+                  <div className="sales-batch-header-row__customer-field">
+                    <CustomerSearchableSelect
+                      customers={customers}
+                      value={createForm.customer}
+                      onChange={(v) => setCreateForm({ ...createForm, customer: v })}
+                      aria-label={t('create.customer')}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    className="btn-edit sales-batch-header-row__customer-add"
+                    onClick={() => setShowCustomerForm(true)}
+                  >
+                    + {t('actions.add', { ns: 'common' })}
+                  </button>
+                </div>
               </div>
               <div className="form-group">
                 <label>{t('create.dueDate')}</label>
@@ -709,6 +734,15 @@ export default function CreditSales() {
             </div>
           </BusyForm>
       </Modal>
+
+      <CustomerQuickAddModal
+        open={showCustomerForm}
+        onClose={() => setShowCustomerForm(false)}
+        onCreated={handleCustomerCreated}
+        // This page reports everything with `alert`; the dialog follows the page it is on rather
+        // than introducing a second way of saying things on the same screen.
+        showNotification={(message) => alert(message)}
+      />
 
       {/* Guarded, not just `open={...}`: JSX children are built before Modal ever runs, so a
           body that reads the target crashes the page the moment there is no target. `open` alone

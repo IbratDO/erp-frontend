@@ -204,6 +204,21 @@ export function isReadOnly(user) {
   return isInvestor(user) || isTargetolog(user);
 }
 
+/**
+ * Sees the full dashboard — every tab, every chart, the Founder's view.
+ *
+ * Separate from `isAdmin` because "who runs the place" and "who may look at the whole picture"
+ * are different questions, and the Investor is the case that proves it: an observer with no
+ * operational control who is nonetheless entitled to the same figures the owner reads. Routing
+ * that off `isAdmin` gave them the older, thinner dashboard instead.
+ *
+ * The tabs themselves stay gated on `dashboard.ceo` — this only decides which dashboard is put
+ * in front of the user, never what they may see once inside it.
+ */
+export function seesFullDashboard(user) {
+  return isAdmin(user) || isInvestor(user);
+}
+
 /** Admin, CEO, or Senior Sales Manager — full operational visibility (all sales/orders). */
 export function isOperationalSenior(user) {
   const role = getRoleCode(user);

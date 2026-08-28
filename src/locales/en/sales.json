@@ -62,6 +62,7 @@
     "errRateLoading": "Exchange rate is still loading. Try again in a moment.",
     "errDispatchAmount": "Enter the delivery / dispatch payment amount (or check dispatch setup).",
     "errShortfall": "Payment difference is not fully classified. Select Discount and/or Conversion Difference, enter the discount amount if needed, or adjust the payment.",
+    "errNothingEntered": "No payment entered. Enter an amount, or choose one of: Discount, On credit, Conversion Difference or Bepul.",
     "errExceedsDue": "Payment cannot exceed the remaining amount due ({{due}} {{currency}} after advance).",
     "confirmOverpayTitle": "Payment entered is higher than amount due.",
     "confirmOverpayDue": "Due:",

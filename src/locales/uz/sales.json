@@ -62,6 +62,7 @@
     "errRateLoading": "Valyuta kursi hali yuklanmoqda. Birozdan keyin qayta urinib ko‘ring.",
     "errDispatchAmount": "Yetkazish / jo‘natish to‘lov summasini kiriting (yoki sozlamalarni tekshiring).",
     "errShortfall": "To‘lov farqi to‘liq belgilanmagan. Chegirma va/yoki Konversiya farqini tanlang, kerak bo‘lsa chegirma summasini kiriting yoki to‘lovni o‘zgartiring.",
+    "errNothingEntered": "To‘lov kiritilmagan. Summani kiriting yoki quyidagilardan birini tanlang: Chegirma, Nasiya, Konversiya farqi yoki Bepul.",
     "errExceedsDue": "To‘lov qolgan summadan oshmasligi kerak ({{due}} {{currency}} avansdan keyin).",
     "confirmOverpayTitle": "Kiritilgan to‘lov summadan yuqori.",
     "confirmOverpayDue": "Kerak:",

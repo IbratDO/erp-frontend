@@ -100,5 +100,10 @@
     "deleteConfirm": "Are you sure you want to delete this customer?",
     "deleteError": "Error deleting customer",
     "historyError": "Error fetching customer history"
+  },
+  "quickAdd": {
+    "errName": "Please enter the customer name.",
+    "errPhone": "Please enter the customer telephone.",
+    "created": "Customer created successfully!"
   }
 }

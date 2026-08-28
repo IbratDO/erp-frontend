@@ -239,6 +239,20 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
         effMeta = computePaymentDifferenceMeta(sale, effForm, cbuRate);
       }
 
+      // Nothing typed in either currency and none of the options ticked, on a sale that is owed
+      // money. Its own message rather than the generic shortfall one, because there is no
+      // "difference" to classify here — the form has simply been told nothing, and completing
+      // would record the sale as paid in full against a till that never saw a som.
+      if (
+        !effMeta.mixed
+        && effMeta.paid == null
+        && effMeta.due != null
+        && effMeta.due > 0
+      ) {
+        showNotification(t('completePay.errNothingEntered'), 'error');
+        return;
+      }
+
       if (effMeta.differenceNeedsClassification) {
         showNotification(t('completePay.errShortfall'), 'error');
         return;
@@ -541,11 +555,15 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
                   checked={onCredit}
                   onChange={(e) => {
                     const checked = e.target.checked;
+                    // Mirrors the Bepul box, which already clears credit: the two are opposite
+                    // answers to the same question — the customer owes it, or nobody does — and
+                    // the server refuses a sale that claims to be both.
                     setPaymentFormData({
                       ...paymentFormData,
                       apply_credit: checked,
                       credit_amount: checked ? paymentFormData.credit_amount : '',
                       credit_due_date: checked ? paymentFormData.credit_due_date : '',
+                      ...(checked ? { apply_giveaway: false } : {}),
                     });
                   }}
                 />

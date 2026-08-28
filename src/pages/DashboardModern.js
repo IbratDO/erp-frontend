@@ -64,6 +64,37 @@ function KpiCard({ label, value, sub }) {
   );
 }
 
+/**
+ * The hover box, with the empty rows left out.
+ *
+ * A stacked chart draws one series per person, and Recharts names every one of them on hover —
+ * including everybody who sold nothing that day. On a weekday chart with a dozen salesmen that is
+ * eleven lines of "0" hiding the one number the reader wanted.
+ *
+ * Only the rows are dropped, never a series: the colours, the legend and the stack order stay
+ * exactly as they are, so the same person keeps the same colour on every bar.
+ */
+export function nonZeroTooltip({ active, payload, label }, tooltipStyle) {
+  if (!active || !payload?.length) return null;
+  const rows = payload.filter((entry) => Number(entry?.value) !== 0);
+  // Nothing at all on this bar. An empty box reads as a glitch, so show none.
+  if (!rows.length) return null;
+  return (
+    <div style={{ ...tooltipStyle, padding: '8px 10px' }}>
+      <div style={{ marginBottom: 4 }}>{label}</div>
+      {rows.map((entry) => (
+        <div key={entry.dataKey ?? entry.name} style={{ color: entry.color }}>
+          {entry.name}
+          {' : '}
+          {typeof entry.value === 'number'
+            ? Math.round(entry.value * 100) / 100
+            : entry.value}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function ChartPanel({
   title,
   data,
@@ -73,6 +104,7 @@ function ChartPanel({
   onLegendClick,
   activeCross,
   emptyLabel = '',
+  hideZeroSeries = false,
 }) {
   const height = 280;
 
@@ -110,7 +142,12 @@ function ChartPanel({
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey={xKey} tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} allowDecimals={false} />
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              {...(hideZeroSeries
+                ? { content: (props) => nonZeroTooltip(props, tooltipStyle) }
+                : {})}
+            />
             <Legend {...legendProps} />
             {seriesKeys.map((key, i) => (
               <Area
@@ -130,7 +167,12 @@ function ChartPanel({
             <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
             <XAxis dataKey={xKey} tick={{ fontSize: 12 }} />
             <YAxis tick={{ fontSize: 12 }} allowDecimals={chartType === 'weekday'} />
-            <Tooltip contentStyle={tooltipStyle} />
+            <Tooltip
+              contentStyle={tooltipStyle}
+              {...(hideZeroSeries
+                ? { content: (props) => nonZeroTooltip(props, tooltipStyle) }
+                : {})}
+            />
             <Legend {...legendProps} />
             {seriesKeys.map((key, i) => (
               <Bar
@@ -711,10 +753,14 @@ const DashboardModern = () => {
               label={td('soldUnitsToday')}
               value={(kpis?.net_sold_units ?? kpis?.sold_units ?? 0).toLocaleString()}
               sub={
-                !targetologView && (kpis?.total_returns ?? 0) > 0
+                // Same-day returns only, matching what the figure above nets off. A return of
+                // something sold last week belongs to the Qaytarishlar card, not here — showing
+                // it under a number it was never subtracted from made the two look like they
+                // disagreed.
+                !targetologView && (kpis?.same_day_return_units ?? 0) > 0
                   ? td('netUnitsSub', {
                       gross: (kpis?.sold_units ?? 0).toLocaleString(),
-                      returned: (kpis?.total_returns ?? 0).toLocaleString(),
+                      returned: (kpis?.same_day_return_units ?? 0).toLocaleString(),
                     })
                   : kpis?.scope === 'own'
                     ? td('scopeOwn')
@@ -936,6 +982,9 @@ const DashboardModern = () => {
                 seriesKeys={weekdayUsers.keys}
                 xKey="weekday_label"
                 chartType="weekday"
+                // Everyone who sold nothing on that weekday is left out of the hover, so the
+                // people who did sell are not buried under a column of zeroes.
+                hideZeroSeries
                 onLegendClick={handleLegendUser}
                 activeCross={crossFilter.salesman}
               />

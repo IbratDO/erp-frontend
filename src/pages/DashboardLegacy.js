@@ -380,10 +380,11 @@ const DashboardLegacy = () => {
           label={td('soldUnitsToday')}
           value={(kpis?.net_sold_units ?? kpis?.sold_units ?? 0).toLocaleString()}
           sub={
-            !targetologView && (kpis?.total_returns ?? 0) > 0
+            // Same-day returns only — see the note on the matching card in DashboardModern.
+            !targetologView && (kpis?.same_day_return_units ?? 0) > 0
               ? td('netUnitsSub', {
                   gross: (kpis?.sold_units ?? 0).toLocaleString(),
-                  returned: (kpis?.total_returns ?? 0).toLocaleString(),
+                  returned: (kpis?.same_day_return_units ?? 0).toLocaleString(),
                 })
               : kpis?.scope === 'own'
                 ? td('scopeOwn')

@@ -609,12 +609,14 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
   // still read so a form that has not been updated yet keeps working.
   const wantCredit =
     !!paymentFormData.apply_credit || paymentFormData.balance_shortfall_type === 'on_credit';
+  const wantGiveaway = !!paymentFormData.apply_giveaway;
   // An empty payment box reads as "nothing typed yet" everywhere else, which is what keeps the
-  // form from complaining about a shortfall the moment it opens. A credit sale is the one
-  // completion where nothing typed is the whole answer — the customer hands over no money at
-  // all — so once credit is chosen the blank is read as the zero it actually is.
+  // form from complaining about a shortfall the moment it opens. Credit and Bepul are the two
+  // completions where nothing typed is the whole answer — the customer hands over no money at
+  // all — so once either is chosen the blank is read as the zero it actually is.
+  const emptyIsTheAnswer = wantCredit || wantGiveaway;
   const base =
-    wantCredit && !raw.mixed && raw.due != null && raw.paid == null
+    emptyIsTheAnswer && !raw.mixed && raw.due != null && raw.paid == null
       ? { ...raw, paid: 0, paidGross: raw.paidGross ?? 0, short: raw.due, needs: raw.due > 0 }
       : raw;
   if (base.mixed || base.due == null || base.paid == null) {
@@ -623,7 +625,13 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
       discountAmount: 0,
       remainingAfterDiscount: null,
       conversionDifference: null,
-      differenceNeedsClassification: false,
+      // Nothing typed, and none of the boxes ticked — the branch above rewrites the blank for
+      // the two options where "no money" *is* the answer, so reaching here with something owing
+      // means the form has been told nothing at all about where that money went. Completing on
+      // that records the sale as paid in full against an empty till, which is exactly how sale
+      // #350 lost $279. Blank on a sale that owes nothing stays silent, and so does a rate still
+      // loading (`mixed`) — neither is a missing answer.
+      differenceNeedsClassification: !base.mixed && base.due != null && base.due > 0,
       requiredChange: null,
     };
   }
@@ -674,11 +682,15 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
   // Credit explains part of a *shortfall* and only a shortfall: the customer walks out owing
   // what was not handed over. There is nothing to credit on a surplus.
   const creditExplained = creditAmount > 0 && !sharesExceedGap;
+  // A gift explains the whole of what was not handed over — the server turns Bepul into a
+  // discount for the entire price. Without this the form would go on demanding a second
+  // explanation for a gap the Bepul box has already answered in full.
+  const giveawayExplained = wantGiveaway && gap > tol;
   const creditDueDateMissing =
     creditExplained && !String(paymentFormData.credit_due_date || '').trim();
   // `remainingAfterDiscount` now nets off the credit too, so a gap fully covered by a discount
   // and a credit lands inside tolerance and needs nothing further — which is the point.
-  const explained = fxExplained || apExplained || splitFxValid;
+  const explained = fxExplained || apExplained || splitFxValid || giveawayExplained;
   const unexplained = explained ? 0 : remainingAfterDiscount;
   const differenceNeedsClassification =
     sharesExceedGap || creditWithNothingOwing || Math.abs(unexplained) > tol;
@@ -710,6 +722,8 @@ export function computePaymentDifferenceMeta(sale, paymentFormData, cbuRate) {
     creditExplained,
     creditAmount,
     creditDueDateMissing,
+    wantGiveaway,
+    giveawayExplained,
     sharesExceedGap,
     creditWithNothingOwing,
     gap,
