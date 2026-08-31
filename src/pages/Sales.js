@@ -38,7 +38,7 @@ import {
   productForLayer,
 } from './batchSaleLines';
 import useBarcodeScanner from '../hooks/useBarcodeScanner';
-import { buildBarcodeIndex, looksLikeLayerCode, normalizeScan, parseLayerRef } from '../utils/layerBarcode';
+import { buildBarcodeIndex, looksLikeLayerCode, normalizeScan } from '../utils/layerBarcode';
 import { beepError, beepOk, primeScanBeep } from '../utils/scanBeep';
 import {
   computeAdvanceRemainingDue,
@@ -437,7 +437,6 @@ const Sales = () => {
   // exists so two identical scans in a row still re-trigger the strip instead of looking frozen.
   const [scanFeedback, setScanFeedback] = useState(null);
   const scanSeqRef = useRef(0);
-  const scanInputRef = useRef(null);
   // The basket as it stands right now. `handleScannedCode` folds a scan outside a state updater
   // (an updater must be pure), so it needs a value that is never a render behind.
   const batchLinesRef = useRef(batchLines);
@@ -3314,27 +3313,11 @@ const Sales = () => {
               </div>
               <div className="scan-strip">
                 {/*
-                  The scanner types straight into the page and needs no field at all — but when
-                  the caret is sitting in a text box the hook deliberately stands down, and this
-                  is where the operator can put it instead. It also makes the feature visible;
-                  nothing else on the form says scanning is supported.
+                  No input box. The scanner types straight into the page, and the modal opens with
+                  focus on a button rather than a text field, so a scan is captured from the moment
+                  the form appears — a box to click into first was a step that bought nothing.
+                  The hint stays, because it is the only thing that says scanning is supported.
                 */}
-                <input
-                  ref={scanInputRef}
-                  type="text"
-                  data-scan-ok
-                  className="scan-strip__input"
-                  placeholder={t('batch.scanPlaceholder')}
-                  aria-label={t('batch.scanPlaceholder')}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'Enter') return;
-                    // Inside BusyForm — a bare Enter here would submit the sale.
-                    e.preventDefault();
-                    const ref = parseLayerRef(e.target.value);
-                    if (ref) handleScannedCode(ref);
-                    e.target.value = '';
-                  }}
-                />
                 <span className="scan-strip__hint">{t('batch.scanHint')}</span>
                 <span
                   className={`scan-strip__feedback scan-strip__feedback--${scanFeedback?.kind || 'idle'}`}

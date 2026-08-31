@@ -13,7 +13,7 @@ const LABEL = {
   model: 'Air Max 90',
   size: '42',
   color: 'Qora',
-  price: '1 250 000 so\'m',
+  price: '1 250 000 uzs',
   maxCopies: 9,
 };
 
@@ -59,6 +59,18 @@ describe('the printed sheet', () => {
     const html = buildLabelSheetHtml(LABEL, 1);
     ['Nike', 'Air Max 90', '42', 'Qora', '1 250 000', 'LD00004821', '#4821']
       .forEach((piece) => expect(html).toContain(piece));
+  });
+
+  it('separates brand from model with a bar', () => {
+    // Many models are themselves two words, so a plain space leaves no way to tell where the
+    // brand ends: "On club T" reads as three words.
+    expect(buildLabelSheetHtml(LABEL, 1)).toContain('Nike | Air Max 90');
+  });
+
+  it('prints no stray bar when a product has only one of the two', () => {
+    const html = buildLabelSheetHtml({ ...LABEL, model: '' }, 1);
+    expect(html).toContain('Nike');
+    expect(html).not.toContain('Nike |');
   });
 
   it('carries the code in the barcode as well as in the human-readable line', () => {

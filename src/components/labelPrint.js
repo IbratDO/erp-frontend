@@ -94,7 +94,10 @@ const STYLES = `
 `;
 
 function labelMarkup(label, barcodeSvg) {
-  const title = [label.brand, label.model].filter(Boolean).join(' ');
+  // Brand and model are separated by a bar, not a space: plenty of models here are themselves
+  // two words ("On" + "club T" reads as three words with no way to tell where the brand ends).
+  // `filter(Boolean)` first, so a product missing one of the two does not print a stray bar.
+  const title = [label.brand, label.model].filter(Boolean).join(' | ');
   const attrs = [label.size, label.color].filter(Boolean).join(' · ');
   return `
     <div class="label">

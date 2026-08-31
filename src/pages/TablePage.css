@@ -1185,20 +1185,6 @@
   margin-bottom: 10px;
 }
 
-.scan-strip__input {
-  width: 200px;
-  padding: 6px 10px;
-  border: 1px solid #cbd5e0;
-  border-radius: 4px;
-  font-size: 14px;
-  font-variant-numeric: tabular-nums;
-}
-
-.scan-strip__input:focus {
-  outline: none;
-  border-color: #3498db;
-}
-
 .scan-strip__hint {
   color: #718096;
   font-size: 12px;
