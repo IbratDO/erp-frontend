@@ -80,5 +80,15 @@
     "errSupplierCost": "Tannarxni so‘mda, dollarda yoki ikkalasida kiriting.",
     "errSave": "Ombor yozuvini saqlashda xatolik",
     "errSelectProduct": "Kamida bitta qatorda mahsulotni tanlang."
+  },
+  "labels": {
+    "button": "Yorliq",
+    "batchStart": "Koʻp yorliq",
+    "batchPrint": "Tanlanganlarni chop etish",
+    "batchHint": "Bir nechta qatlam uchun yorliqlarni birdaniga chop etish",
+    "selectedCount": "{{rows}} ta qator / {{labels}} ta yorliq",
+    "selectAll": "Hammasini tanlash",
+    "selectRow": "#{{layer}} qatlamni tanlash",
+    "column": "Yorliqlar"
   }
 }

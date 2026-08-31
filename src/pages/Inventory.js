@@ -26,6 +26,10 @@ import FilterPanel from '../components/FilterPanel';
 import useCbuExchangeRate from '../hooks/useCbuExchangeRate';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import TableDownloadButton from '../components/TableDownloadButton';
+import { inventorySellingCell, invSellingPriceNum } from '../utils/inventorySelling';
+import { layerToLabelData } from '../utils/layerLabel';
+import { buildBatchLabelSheetHtml, buildLabelSheetHtml, totalLabelCount } from '../components/labelPrint';
+import printHtmlDocument from '../utils/printHtml';
 
 const EMPTY_FORM = {
   product: '',
@@ -53,15 +57,6 @@ function frozenRateNote(layer, t) {
   return t('table.frozenAt', {
     rate: rate.toLocaleString(undefined, { maximumFractionDigits: 0 }),
   });
-}
-
-/** Price with its own currency symbol — a product may now be quoted in either. */
-function formatSellingPrice(amount, currency) {
-  const n = parseFloat(amount);
-  if (!Number.isFinite(n) || n <= 0) return null;
-  return currency === 'UZS'
-    ? `${n.toLocaleString(undefined, { maximumFractionDigits: 0 })} so'm`
-    : `$${n.toFixed(2)}`;
 }
 
 /** All active inventory filters except Layer No (used both to filter the table and to build the Layer No dropdown's own options). */
@@ -112,25 +107,8 @@ function layerLandedCostCells(layer) {
   };
 }
 
-function inventorySellingCell(productDetail, stockingOrder) {
-  const label = plannedSellingSummary(stockingOrder || null);
-  if (label) return label;
-  const price = formatSellingPrice(
-    productDetail?.selling_price,
-    productDetail?.selling_price_currency,
-  );
-  return price ? `${price}/u` : '—';
-}
-
-function invSellingPriceNum(item) {
-  const so = item.stocking_order;
-  if (so?.selling_price != null && String(so.selling_price).trim() !== '') {
-    const n = parseFloat(so.selling_price);
-    return Number.isFinite(n) ? n : 0;
-  }
-  const pu = parseFloat(item.product_detail?.selling_price);
-  return Number.isFinite(pu) ? pu : 0;
-}
+// inventorySellingCell / invSellingPriceNum / formatSellingPrice now live in
+// ../utils/inventorySelling, so the printed label quotes the same price this table shows.
 
 const INVENTORY_SORT_ACCESSORS = {
   category_type: (it) => String(it.product_detail?.category_type ?? '').toLowerCase(),
@@ -163,6 +141,29 @@ const Inventory = () => {
   const canAddInventory = hasPermission('inventory.create');
   // Granted to the Founder role alone: cancelling a line puts cash back into the till.
   const canCancelLayer = hasPermission('inventory.cancel_layer');
+  // Printing a label only reproduces what is already on the screen beside the button, so it
+  // rides on the permission that got the user to this page rather than minting a new code
+  // (which would need a seed_rbac run on deploy to restrict something unrestrictable).
+  const canPrintLabels = hasPermission('inventory.view');
+  // Labels have their own leading column now, so Amallar is back to being about cancelling.
+  const showActions = canCancelLayer;
+
+  /**
+   * Straight to the printer's own dialog — no step in between.
+   *
+   * There used to be a preview window with a copies box. It was one more click on a job the
+   * operator does dozens of times in a row, and the browser's print dialog is already a preview
+   * and already a confirmation: nothing reaches the roll until it is accepted.
+   *
+   * One sticker per unit on the shelf, because that is what is being labelled. To print a
+   * different number, change the copies count in the print dialog itself.
+   */
+  const handlePrintLabels = useCallback((item) => {
+    const label = layerToLabelData(item);
+    if (!label) return;
+    printHtmlDocument(buildLabelSheetHtml(label, label.maxCopies || 1));
+  }, []);
+
   const [inventory, setInventory] = useState([]);
   const knownCategoryTypes = useProductCategoryTypes();
   const productCategoryTypes = useMemo(
@@ -359,6 +360,87 @@ const Inventory = () => {
     () => invSort.sortRows(filteredInventory),
     [filteredInventory, invSort]
   );
+
+  // -- Batch label printing ---------------------------------------------------------------
+  // Off until asked for: the checkbox column costs every reader width on an already-wide table,
+  // and most printing is one layer at a time straight off the row's own button.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedLayerIds, setSelectedLayerIds] = useState(() => new Set());
+
+  const toggleLayerSelected = useCallback((batchId) => {
+    setSelectedLayerIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(batchId)) next.delete(batchId);
+      else next.add(batchId);
+      return next;
+    });
+  }, []);
+
+  /**
+   * The rows that are both ticked and still on screen, in the order the table is showing them.
+   *
+   * Scoped to `displayInventory` on purpose. A row filtered out of view is out of mind — printing
+   * a sticker for something the operator can no longer see would be the kind of surprise that
+   * wastes a roll. The tick is remembered, though, so narrowing a filter and widening it again
+   * does not lose the selection.
+   */
+  const selectedLabelEntries = useMemo(() => {
+    if (!selectMode) return [];
+    return displayInventory
+      .filter((item) => selectedLayerIds.has(item.batch_id))
+      .map((item) => ({ item, label: layerToLabelData(item) }))
+      .filter((entry) => entry.label)
+      .map((entry) => ({ label: entry.label, copies: entry.label.maxCopies || 1 }));
+  }, [selectMode, displayInventory, selectedLayerIds]);
+
+  const selectedLabelTotal = useMemo(
+    () => totalLabelCount(selectedLabelEntries),
+    [selectedLabelEntries],
+  );
+
+  /**
+   * The header tick box: on when every row currently on screen is selected.
+   *
+   * Scoped to what is visible, like the selection itself — after filtering to one brand, "select
+   * all" means that brand, not the whole warehouse.
+   */
+  const allShownSelected = useMemo(
+    () => displayInventory.length > 0
+      && displayInventory.every((item) => selectedLayerIds.has(item.batch_id)),
+    [displayInventory, selectedLayerIds],
+  );
+
+  const toggleAllShown = useCallback(() => {
+    setSelectedLayerIds((prev) => {
+      const next = new Set(prev);
+      const shown = displayInventory.map((item) => item.batch_id);
+      // Clearing removes only the rows on screen, leaving ticks on rows the filter is hiding —
+      // the same rule the selection itself follows.
+      if (shown.every((id) => next.has(id))) shown.forEach((id) => next.delete(id));
+      else shown.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [displayInventory]);
+
+  /** First click reveals the checkboxes; the next one prints whatever has been ticked. */
+  const handleBatchLabelClick = useCallback(() => {
+    if (!selectMode) {
+      setSelectMode(true);
+      return;
+    }
+    if (!selectedLabelEntries.length) return;
+    printHtmlDocument(buildBatchLabelSheetHtml(selectedLabelEntries));
+  }, [selectMode, selectedLabelEntries]);
+
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelectedLayerIds(new Set());
+  }, []);
+
+  // Columns added to the *left* of Kategoriya turi. Named once because three places have to
+  // agree: the header row, the empty-state cell, and the footer's leading label cell — and the
+  // footer is the one that goes wrong silently, sliding every total one column sideways.
+  const leadingColumns = (selectMode ? 1 : 0) + (canPrintLabels ? 1 : 0);
 
   const fetchProducts = async () => {
     try {
@@ -915,6 +997,37 @@ const Inventory = () => {
 
       <div className="table-card">
         <div className="table-card__toolbar">
+          {canPrintLabels && filteredInventory.length > 0 && (
+            <div className="table-card__toolbar-left">
+              {selectMode && (
+                <button type="button" className="btn-edit" onClick={exitSelectMode}>
+                  {t('actions.cancel', { ns: 'common' })}
+                </button>
+              )}
+              <button
+                type="button"
+                className={`btn-edit${selectMode ? ' btn-edit--active' : ''}`}
+                onClick={handleBatchLabelClick}
+                disabled={selectMode && selectedLabelEntries.length === 0}
+                title={t('labels.batchHint')}
+              >
+                {selectMode ? t('labels.batchPrint') : t('labels.batchStart')}
+              </button>
+              {/*
+                Rows and stickers are both named, because they are rarely the same number: five
+                ticked rows can be forty labels. Seeing the total before the print dialog opens is
+                what stops a roll being spent by accident.
+              */}
+              {selectMode && (
+                <span className="batch-label-count">
+                  {t('labels.selectedCount', {
+                    rows: selectedLabelEntries.length,
+                    labels: selectedLabelTotal,
+                  })}
+                </span>
+              )}
+            </div>
+          )}
           <TableDownloadButton
             tableRef={tableRef}
             filename="ombor-mahsulotlar"
@@ -925,6 +1038,19 @@ const Inventory = () => {
         <table className="data-table" ref={tableRef}>
           <thead>
             <tr>
+              {selectMode && (
+                <th data-noexport className="row-select-cell">
+                  <input
+                    type="checkbox"
+                    aria-label={t('labels.selectAll')}
+                    checked={allShownSelected}
+                    onChange={toggleAllShown}
+                  />
+                </th>
+              )}
+              {canPrintLabels && (
+                <th data-noexport className="label-col">{t('labels.column')}</th>
+              )}
               <SortableTh columnId="category_type" sortCol={invSort.sortCol} sortDir={invSort.sortDir} onSort={invSort.onHeaderClick}>
                 {t('table.categoryType')}
               </SortableTh>
@@ -970,13 +1096,13 @@ const Inventory = () => {
               <SortableTh columnId="updated_at" sortCol={invSort.sortCol} sortDir={invSort.sortDir} onSort={invSort.onHeaderClick}>
                 {t('table.updated')}
               </SortableTh>
-              {canCancelLayer && <th>{t('table.actions', { ns: 'common' })}</th>}
+              {showActions && <th>{t('table.actions', { ns: 'common' })}</th>}
             </tr>
           </thead>
           <tbody>
             {filteredInventory.length === 0 ? (
               <tr>
-                <td colSpan={canCancelLayer ? 16 : 15} style={{ textAlign: 'center' }}>
+                <td colSpan={(showActions ? 16 : 15) + leadingColumns} style={{ textAlign: 'center' }}>
                   {t('noStock')}
                 </td>
               </tr>
@@ -985,8 +1111,40 @@ const Inventory = () => {
                 const cost = layerLandedCostCells(item);
                 const sell = inventorySellingCell(item.product_detail, item.stocking_order);
                 const sellTip = plannedSellingSummary(item.stocking_order) || '';
+                const selected = selectMode && selectedLayerIds.has(item.batch_id);
                 return (
-                <tr key={item.batch_id}>
+                <tr key={item.batch_id} className={selected ? 'row-selected' : undefined}>
+                  {selectMode && (
+                    <td data-noexport className="row-select-cell">
+                      <input
+                        type="checkbox"
+                        checked={selected}
+                        onChange={() => toggleLayerSelected(item.batch_id)}
+                        aria-label={t('labels.selectRow', { layer: item.batch_id })}
+                      />
+                    </td>
+                  )}
+                  {canPrintLabels && (
+                    <td data-noexport className="label-col">
+                      {/*
+                        A layer with no barcode can only mean migration 0132's backfill has not
+                        run. Offering a button that would print a sticker with nothing on it is
+                        worse than not offering one.
+                      */}
+                      {item.barcode ? (
+                        <button
+                          type="button"
+                          className="btn-edit"
+                          style={{ padding: '5px 12px', fontSize: '0.85em' }}
+                          onClick={() => handlePrintLabels(item)}
+                        >
+                          {t('labels.button')}
+                        </button>
+                      ) : (
+                        <span style={{ color: '#cbd5e0' }}>—</span>
+                      )}
+                    </td>
+                  )}
                   <td>
                     {categoryTypeLabel(item.product_detail?.category_type, t) || (
                       <span style={{ color: '#999' }}>—</span>
@@ -1025,15 +1183,15 @@ const Inventory = () => {
                   </td>
                   <td>{item.location || '-'}</td>
                   <td>{formatAppDateTime(item.updated_at)}</td>
-                  {canCancelLayer && (
-                    <td>
+                  {showActions && (
+                    <td className="inventory-row-actions">
                       {/*
                         Only hand-added lines. Order stock got its money from a supplier rather
                         than the till, so there is nothing here to give back and the server
                         refuses it — better not to offer the button at all than to offer one
                         that always fails.
                       */}
-                      {item.manual_cost_rate != null ? (
+                      {canCancelLayer && item.manual_cost_rate != null && (
                         <button
                           type="button"
                           className="btn-danger-action"
@@ -1042,8 +1200,6 @@ const Inventory = () => {
                         >
                           {t('cancelLayer.button')}
                         </button>
-                      ) : (
-                        <span style={{ color: '#cbd5e0' }}>—</span>
                       )}
                     </td>
                   )}
@@ -1054,7 +1210,7 @@ const Inventory = () => {
           </tbody>
           <tfoot>
             <tr>
-              <td colSpan="8" style={{ textAlign: 'right' }}>
+              <td colSpan={8 + leadingColumns} style={{ textAlign: 'right' }}>
                 {t('table.total')}
               </td>
               <td style={{ fontWeight: 600, fontSize: '0.9em' }}>
@@ -1069,7 +1225,7 @@ const Inventory = () => {
               </td>
               <td style={{ fontWeight: 600, fontSize: '0.9em', color: '#999' }}>—</td>
               <td style={{ fontWeight: 600 }}>{inventoryColumnTotals.quantity.toLocaleString()}</td>
-              <td colSpan={canCancelLayer ? 4 : 3}>—</td>
+              <td colSpan={showActions ? 4 : 3}>—</td>
             </tr>
           </tfoot>
         </table>

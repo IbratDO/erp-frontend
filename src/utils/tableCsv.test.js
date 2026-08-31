@@ -82,6 +82,23 @@ describe('reading the table off the screen', () => {
     expect(tableToMatrix(null)).toEqual([]);
     expect(tableToMatrix(tableFrom('<table><tbody></tbody></table>'))).toEqual([]);
   });
+
+  test('a column marked data-noexport is dropped, not just emptied', () => {
+    // The batch-label checkboxes. Stripping the input alone — which the button rule above already
+    // does — would still leave a blank first column in every row of the spreadsheet.
+    const table = tableFrom(`
+      <table>
+        <thead><tr>
+          <th data-noexport><input type="checkbox"></th>
+          <th>Brend</th><th>O'lcham</th>
+        </tr></thead>
+        <tbody><tr>
+          <td data-noexport><input type="checkbox" checked></td>
+          <td>Nike</td><td>42</td>
+        </tr></tbody>
+      </table>`);
+    expect(tableToMatrix(table)).toEqual([['Brend', "O'lcham"], ['Nike', '42']]);
+  });
 });
 
 describe('what Excel receives', () => {

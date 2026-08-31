@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import BusyForm, { SubmitButton } from '../components/BusyForm';
 import ActionButton from '../components/ActionButton';
 import Modal, { WIDE } from '../components/Modal';
@@ -26,7 +26,20 @@ import CustomerSearchableSelect from '../components/CustomerSearchableSelect';
 import ProductCatalogFilterFields from '../components/ProductCatalogFilterFields';
 import FormSearchableSelect from '../components/FormSearchableSelect';
 import { matchesProductCatalogFilters, getCascadedFilterOptions, getCascadedDateOptions } from '../utils/productFilterUtils';
-import { layerSalePickerLabel, resolveLayerListPrice } from '../utils/productCost';
+import { layerSalePickerLabel } from '../utils/productCost';
+import {
+  EMPTY_PKG_LINES,
+  applyLayerToLine,
+  applyScanToBatchLines,
+  clearLayerFromLine,
+  emptyBatchLine,
+  findInventoryLayer,
+  formatSalePriceForCurrency,
+  productForLayer,
+} from './batchSaleLines';
+import useBarcodeScanner from '../hooks/useBarcodeScanner';
+import { buildBarcodeIndex, looksLikeLayerCode, normalizeScan, parseLayerRef } from '../utils/layerBarcode';
+import { beepError, beepOk, primeScanBeep } from '../utils/scanBeep';
 import {
   computeAdvanceRemainingDue,
   computePaymentDifferenceMeta,
@@ -242,19 +255,8 @@ function renderDispatcherCell(sale) {
   return d.dispatcher_name ? d.dispatcher_name : <span style={{ color: '#bbb' }}>—</span>;
 }
 
-function findInventoryLayer(inventoryList, batchId) {
-  return inventoryList.find((x) => Number(x.batch_id) === Number(batchId));
-}
-
-function productForLayer(layer, products) {
-  if (!layer) return null;
-  return layer.product_detail || products.find((x) => Number(x.id) === Number(layer.product));
-}
-
-function formatSalePriceForCurrency(priceNum, saleCur) {
-  if (priceNum == null || !Number.isFinite(priceNum) || priceNum <= 0) return '';
-  return saleCur === 'UZS' ? String(Math.round(priceNum)) : String(Number(priceNum.toFixed(2)));
-}
+// findInventoryLayer / productForLayer / formatSalePriceForCurrency now live in
+// ./batchSaleLines alongside the line rules that use them — see the import at the top.
 
 function parsePriceNum(str) {
   if (str === '' || str == null) return null;
@@ -354,8 +356,6 @@ function PackageLinesSelector({ lines, onChange, packages: pkgList }) {
   );
 }
 
-const EMPTY_PKG_LINES = () => [{ key: `${Date.now()}`, package_type: '', quantity: 1 }];
-
 const Sales = () => {
   // The rendered table, so the download button can read exactly what is on the screen —
   // current filters, current sort, current columns. See utils/tableCsv.
@@ -433,6 +433,15 @@ const Sales = () => {
     sale_currency: 'USD',
   });
   const [batchLines, setBatchLines] = useState([]);
+  // What the last scan did, shown above the lines table and read out to screen readers. `seq`
+  // exists so two identical scans in a row still re-trigger the strip instead of looking frozen.
+  const [scanFeedback, setScanFeedback] = useState(null);
+  const scanSeqRef = useRef(0);
+  const scanInputRef = useRef(null);
+  // The basket as it stands right now. `handleScannedCode` folds a scan outside a state updater
+  // (an updater must be pure), so it needs a value that is never a render behind.
+  const batchLinesRef = useRef(batchLines);
+  useEffect(() => { batchLinesRef.current = batchLines; }, [batchLines]);
   const { cbuRate: batchCbuRate, exchangeRateError: batchExchangeRateError } =
     useCbuExchangeRate(showBatchForm);
   const [filters, setFilters] = useState({
@@ -790,16 +799,7 @@ const Sales = () => {
         if (!line.layer) return line;
         if (!allowed.has(String(line.layer))) {
           changed = true;
-          return {
-            ...line,
-            layer: '',
-            product: '',
-            inventory_batch_id: '',
-            list_price: '',
-            selling_price: '',
-            discount_price: '',
-            packageLines: EMPTY_PKG_LINES(),
-          };
+          return clearLayerFromLine(line);
         }
         return line;
       });
@@ -849,27 +849,9 @@ const Sales = () => {
           return next;
         }
         if (field === 'layer') {
-          const next = { ...l, layer: value };
-          if (!value) {
-            next.product = '';
-            next.inventory_batch_id = '';
-            next.list_price = '';
-            next.selling_price = '';
-            next.discount_price = '';
-            next.packageLines = EMPTY_PKG_LINES();
-            return next;
-          }
-          const layer = findInventoryLayer(inventory, value);
-          const p = productForLayer(layer, products);
-          const priceNum = resolveLayerListPrice(layer, p, saleCur, batchCbuRate);
-          const formatted = formatSalePriceForCurrency(priceNum, saleCur);
-          next.product = layer ? String(layer.product) : '';
-          next.inventory_batch_id = layer ? String(layer.batch_id) : '';
-          if (p?.category) next.category = p.category;
-          next.list_price = formatted;
-          next.selling_price = formatted;
-          next.discount_price = '';
-          return next;
+          return applyLayerToLine(l, value, {
+            inventory, products, saleCurrency: saleCur, cbuRate: batchCbuRate,
+          });
         }
         if (field === 'selling_price') {
           const listNum = parsePriceNum(l.list_price);
@@ -893,22 +875,83 @@ const Sales = () => {
   };
 
   const addBatchLine = () => {
-    setBatchLines((lines) => [
-      ...lines,
-      {
-        key: `${Date.now()}-${Math.random()}`,
-        category: '',
-        layer: '',
-        product: '',
-        inventory_batch_id: '',
-        quantity: '1',
-        list_price: '',
-        selling_price: '',
-        discount_price: '',
-        packageLines: EMPTY_PKG_LINES(),
-      },
-    ]);
+    setBatchLines((lines) => [...lines, emptyBatchLine()]);
   };
+
+  // Layers indexed by the barcode printed on their labels, so a scan is one lookup rather than a
+  // walk of the whole inventory.
+  const batchLayersByBarcode = useMemo(
+    () => buildBarcodeIndex(allBatchLayerPickerItems, (item) => item.layer?.barcode),
+    [allBatchLayerPickerItems],
+  );
+
+  const announceScan = useCallback((kind, text) => {
+    scanSeqRef.current += 1;
+    setScanFeedback({ kind, text, seq: scanSeqRef.current });
+    if (kind === 'added' || kind === 'incremented') beepOk();
+    else beepError();
+  }, []);
+
+  /**
+   * A barcode arrived — from the wedge hook or the manual box.
+   *
+   * Silence is the default. The hook fires on any fast keystroke burst, so anything that is not
+   * recognisably one of our labels is dropped without a sound; beeping at someone typing quickly
+   * would make the page unusable. A code that *does* look like ours but resolves to nothing has
+   * earned a message, because the operator is holding a box and needs to know why.
+   */
+  const handleScannedCode = useCallback((raw) => {
+    const code = normalizeScan(raw);
+    if (!code) return;
+
+    const item = batchLayersByBarcode.get(code);
+    if (!item) {
+      if (!looksLikeLayerCode(code)) return;
+      // Distinguish "this layer sold out" from "we have never seen this label": one means put the
+      // box back, the other means the label needs reprinting.
+      const soldOut = inventory.some((l) => normalizeScan(l.barcode) === code);
+      announceScan('error', soldOut ? t('batch.scanSoldOut') : t('batch.scanUnknown', { code }));
+      return;
+    }
+
+    // Folded outside a `setBatchLines` updater, and read from a ref rather than from state.
+    // An updater has to be pure — React is free to run it twice — so beeping and announcing from
+    // inside one would double up. The ref is advanced synchronously here, so two scans landing in
+    // the same tick still see each other and the second increments rather than starting again.
+    const { lines: next, result } = applyScanToBatchLines(batchLinesRef.current, item, {
+      // Same fallback the picker path uses, so a scanned line and a picked one price alike.
+      inventory,
+      products,
+      saleCurrency: batchDefaults.sale_currency || 'USD',
+      cbuRate: batchCbuRate,
+    });
+    batchLinesRef.current = next;
+    setBatchLines(next);
+
+    if (result.kind === 'at-stock-cap') {
+      announceScan('warn', t('batch.scanAtStockCap', { count: result.stock }));
+    } else if (result.kind === 'incremented') {
+      announceScan('incremented', t('batch.scanIncremented', { name: result.label }));
+    } else {
+      announceScan('added', t('batch.scanAdded', { name: result.label }));
+    }
+  }, [
+    batchLayersByBarcode, inventory, products, batchDefaults.sale_currency, batchCbuRate,
+    announceScan, t,
+  ]);
+
+  useBarcodeScanner({
+    enabled: showBatchForm && canBatchCreate,
+    onScan: handleScannedCode,
+  });
+
+  // Clear the strip a couple of seconds after the last scan, so it reflects the scan just made
+  // rather than one from five minutes ago.
+  useEffect(() => {
+    if (!scanFeedback) return undefined;
+    const timer = setTimeout(() => setScanFeedback(null), 2500);
+    return () => clearTimeout(timer);
+  }, [scanFeedback]);
 
   const removeBatchLine = (key) => {
     setBatchLines((lines) => (lines.length <= 1 ? lines : lines.filter((l) => l.key !== key)));
@@ -2340,20 +2383,11 @@ const Sales = () => {
                 sale_type: 'bought_from_shop',
                 sale_currency: 'USD',
               });
-              setBatchLines([
-                {
-                  key: `${Date.now()}-0`,
-                  category: '',
-                  layer: '',
-                  product: '',
-                  inventory_batch_id: '',
-                  quantity: '1',
-                  list_price: '',
-                  selling_price: '',
-                  discount_price: '',
-                  packageLines: EMPTY_PKG_LINES(),
-                },
-              ]);
+              setBatchLines([emptyBatchLine(`${Date.now()}-0`)]);
+              setScanFeedback(null);
+              // Chrome keeps an AudioContext suspended until the page has been interacted with.
+              // This click is that interaction, so the first scan of the day still beeps.
+              primeScanBeep();
             }}
           >
             {`+ ${t('newSale')}`}
@@ -3277,6 +3311,38 @@ const Sales = () => {
             <div className="batch-sale-lines-block">
               <div className="batch-sale-lines-block__label" id="batch-line-items-label">
                 {t('batch.lineItems')}
+              </div>
+              <div className="scan-strip">
+                {/*
+                  The scanner types straight into the page and needs no field at all — but when
+                  the caret is sitting in a text box the hook deliberately stands down, and this
+                  is where the operator can put it instead. It also makes the feature visible;
+                  nothing else on the form says scanning is supported.
+                */}
+                <input
+                  ref={scanInputRef}
+                  type="text"
+                  data-scan-ok
+                  className="scan-strip__input"
+                  placeholder={t('batch.scanPlaceholder')}
+                  aria-label={t('batch.scanPlaceholder')}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return;
+                    // Inside BusyForm — a bare Enter here would submit the sale.
+                    e.preventDefault();
+                    const ref = parseLayerRef(e.target.value);
+                    if (ref) handleScannedCode(ref);
+                    e.target.value = '';
+                  }}
+                />
+                <span className="scan-strip__hint">{t('batch.scanHint')}</span>
+                <span
+                  className={`scan-strip__feedback scan-strip__feedback--${scanFeedback?.kind || 'idle'}`}
+                  role="status"
+                  aria-live="polite"
+                >
+                  {scanFeedback?.text || ''}
+                </span>
               </div>
               <div className="batch-sale-lines-wrap batch-sale-lines-wrap--scroll">
                 <table

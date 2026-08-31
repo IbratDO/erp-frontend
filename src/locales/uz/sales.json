@@ -220,7 +220,14 @@
     "addLine": "Qator qo‘shish",
     "createCount": "{{count}} ta sotuv yaratish",
     "addType": "Tur qo‘shish",
-    "pkgTypePlaceholder": "— tur —"
+    "pkgTypePlaceholder": "— tur —",
+    "scanPlaceholder": "Shtrix-kodni skanerlang",
+    "scanHint": "Yorliqni skanerlang — qator avtomatik toʻldiriladi",
+    "scanAdded": "Qoʻshildi: {{name}}",
+    "scanIncremented": "Miqdor oshirildi: {{name}}",
+    "scanUnknown": "Yorliq topilmadi: {{code}}",
+    "scanSoldOut": "Bu qatlamda mahsulot qolmagan",
+    "scanAtStockCap": "Omborda faqat {{count}} dona bor"
   },
   "customer": {
     "addTitle": "Yangi mijoz qo‘shish",

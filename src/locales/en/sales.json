@@ -220,7 +220,14 @@
     "addLine": "Add line",
     "createCount": "Create {{count}} sale(s)",
     "addType": "Add type",
-    "pkgTypePlaceholder": "— type —"
+    "pkgTypePlaceholder": "— type —",
+    "scanPlaceholder": "Scan barcode",
+    "scanHint": "Scan a label — the line fills itself",
+    "scanAdded": "Added: {{name}}",
+    "scanIncremented": "Quantity increased: {{name}}",
+    "scanUnknown": "Label not found: {{code}}",
+    "scanSoldOut": "This layer has no stock left",
+    "scanAtStockCap": "Only {{count}} in stock"
   },
   "customer": {
     "addTitle": "Add new customer",

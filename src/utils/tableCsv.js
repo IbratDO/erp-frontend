@@ -38,7 +38,10 @@ export function tableToMatrix(table) {
   const out = [];
   for (const row of rows) {
     if (row.querySelector('table')) continue;
-    const cells = [...row.querySelectorAll(':scope > th, :scope > td')];
+    // `data-noexport` marks a column that exists only to operate the page — the row-selection
+    // checkboxes. Stripping the input alone would still leave an empty column in the file.
+    const cells = [...row.querySelectorAll(':scope > th, :scope > td')]
+      .filter((cell) => !cell.hasAttribute('data-noexport'));
     if (!cells.length) continue;
     out.push(cells.map(cellText));
   }

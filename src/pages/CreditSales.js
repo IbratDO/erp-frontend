@@ -661,7 +661,13 @@ export default function CreditSales() {
       >
           <p style={{ color: '#666', marginBottom: 12, fontSize: '0.92rem' }}>{t('create.intro')}</p>
           <BusyForm onSubmit={handleCreateSubmit}>
-            <div className="form-grid">
+            {/*
+              Compact tracks so the four fields that describe the debt — who, when, and the two
+              amounts — sit on one line. They are one thought, and the pair of amounts in
+              particular only makes sense read together: the form takes one currency or the
+              other, so seeing them side by side is what says "choose one".
+            */}
+            <div className="form-grid form-grid--compact">
               <div className="form-group">
                 <label>
                   {t('create.customer')} <span style={{ color: '#e53e3e' }}>*</span>

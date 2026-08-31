@@ -80,5 +80,15 @@
     "errSupplierCost": "Enter the unit cost in so'm, in dollars, or in both.",
     "errSave": "Error saving inventory item",
     "errSelectProduct": "Choose a product on at least one line."
+  },
+  "labels": {
+    "button": "Label",
+    "batchStart": "Multi label",
+    "batchPrint": "Print selected",
+    "batchHint": "Print labels for several layers at once",
+    "selectedCount": "{{rows}} rows / {{labels}} labels",
+    "selectAll": "Select all",
+    "selectRow": "Select layer #{{layer}}",
+    "column": "Labels"
   }
 }
