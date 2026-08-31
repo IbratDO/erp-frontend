@@ -4,7 +4,9 @@
 
 import i18n from '../i18n';
 import {
+  computeAdvanceRemainingDue,
   computePaymentDifferenceMeta,
+  paymentHasShortfall,
   validateAdvanceCompletionPayment,
   buildCrossCurrencyAdvanceConfirmMessage,
   buildSplitCurrencyConfirmMessage,
@@ -39,9 +41,21 @@ export async function runSalePaymentSubmitFlow({
 
   const wantsCredit = !!paymentFormData.apply_credit;
 
-  // "Enter at least one amount" is the right rule everywhere except here: a sale taken wholly on
-  // credit is settled with no money at all, and that is the answer, not a missing one.
-  if (uzsT + usdT === 0 && !wantsCredit) {
+  // A sale whose order advance already covers the whole price has nothing left to collect. The
+  // customer paid weeks ago; the money is in the books as a customer advance, and completing the
+  // sale releases that liability against the revenue. There is no figure the operator could type
+  // here that would be correct — zero *is* the answer.
+  //
+  // `computeAdvanceRemainingDue` returns null when a cross-currency advance has no rate yet.
+  // That is "not known", not "nothing owed", and must not open the gate.
+  const remainingDue = computeAdvanceRemainingDue(sale, sellingPriceOverride, cbuRate);
+  const nothingLeftToPay =
+    remainingDue != null && !paymentHasShortfall(remainingDue, 0, sale?.sale_currency);
+
+  // "Enter at least one amount" is the right rule everywhere money is still expected. It has now
+  // grown two exceptions — a sale taken wholly on credit, and one already paid in full up front —
+  // and both are cases where handing over nothing is the whole answer rather than a missing one.
+  if (uzsT + usdT === 0 && !wantsCredit && !nothingLeftToPay) {
     showNotification?.(cp('errEnterPayment'), 'error');
     return { ok: false };
   }
