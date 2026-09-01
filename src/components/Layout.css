@@ -250,6 +250,47 @@
 
 /* App-wide top bar. Right-aligned and shallow: it must not push the page content down far
    enough to matter, because every page below it was laid out before it existed. */
+/*
+  UZ / RU. A segmented pair rather than a dropdown: with two options a select hides one of them
+  behind a click, and shows neither until opened.
+*/
+.lang-toggle {
+  display: inline-flex;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.lang-toggle__btn {
+  padding: 4px 10px;
+  border: none;
+  background: #fff;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  cursor: pointer;
+  line-height: 1.6;
+}
+
+.lang-toggle__btn + .lang-toggle__btn {
+  border-left: 1px solid #cbd5e0;
+}
+
+.lang-toggle__btn:hover:not(.lang-toggle__btn--active) {
+  background: #f1f5f9;
+}
+
+.lang-toggle__btn--active {
+  background: #3498db;
+  color: #fff;
+}
+
+.lang-toggle__btn:focus-visible {
+  outline: 2px solid #2563eb;
+  outline-offset: -2px;
+}
+
 .app-topbar {
   display: flex;
   align-items: center;

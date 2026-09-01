@@ -7,6 +7,7 @@ import { getRoleDisplayName } from '../utils/permissions';
 import { translateMenuItems } from '../utils/i18nMenu';
 import NotificationBell from './NotificationBell';
 import './Layout.css';
+import LanguageToggle from './LanguageToggle';
 
 const MOBILE_BREAKPOINT = 768;
 
@@ -172,6 +173,7 @@ const Layout = () => {
           It holds only the bell for now; it is the place anything else app-wide would go.
         */}
         <header className="app-topbar">
+          <LanguageToggle />
           <NotificationBell />
         </header>
         <Outlet />

@@ -1,0 +1,15 @@
+{
+  "title": "Уведомления",
+  "empty": "Нового нет.",
+  "markAllRead": "Отметить все как прочитанные",
+  "kinds": {
+    "credit_due_soon": {
+      "title": "{{customer}} — скоро срок оплаты",
+      "body": "{{amount}} · {{dueDate}} · продажа №{{saleId}}"
+    },
+    "credit_overdue": {
+      "title": "{{customer}} — оплата просрочена",
+      "body": "{{amount}} · просрочка {{days}} дн. · продажа №{{saleId}}"
+    }
+  }
+}

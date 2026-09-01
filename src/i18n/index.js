@@ -1,6 +1,8 @@
 import i18n from 'i18next';
 import { initReactI18next } from 'react-i18next';
 
+import { SUPPORTED_LANGUAGES, getStoredLanguage, storeLanguage } from '../utils/appLanguage';
+
 import uzCommon from '../locales/uz/common.json';
 import uzStatus from '../locales/uz/status.json';
 import uzDashboard from '../locales/uz/dashboard.json';
@@ -26,6 +28,32 @@ import uzAudit from '../locales/uz/audit.json';
 import uzPenalties from '../locales/uz/penalties.json';
 import uzWorkers from '../locales/uz/workers.json';
 import uzBonusRules from '../locales/uz/bonusRules.json';
+
+import ruCommon from '../locales/ru/common.json';
+import ruStatus from '../locales/ru/status.json';
+import ruDashboard from '../locales/ru/dashboard.json';
+import ruOrders from '../locales/ru/orders.json';
+import ruSales from '../locales/ru/sales.json';
+import ruProducts from '../locales/ru/products.json';
+import ruInventory from '../locales/ru/inventory.json';
+import ruPackages from '../locales/ru/packages.json';
+import ruReturns from '../locales/ru/returns.json';
+import ruFinance from '../locales/ru/finance.json';
+import ruCustomers from '../locales/ru/customers.json';
+import ruDispatchers from '../locales/ru/dispatchers.json';
+import ruMoneyBalance from '../locales/ru/moneyBalance.json';
+import ruEquity from '../locales/ru/equity.json';
+import ruFixedAssets from '../locales/ru/fixedAssets.json';
+import ruProfitLoss from '../locales/ru/profitLoss.json';
+import ruBalanceSheet from '../locales/ru/balanceSheet.json';
+import ruReceivables from '../locales/ru/receivables.json';
+import ruCreditSales from '../locales/ru/creditSales.json';
+import ruNotifications from '../locales/ru/notifications.json';
+import ruUsers from '../locales/ru/users.json';
+import ruAudit from '../locales/ru/audit.json';
+import ruPenalties from '../locales/ru/penalties.json';
+import ruWorkers from '../locales/ru/workers.json';
+import ruBonusRules from '../locales/ru/bonusRules.json';
 
 import enCommon from '../locales/en/common.json';
 import enStatus from '../locales/en/status.json';
@@ -53,8 +81,13 @@ import enPenalties from '../locales/en/penalties.json';
 import enWorkers from '../locales/en/workers.json';
 import enBonusRules from '../locales/en/bonusRules.json';
 
-/** Locked to Uzbek until multi-language UI is enabled. */
-const APP_LANGUAGE = 'uz';
+/**
+ * Uzbek or Russian, whichever this browser last chose — see `utils/appLanguage`.
+ *
+ * English stays in `resources` purely as the fallback: it is not offered in the switcher, but a
+ * key missing from a translation renders its English words instead of a raw `sales.batch.title`.
+ */
+const APP_LANGUAGE = getStoredLanguage();
 
 const resources = {
   uz: {
@@ -83,6 +116,33 @@ const resources = {
     penalties: uzPenalties,
     workers: uzWorkers,
     bonusRules: uzBonusRules,
+  },
+  ru: {
+    common: ruCommon,
+    status: ruStatus,
+    dashboard: ruDashboard,
+    orders: ruOrders,
+    sales: ruSales,
+    products: ruProducts,
+    inventory: ruInventory,
+    packages: ruPackages,
+    returns: ruReturns,
+    finance: ruFinance,
+    customers: ruCustomers,
+    dispatchers: ruDispatchers,
+    moneyBalance: ruMoneyBalance,
+    equity: ruEquity,
+    fixedAssets: ruFixedAssets,
+    profitLoss: ruProfitLoss,
+    balanceSheet: ruBalanceSheet,
+    receivables: ruReceivables,
+    creditSales: ruCreditSales,
+    notifications: ruNotifications,
+    users: ruUsers,
+    audit: ruAudit,
+    penalties: ruPenalties,
+    workers: ruWorkers,
+    bonusRules: ruBonusRules,
   },
   en: {
     common: enCommon,
@@ -113,10 +173,6 @@ const resources = {
   },
 };
 
-if (typeof window !== 'undefined') {
-  window.localStorage.setItem('erp_lang', APP_LANGUAGE);
-}
-
 i18n.use(initReactI18next).init({
   resources,
   lng: APP_LANGUAGE,
@@ -127,9 +183,17 @@ i18n.use(initReactI18next).init({
   react: { useSuspense: false },
 });
 
-/** Reserved for future language switcher; currently no-op (Uzbek only). */
-export function setAppLanguage() {
-  i18n.changeLanguage(APP_LANGUAGE);
+/**
+ * Switch the interface language and remember it.
+ *
+ * `changeLanguage` re-renders every component holding a `t` from the hook, so no page reload is
+ * needed — which matters because the switcher sits in the top bar and somebody may be halfway
+ * through a form when they press it. Reloading would throw that away.
+ */
+export function setAppLanguage(language) {
+  if (!SUPPORTED_LANGUAGES.includes(language)) return;
+  storeLanguage(language);
+  i18n.changeLanguage(language);
 }
 
 export default i18n;

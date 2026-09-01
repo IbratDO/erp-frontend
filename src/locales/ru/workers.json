@@ -1,0 +1,73 @@
+{
+  "title": "Сотрудники",
+  "intro": "Сотрудники отдела продаж управляются во вкладке «Пользователи» (роль «Менеджер по продажам» или «Старший менеджер по продажам»).",
+  "salesTeam": "Отдел продаж",
+  "table": {
+    "id": "ID",
+    "name": "Имя",
+    "login": "Логин",
+    "telephone": "Телефон",
+    "notes": "Примечание",
+    "actions": "Действия",
+    "noRows": "Сотрудники не найдены",
+    "total": "Итого",
+    "workerCount_one": "{{count}} сотрудник",
+    "workerCount_other": "{{count}} сотрудников"
+  },
+  "actions": {
+    "viewPerformance": "Показатели",
+    "viewTransactions": "Операции"
+  },
+  "performance": {
+    "title": "Показатели: {{name}}",
+    "year": "Год",
+    "month": "Месяц",
+    "period": "Период",
+    "totalSales": "Всего продаж",
+    "completedSales": "Завершённые продажи",
+    "reservedSales": "Забронированные продажи",
+    "pendingSales": "Продажи в ожидании",
+    "totalAmountCompleted": "Общая сумма (завершённые)",
+    "reservedAmount": "Сумма броней",
+    "depositsReceived": "Полученные предоплаты",
+    "mixedCurrencyHint": "Может содержать и UZS, и USD",
+    "salesDetails": "Детали продаж",
+    "noSales": "За этот период продаж не найдено",
+    "noSalesman": "Продавец с таким именем не найден. Показатели доступны только для продавцов.",
+    "productFallback": "Товар №{{id}}",
+    "productSize": "{{brand}} {{model}} — размер {{size}} ({{color}})"
+  },
+  "saleTypes": {
+    "bought_from_shop": "В магазине",
+    "from_order": "По заказу",
+    "delivery": "Доставка"
+  },
+  "transactions": {
+    "title": "Операции: {{name}}",
+    "totalSalary": "Всего зарплаты",
+    "totalLunch": "Всего расходов на питание",
+    "totalPrepayments": "Всего авансов",
+    "totalTransactions": "Всего операций",
+    "history": "История операций",
+    "noRows": "Операций не найдено",
+    "salary": "Зарплата",
+    "lunch": "Питание"
+  },
+  "tableCols": {
+    "date": "Дата",
+    "product": "Товар",
+    "quantity": "Количество",
+    "price": "Цена",
+    "total": "Итого",
+    "type": "Тип",
+    "status": "Статус",
+    "customer": "Клиент",
+    "amount": "Сумма",
+    "currency": "Валюта",
+    "notes": "Примечание"
+  },
+  "notifications": {
+    "performanceFailed": "Ошибка при загрузке показателей сотрудника",
+    "transactionsFailed": "Ошибка при загрузке операций сотрудника"
+  }
+}

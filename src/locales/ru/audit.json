@@ -1,0 +1,59 @@
+{
+  "title": "Журнал действий",
+  "tabs": {
+    "actions": "Действия, требующие прав",
+    "status": "Изменения статусов"
+  },
+  "filters": {
+    "title": "Фильтры",
+    "action": "Действие",
+    "objectType": "Тип объекта",
+    "objectId": "ID объекта",
+    "type": "Тип",
+    "id": "ID",
+    "objectTypePlaceholder": "напр. заказ",
+    "objectIdPlaceholder": "№",
+    "objectIdStatusPlaceholder": "Объект №"
+  },
+  "statusTypes": {
+    "all": "Все типы",
+    "order": "Заказ",
+    "inventory_item": "Складская позиция",
+    "sale": "Продажа",
+    "dispatch": "Отправка"
+  },
+  "actionTypes": {
+    "all": "Все действия",
+    "orders.pay_order": "Оплата заказа",
+    "orders.pay_cargo": "Оплата доставки груза",
+    "orders.move_to_inventory": "Оприходование на склад",
+    "sales.update_status": "Изменение статуса продажи",
+    "sales.complete_from_order": "Завершение продажи по заказу",
+    "returns.mark_refunded": "Отметка о возврате денег",
+    "cash.adjust": "Корректировка кассы"
+  },
+  "table": {
+    "actions": {
+      "id": "ID",
+      "action": "Действие",
+      "object": "Объект",
+      "user": "Пользователь",
+      "timestamp": "Время",
+      "before": "До",
+      "after": "После",
+      "notes": "Примечание",
+      "noRows": "Записей о действиях не найдено"
+    },
+    "status": {
+      "id": "ID",
+      "objectType": "Тип объекта",
+      "objectId": "ID объекта",
+      "previousStatus": "Прежний статус",
+      "newStatus": "Новый статус",
+      "changedBy": "Кто изменил",
+      "timestamp": "Время",
+      "notes": "Примечание",
+      "noRows": "Записей об изменении статусов не найдено"
+    }
+  }
+}

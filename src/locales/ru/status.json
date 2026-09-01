@@ -1,0 +1,92 @@
+{
+  "generic": {
+    "pending": "Ожидается",
+    "completed": "Завершено",
+    "cancelled": "Отменено",
+    "paid": "Оплачено",
+    "unpaid": "Не оплачено",
+    "partial": "Частично оплачено",
+    "active": "Активен",
+    "inactive": "Неактивен"
+  },
+  "order": {
+    "order_created": "Заказ создан",
+    "ordered": "Заказано",
+    "order_paid": "Заказ оплачен",
+    "received": "Получено",
+    "in_inventory": "На складе",
+    "sold": "Продано",
+    "cancelled": "Отменено"
+  },
+  "sale": {
+    "reserved": "Забронировано",
+    "pending": "Ожидается",
+    "confirmed": "Подтверждено",
+    "completed": "Завершено",
+    "cancelled": "Отменено",
+    "dispatched": "Отправлено",
+    "delivered": "Доставлено",
+    "returned": "Возвращено",
+    "refunded": "Возврат оплачен",
+    "mixed": "Смешанное"
+  },
+  "dispatch": {
+    "pending": "Ожидается",
+    "preparing": "Готовится",
+    "dispatched": "Отправлено",
+    "in_transit": "В пути",
+    "delivered": "Доставлено",
+    "returned": "Возвращено",
+    "failed": "Доставка не удалась",
+    "cancelled": "Отменено",
+    "paid": "Оплачено"
+  },
+  "return": {
+    "pending": "Ожидается",
+    "refunded": "Возвращено",
+    "cancelled": "Отменено"
+  },
+  "finance": {
+    "pending": "Ожидается",
+    "completed": "Завершено",
+    "cancelled": "Отменено"
+  },
+  "receivable": {
+    "pending": "Ожидается",
+    "paid": "Оплачено",
+    "overdue": "Просрочено",
+    "cancelled": "Отменено"
+  },
+  "payable": {
+    "pending": "Ожидается",
+    "paid": "Оплачено",
+    "cancelled": "Отменено"
+  },
+  "inventory": {
+    "in_inventory": "На складе",
+    "reserved": "Забронировано",
+    "sold": "Продано",
+    "returned": "Возвращено"
+  },
+  "operation": {
+    "add": "Приход",
+    "subtract": "Расход"
+  },
+  "transactionType": {
+    "manual_adjustment": "Ручная корректировка",
+    "sale_income": "Выручка от продажи",
+    "order_expense": "Расход по заказу",
+    "cargo_expense": "Расход на доставку груза",
+    "delivery_expense": "Расход на доставку",
+    "other_expense": "Прочий расход",
+    "other_income": "Прочий доход",
+    "currency_conversion": "Конвертация валюты",
+    "owner_contribution": "Вклад владельца",
+    "owner_withdrawal": "Изъятие владельцем",
+    "advance_payment": "Предоплата",
+    "advance_payment_return": "Возврат предоплаты",
+    "package_purchase": "Покупка упаковки",
+    "salary_payment": "Выплата зарплаты",
+    "lunch_expense": "Расход на питание"
+  }
+}

@@ -1,0 +1,121 @@
+{
+  "title": "Курьеры",
+  "myDeliveries": "Мои доставки",
+  "intro": "Курьеры управляются во вкладке «Пользователи» (роль «Курьер»). Строку BTS можно изменить здесь.",
+  "form": {
+    "editTitle": "Изменить курьера",
+    "name": "Имя",
+    "telephone": "Телефон",
+    "notes": "Примечание",
+    "active": "Активен"
+  },
+  "partners": {
+    "title": "Службы доставки",
+    "columns": {
+      "name": "Имя",
+      "login": "Логин",
+      "phone": "Телефон",
+      "loads": "Отправки",
+      "active": "Активен",
+      "actions": "Действия"
+    },
+    "btsCompany": "(доставка компанией)",
+    "btsRowRemoved": "(компания — строка удалена)",
+    "restoreBts": "Восстановить BTS",
+    "noPartnersWithBts": "Именных курьеров пока нет — добавьте учётную запись с ролью «Курьер» в разделе «Пользователи».",
+    "noPartnersNoBts": "Именных курьеров пока нет — либо восстановите строку BTS кнопкой выше.",
+    "usersTab": "вкладка «Пользователи»"
+  },
+  "detail": {
+    "btsTitle": "BTS — доставка компанией",
+    "assignmentsTitle": "{{name}} — назначения и история",
+    "contact": "Контакты",
+    "phone": "Телефон:",
+    "notes": "Примечание:",
+    "summary": "Сводка",
+    "totalLoads": "Всего отправок",
+    "deliveryCostUzs": "Стоимость доставки (UZS)",
+    "deliveryCostUsd": "Стоимость доставки (USD)",
+    "shipments": "Отправки",
+    "timeline": "Хронология изменений статуса",
+    "noDispatches": "Отправок пока не назначено.",
+    "noStatusChanges": "Изменений статуса пока не было.",
+    "total": "Итого"
+  },
+  "shipments": {
+    "columns": {
+      "sale": "Продажа",
+      "product": "Товар",
+      "customer": "Клиент",
+      "saleStatus": "Статус продажи",
+      "dispatchDate": "Дата отправки",
+      "type": "Тип",
+      "deliveryCost": "Стоимость доставки",
+      "paid": "Оплачено",
+      "delivered": "Доставлено",
+      "tracking": "Трек-номер",
+      "notes": "Примечание",
+      "dispatchStatus": "Статус отправки",
+      "actions": "Действия"
+    }
+  },
+  "timeline": {
+    "columns": {
+      "time": "Время",
+      "dispatchNum": "Отправка №",
+      "from": "Из",
+      "to": "В",
+      "by": "Кем",
+      "notes": "Примечание"
+    }
+  },
+  "workspace": {
+    "assignedDeliveries": "Назначенные доставки",
+    "allDeliveries": "Все доставки",
+    "noMatch": "Нет отправок, подходящих под фильтры.",
+    "totalFiltered": "Итого (по фильтру)",
+    "unassigned": "— Не назначено —"
+  },
+  "filters": {
+    "status": "Статус",
+    "service": "Служба",
+    "dispatcher": "Курьер",
+    "allStatuses": "Все статусы"
+  },
+  "serviceTypes": {
+    "bts": "BTS",
+    "dostavshik": "Курьер"
+  },
+  "notifications": {
+    "btsRestored": "Строка BTS восстановлена.",
+    "restoreBtsFailed": "Не удалось восстановить строку BTS",
+    "nameRequired": "Введите имя курьера.",
+    "telephoneRequired": "Введите телефон курьера.",
+    "saveFailed": "Ошибка при сохранении курьера",
+    "statusUpdateFailed": "Не удалось обновить статус",
+    "loadSaleFailed": "Не удалось загрузить продажу",
+    "logisticsNotesRequired": "Введите примечание по логистике перед сохранением."
+  },
+  "errors": {
+    "loadHistoryFailed": "Не удалось загрузить историю курьера",
+    "loadBtsFailed": "Не удалось загрузить доставки BTS",
+    "deleteFailed": "Удалить нельзя (возможно, используется). Попробуйте деактивировать."
+  },
+  "confirm": {
+    "deleteBts": "Удалить строку партнёра BTS? Отправки BTS (компанией) останутся в системе; строку можно вернуть кнопкой «Восстановить BTS» в столбце «Действия».",
+    "deleteDispatcher": "Удалить этого курьера? Назначенные отправки останутся без исполнителя."
+  },
+  "account": {
+    "title": "Счёт курьера",
+    "goodsOut": "Товар на доставке",
+    "goodsComingBack": "Отказ, возвращается",
+    "cashHeld": "Деньги на руках",
+    "ofWhichHisOwn": "из них {{amount}} — его собственная сдача",
+    "owedChange": "Мы должны — сдача",
+    "owedFee": "Мы должны — оплата доставки",
+    "itemsWithCost": "{{count}} шт. · {{amount}}",
+    "showRows": "Показать {{count}}",
+    "hideRows": "Скрыть",
+    "saleRef": "Продажа №{{id}}"
+  }
+}

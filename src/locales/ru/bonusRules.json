@@ -1,0 +1,55 @@
+{
+  "title": "Правила бонусов",
+  "newRule": "+ Новое правило",
+  "form": {
+    "editTitle": "Изменить правило",
+    "newTitle": "Новое правило бонусов",
+    "salesManager": "Менеджер по продажам *",
+    "selectUser": "Выберите пользователя",
+    "productOptional": "Товар (необязательно)",
+    "anyProduct": "Любой товар",
+    "categoryOptional": "Категория (необязательно)",
+    "categoryPlaceholder": "напр. кроссовки",
+    "saleTypeOptional": "Тип продажи (необязательно)",
+    "any": "Любой",
+    "bonusType": "Тип бонуса",
+    "fixedPerUnit": "Фиксированная сумма за единицу",
+    "percentRevenue": "Процент от выручки",
+    "amountPerUnit": "Сумма за единицу",
+    "percent": "Процент",
+    "active": "Активно"
+  },
+  "saleTypes": {
+    "bought_from_shop": "В магазине",
+    "delivery": "Доставка",
+    "from_order": "По заказу",
+    "reserved": "Бронь"
+  },
+  "rulesTable": {
+    "title": "Правила",
+    "manager": "Менеджер",
+    "target": "Цель",
+    "type": "Тип",
+    "value": "Значение",
+    "active": "Активно",
+    "actions": "Действия",
+    "noRows": "Правил бонусов нет",
+    "allSales": "Все продажи",
+    "yes": "Да",
+    "no": "Нет"
+  },
+  "transactionsTable": {
+    "title": "Начисления бонусов",
+    "date": "Дата",
+    "manager": "Менеджер",
+    "sale": "Продажа",
+    "amount": "Сумма",
+    "notes": "Примечание",
+    "noRows": "Начислений пока нет"
+  },
+  "confirmDelete": "Удалить это правило бонусов?",
+  "notifications": {
+    "saveFailed": "Не удалось сохранить правило",
+    "deleteFailed": "Не удалось удалить правило"
+  }
+}

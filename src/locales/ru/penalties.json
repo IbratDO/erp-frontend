@@ -1,0 +1,54 @@
+{
+  "title": "Штрафы",
+  "yourPenalties": "Ваши штрафы",
+  "totalPoints": "Всего баллов",
+  "totalAmount": "Общая сумма",
+  "records": "Записи",
+  "reason": "Причина",
+  "noPenalties": "Штрафов нет",
+  "addPenalty": "+ Добавить штраф",
+  "form": {
+    "editTitle": "Изменить штраф",
+    "newTitle": "Новый штраф",
+    "manager": "Менеджер",
+    "selectManager": "Выберите менеджера",
+    "date": "Дата",
+    "points": "Баллы",
+    "amount": "Сумма",
+    "currency": "Валюта",
+    "reason": "Причина"
+  },
+  "filters": {
+    "title": "Фильтры",
+    "manager": "Менеджер",
+    "allManagers": "Все менеджеры",
+    "currency": "Валюта",
+    "allCurrencies": "Все валюты",
+    "assignedBy": "Кто назначил",
+    "allAssigners": "Все назначившие",
+    "year": "Год",
+    "allYears": "Все годы",
+    "month": "Месяц",
+    "allMonths": "Все месяцы",
+    "clearAll": "Очистить всё"
+  },
+  "table": {
+    "date": "Дата",
+    "manager": "Менеджер",
+    "points": "Баллы",
+    "amount": "Сумма",
+    "reason": "Причина",
+    "assignedBy": "Кто назначил",
+    "actions": "Действия",
+    "noRows": "Штрафов пока нет",
+    "noMatch": "Нет штрафов, подходящих под фильтры",
+    "total": "Итого ({{count}})"
+  },
+  "accessDenied": "У вас нет доступа к разделу «Штрафы».",
+  "userFallback": "Пользователь №{{id}}",
+  "confirmDelete": "Удалить эту запись о штрафе?",
+  "notifications": {
+    "saveFailed": "Не удалось сохранить штраф",
+    "deleteFailed": "Не удалось удалить"
+  }
+}

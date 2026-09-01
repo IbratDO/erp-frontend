@@ -1,0 +1,109 @@
+{
+  "title": "Клиенты",
+  "newCustomer": "+ Новый клиент",
+  "addCustomer": "Добавить клиента",
+  "name": "Имя",
+  "phone": "Телефон",
+  "region": "Регион",
+  "instagram": "Instagram",
+  "notes": "Примечание",
+  "form": {
+    "newTitle": "Новый клиент",
+    "editTitle": "Изменить клиента",
+    "create": "Создать клиента",
+    "update": "Обновить клиента"
+  },
+  "filters": {
+    "title": "Фильтры",
+    "name": "Имя / телефон",
+    "searchPlaceholder": "Поиск по имени или телефону"
+  },
+  "table": {
+    "name": "Имя",
+    "telephone": "Телефон",
+    "instagram": "Instagram",
+    "region": "Регион",
+    "totalSales": "Всего продаж",
+    "returned": "Возвращено",
+    "onCredit": "В долг (к оплате)",
+    "actions": "Действия",
+    "noCustomers": "Клиенты не найдены",
+    "salesCount": "{{count}} продаж",
+    "total": "Итого"
+  },
+  "history": {
+    "title": "{{name}} — история покупок",
+    "summary": "Сводка",
+    "totalSales": "Всего продаж:",
+    "completedSales": "Завершённые продажи:",
+    "reservedSales": "Забронированные продажи:",
+    "reservedAmountHint": "Сумма продаж; может содержать и UZS, и USD",
+    "pendingSales": "Продажи в ожидании:",
+    "cancelledSales": "Отменённые продажи:",
+    "totalOrders": "Всего заказов:",
+    "totalAdvances": "Всего предоплат:",
+    "advancesHint": "Предоплаты по открытым заказам; может содержать и UZS, и USD",
+    "totalCompleted": "Общая сумма (завершённые):",
+    "completedHint": "Суммы завершённых продаж; может содержать и UZS, и USD",
+    "totalPaid": "Всего оплачено:",
+    "paidHint": "Включает движения по счетам; подробности в разделе «Денежный баланс»",
+    "onCreditOutstanding": "В долг (непогашено):",
+    "receivablesTitle": "Открытые долги (дебиторская задолженность)",
+    "saleNum": "Продажа №",
+    "product": "Товар",
+    "amount": "Сумма",
+    "ordersTitle": "Заказы",
+    "quantity": "Количество",
+    "type": "Тип",
+    "status": "Статус",
+    "advancePayment": "Предоплата",
+    "purchasesTitle": "Покупки",
+    "price": "Цена",
+    "total": "Итого",
+    "noPurchases": "Покупок не найдено",
+    "transactionsTitle": "История операций",
+    "transactionType": "Тип операции",
+    "currency": "Валюта",
+    "noTransactions": "Операций не найдено",
+    "productFallback": "Товар №{{id}}",
+    "productLine": "{{brand}} {{model}} — размер {{size}} ({{color}})",
+    "sizeLabel": "Размер {{size}}"
+  },
+  "saleTypes": {
+    "shop": "В магазине",
+    "from_order": "По заказу",
+    "delivery": "Доставка"
+  },
+  "orderTypes": {
+    "on_demand": "Под заказ",
+    "stock": "На склад"
+  },
+  "txTypes": {
+    "advance_payment": "Предоплата",
+    "order_payment": "Оплата заказа",
+    "sale_payment": "Оплата продажи",
+    "sale_completion": "Завершение продажи"
+  },
+  "select": {
+    "placeholder": "Выберите клиента…",
+    "emptyLabel": "Все клиенты",
+    "searchPlaceholder": "Поиск клиентов…",
+    "searchAria": "Поиск клиентов",
+    "noMatches": "Совпадений нет",
+    "loading": "Поиск…",
+    "noCustomers": "Клиенты не найдены",
+    "ariaLabel": "Клиенты"
+  },
+  "notifications": {
+    "notesRequired": "Введите примечание.",
+    "saveError": "Ошибка при сохранении клиента",
+    "deleteConfirm": "Вы действительно хотите удалить этого клиента?",
+    "deleteError": "Ошибка при удалении клиента",
+    "historyError": "Ошибка при загрузке истории клиента"
+  },
+  "quickAdd": {
+    "errName": "Введите имя клиента.",
+    "errPhone": "Введите телефон клиента.",
+    "created": "Клиент успешно создан!"
+  }
+}

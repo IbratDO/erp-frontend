@@ -2,7 +2,9 @@ import i18n from '../i18n';
 
 /** Uzbekistan locale for numbers/dates in UI (backend values unchanged). */
 export function getAppLocale() {
-  return i18n.language === 'uz' ? 'uz-UZ' : 'en-US';
+  if (i18n.language === 'uz') return 'uz-UZ';
+  if (i18n.language === 'ru') return 'ru-RU';
+  return 'en-US';
 }
 
 export function formatAppNumber(value, options = {}) {
