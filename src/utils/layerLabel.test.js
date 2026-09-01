@@ -59,10 +59,10 @@ describe('the title line', () => {
 describe('label and table never disagree about the figure', () => {
   it('reads the same price the table shows, formatted differently', () => {
     const l = layer();
-    const quote = layerSellingQuote(l.product_detail, l.stocking_order);
-    expect(quote).toEqual({ amount: 120, currency: 'USD' });
+    const quote = layerSellingQuote(l);
+    expect(quote).toMatchObject({ amount: 120, currency: 'USD', source: 'product' });
     expect(layerToLabelData(l).price).toBe('120.00 y.e');
-    expect(inventorySellingCell(l.product_detail, l.stocking_order)).toBe('$120.00/u');
+    expect(inventorySellingCell(l)).toBe('$120.00/u');
   });
 
   it('agrees on a soum-priced product too', () => {
@@ -73,7 +73,7 @@ describe('label and table never disagree about the figure', () => {
       },
     });
     expect(layerToLabelData(l).price).toBe('1 250 000 uzs');
-    expect(inventorySellingCell(l.product_detail, l.stocking_order)).toContain("so'm");
+    expect(inventorySellingCell(l)).toContain("so'm");
   });
 
   it('prefers the order price over the product price, as the table does', () => {
@@ -81,18 +81,69 @@ describe('label and table never disagree about the figure', () => {
       stocking_order: { ordered_quantity: 2, selling_usd_cash: '300' },
     });
     expect(layerToLabelData(l).price).toBe('150.00 y.e'); // 300 / 2
-    expect(inventorySellingCell(l.product_detail, l.stocking_order)).toBe('$150.00/u');
+    expect(inventorySellingCell(l)).toBe('$150.00/u');
+  });
+});
+
+describe('a layer that has been re-priced', () => {
+  /**
+   * The whole point of giving a layer its own price: it must beat both other sources, or the
+   * edit saves correctly and the screen keeps showing the old figure — which is the bug the
+   * field was added to remove.
+   */
+  it('beats the product default', () => {
+    const l = layer({ selling_price: '145', selling_price_currency: 'USD' });
+    expect(layerSellingQuote(l)).toMatchObject({ amount: 145, source: 'layer' });
+    expect(inventorySellingCell(l)).toBe('$145.00/u');
+  });
+
+  it('beats the order price too', () => {
+    // This is the case that mattered: 14 live layers take their figure from the order, and on
+    // all of them the product has none. If the order won here, the button would do nothing.
+    const l = layer({
+      selling_price: '250',
+      stocking_order: { ordered_quantity: 1, selling_usd_cash: '235' },
+    });
+    expect(layerSellingQuote(l)).toMatchObject({ amount: 250, source: 'layer' });
+    expect(inventorySellingCell(l)).toBe('$250.00/u');
+  });
+
+  it('reaches the printed label as well as the table', () => {
+    const l = layer({ selling_price: '250' });
+    expect(layerToLabelData(l).price).toBe('250.00 y.e');
+  });
+
+  it('keeps its own currency', () => {
+    const l = layer({ selling_price: '1900000', selling_price_currency: 'UZS' });
+    expect(layerToLabelData(l).price).toBe('1 900 000 uzs');
+    expect(inventorySellingCell(l)).toContain("so'm");
+  });
+
+  it('falls back again once the price is cleared', () => {
+    // Null is the way out, and must restore the previous behaviour exactly.
+    const l = layer({
+      selling_price: null,
+      stocking_order: { ordered_quantity: 1, selling_usd_cash: '235' },
+    });
+    expect(layerSellingQuote(l)).toMatchObject({ amount: 235, source: 'order' });
+  });
+
+  it('ignores a zero or unparseable price rather than showing it', () => {
+    ['0', '', 'abc', null].forEach((bad) => {
+      const l = layer({ selling_price: bad });
+      expect(layerSellingQuote(l).source).toBe('product');
+    });
   });
 });
 
 describe('the table formatting this refactor must not have changed', () => {
   it.each([
-    [{ selling_price: '120', selling_price_currency: 'USD' }, null, '$120.00/u'],
-    [{ selling_price: '1250000', selling_price_currency: 'UZS' }, null, "1,250,000 so'm/u"],
-    [{ selling_price: '0' }, null, '—'],
-    [{}, null, '—'],
-  ])('renders %j as %s', (product, order, expected) => {
-    expect(inventorySellingCell(product, order)).toBe(expected);
+    [{ selling_price: '120', selling_price_currency: 'USD' }, '$120.00/u'],
+    [{ selling_price: '1250000', selling_price_currency: 'UZS' }, "1,250,000 so'm/u"],
+    [{ selling_price: '0' }, '—'],
+    [{}, '—'],
+  ])('renders a product priced %j as %s', (product, expected) => {
+    expect(inventorySellingCell({ product_detail: product })).toBe(expected);
   });
 });
 

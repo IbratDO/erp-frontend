@@ -13,28 +13,48 @@ export function formatSellingPrice(amount, currency) {
  * What one unit of an inventory layer sells for: the number and the currency, before any
  * formatting.
  *
- * The single place that decides *which* price a layer carries. The Inventory table and the
- * printed sticker format it differently — the table uses `$`/`so'm`, the label uses `y.e`/`uzs`
- * at the shop's request — but they must never disagree about the figure itself. A sticker
- * quoting a price the system does not is worse than a sticker with no price at all.
+ * The single place that decides *which* price a layer carries. It takes the whole inventory row,
+ * because the answer can come from any of three places and only the row knows all three:
  *
- * Order first, then the product's own price, which is the order the table has always used.
+ *   1. the layer's own price, if somebody has re-priced this shelf line
+ *   2. the planned selling price on the order that brought the stock in
+ *   3. the product's default
  *
- * *Known nuance, deliberately preserved:* the order branch is USD-only, so a layer from a
- * soum-priced order falls through to the product's price. That is the behaviour already on
- * screen; changing it would move what the table shows, which is a separate decision from how
- * the label prints it.
+ * The Inventory table and the printed sticker format the result differently — the table uses
+ * `$`/`so'm`, the label uses `y.e`/`uzs` at the shop's request — but they must never disagree
+ * about the figure itself. A sticker quoting a price the system does not is worse than a sticker
+ * with no price at all. `resolveLayerListPrice` follows the same order for the sale form, so what
+ * the shelf says is what the counter offers.
+ *
+ * *Known nuance, deliberately preserved:* step 2 is USD-only, so a layer from a soum-priced order
+ * falls through to the product's price. That is the behaviour already on screen, and re-pricing
+ * the layer is now the way to override it.
  */
-export function layerSellingQuote(productDetail, stockingOrder) {
-  const fromOrder = plannedSellingUsdPerUnit(stockingOrder || null);
-  if (fromOrder != null && fromOrder > 0) {
-    return { amount: fromOrder, currency: 'USD' };
+export function layerSellingQuote(layer) {
+  // 1. The layer's own price, if somebody has set one. It is the only source that belongs to the
+  //    row you are looking at, so it is asked first — otherwise re-pricing a shelf line would
+  //    save correctly and change nothing on screen.
+  const own = parseFloat(layer?.selling_price);
+  if (Number.isFinite(own) && own > 0) {
+    return {
+      amount: own,
+      currency: (layer.selling_price_currency || 'USD').toUpperCase(),
+      source: 'layer',
+    };
   }
-  const amount = parseFloat(productDetail?.selling_price);
+  // 2. What the purchase that brought this stock in planned to sell it for.
+  const fromOrder = plannedSellingUsdPerUnit(layer?.stocking_order || null);
+  if (fromOrder != null && fromOrder > 0) {
+    return { amount: fromOrder, currency: 'USD', source: 'order' };
+  }
+  // 3. The product's default.
+  const product = layer?.product_detail;
+  const amount = parseFloat(product?.selling_price);
   if (!Number.isFinite(amount) || amount <= 0) return null;
   return {
     amount,
-    currency: (productDetail?.selling_price_currency || 'USD').toUpperCase(),
+    currency: (product?.selling_price_currency || 'USD').toUpperCase(),
+    source: 'product',
   };
 }
 
@@ -43,8 +63,8 @@ export function layerSellingQuote(productDetail, stockingOrder) {
  *
  * Formatting only; the figure comes from `layerSellingQuote`.
  */
-export function inventorySellingCell(productDetail, stockingOrder) {
-  const quote = layerSellingQuote(productDetail, stockingOrder);
+export function inventorySellingCell(layer) {
+  const quote = layerSellingQuote(layer);
   if (!quote) return '—';
   const price = formatSellingPrice(quote.amount, quote.currency);
   return price ? `${price}/u` : '—';

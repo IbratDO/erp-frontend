@@ -31,6 +31,7 @@ import { layerToLabelData } from '../utils/layerLabel';
 import { buildBatchLabelSheetHtml, buildLabelSheetHtml, totalLabelCount } from '../components/labelPrint';
 import printHtmlDocument from '../utils/printHtml';
 import StockCountModal from '../components/StockCountModal';
+import LayerPriceModal from '../components/LayerPriceModal';
 
 const EMPTY_FORM = {
   product: '',
@@ -149,9 +150,13 @@ const Inventory = () => {
   // Counting the shelves. Correcting the books afterwards is a separate permission the modal
   // checks for itself — the CEO counts, the Founder decides.
   const canCount = hasPermission('inventory.count');
+  // Re-pricing a shelf line: Founder, Admin, CEO and Senior Sales Manager. It moves no
+  // money — stock is carried at cost and a sale snapshots its own price when it is made.
+  const canEditPrice = hasPermission('inventory.edit_price');
+  const [priceLayer, setPriceLayer] = useState(null);
   const [showStockCount, setShowStockCount] = useState(false);
   // Labels have their own leading column now, so Amallar is back to being about cancelling.
-  const showActions = canCancelLayer;
+  const showActions = canCancelLayer || canEditPrice;
 
   /**
    * Straight to the printer's own dialog — no step in between.
@@ -1126,7 +1131,7 @@ const Inventory = () => {
             ) : (
               displayInventory.map((item) => {
                 const cost = layerLandedCostCells(item);
-                const sell = inventorySellingCell(item.product_detail, item.stocking_order);
+                const sell = inventorySellingCell(item);
                 const sellTip = plannedSellingSummary(item.stocking_order) || '';
                 const selected = selectMode && selectedLayerIds.has(item.batch_id);
                 return (
@@ -1202,6 +1207,17 @@ const Inventory = () => {
                   <td>{formatAppDateTime(item.updated_at)}</td>
                   {showActions && (
                     <td className="inventory-row-actions">
+                      {canEditPrice && (
+                        <button
+                          type="button"
+                          className="btn-edit"
+                          style={{ padding: '5px 12px', fontSize: '0.85em' }}
+                          onClick={() => setPriceLayer(item)}
+                          title={t('layerPrice.hint')}
+                        >
+                          {t('layerPrice.button')}
+                        </button>
+                      )}
                       {/*
                         Only hand-added lines. Order stock got its money from a supplier rather
                         than the till, so there is nothing here to give back and the server
@@ -1248,6 +1264,13 @@ const Inventory = () => {
         </table>
         </div>
       </div>
+
+      <LayerPriceModal
+        layer={priceLayer}
+        open={priceLayer != null}
+        onClose={() => setPriceLayer(null)}
+        onSaved={fetchInventory}
+      />
 
       <StockCountModal
         open={showStockCount}

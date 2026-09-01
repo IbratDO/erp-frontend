@@ -1222,11 +1222,49 @@
 .data-table tbody tr.row-short > td { background-color: #fef2f2; }
 .data-table tbody tr.row-over > td { background-color: #fffbeb; }
 
+/* Re-pricing one shelf line. */
+.layer-price__item {
+  margin: 0 0 .35rem;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.layer-price__current {
+  margin: 0 0 1rem;
+  color: #64748b;
+  font-size: .93em;
+}
+
+/* Names where the figure comes from — the whole point of the dialog, since it is not always
+   this row. */
+.layer-price__source {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #eef2f7;
+  color: #475569;
+  font-size: .82em;
+}
+
+.layer-price__note {
+  margin: 0 0 14px;
+  color: #2c5282;
+  font-size: .88em;
+}
+
 /* Two buttons in one Actions cell (print label, cancel layer). */
+/*
+  Stacked rather than side by side. The two do very different things — one adjusts a number, the
+  other takes stock off the shelf and money back out of the till — and sitting them shoulder to
+  shoulder in a narrow cell invites the wrong one. `stretch` gives them a common width so the
+  column reads as a short list instead of two ragged chips.
+*/
 .inventory-row-actions {
   display: flex;
-  gap: 6px;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
 }
 
 /* Barcode scanning, above the basket's line table. */

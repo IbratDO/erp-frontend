@@ -127,5 +127,22 @@
     "applied": "Kitob tuzatildi.",
     "confirmApply": "{{units}} dona mahsulot ({{amount}}) hisobdan chiqarilsinmi? Bu amalni orqaga qaytarib boʻlmaydi.",
     "errGeneric": "Xatolik yuz berdi ({{step}})."
+  },
+  "layerPrice": {
+    "button": "Tahrirlash",
+    "hint": "Shu qatlamning sotuv narxini oʻzgartirish",
+    "title": "Sotuv narxi — qatlam #{{layer}}",
+    "currently": "Hozir koʻrsatilyapti:",
+    "source": {
+      "layer": "shu qatlamniki",
+      "order": "buyurtmadan olingan",
+      "product": "mahsulotning umumiy narxi"
+    },
+    "newPrice": "Yangi narx / dona",
+    "placeholder": "0",
+    "currency": "Valyuta",
+    "clearHint": "Boʻsh qoldirsangiz, avvalgi manbaga qaytadi.",
+    "note": "Bu faqat koʻrsatiladigan va sotuv shaklida oldindan toʻldiriladigan narx. Kassada sotuvchi baribir haqiqiy narxni belgilaydi. Balans va foyda oʻzgarmaydi.",
+    "errSave": "Narxni saqlab boʻlmadi."
   }
 }

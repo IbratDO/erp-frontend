@@ -127,5 +127,22 @@
     "applied": "The books have been corrected.",
     "confirmApply": "Write off {{units}} units ({{amount}})? This cannot be undone.",
     "errGeneric": "Something went wrong ({{step}})."
+  },
+  "layerPrice": {
+    "button": "Edit",
+    "hint": "Change what this layer sells for",
+    "title": "Selling price — layer #{{layer}}",
+    "currently": "Currently showing:",
+    "source": {
+      "layer": "this layer's own",
+      "order": "from the order",
+      "product": "the product's default"
+    },
+    "newPrice": "New price / unit",
+    "placeholder": "0",
+    "currency": "Currency",
+    "clearHint": "Leave empty to fall back to where it read before.",
+    "note": "This only sets what is displayed and pre-filled on the sale form. The seller still strikes the real price at the counter. The balance sheet and profit do not change.",
+    "errSave": "Could not save the price."
   }
 }

@@ -1,4 +1,5 @@
 import { plannedSellingSummary, plannedSellingUsdPerUnit, plannedSellingUzsPerUnit } from './orderPlannedPricing';
+import { formatSellingPrice, layerSellingQuote } from './inventorySelling';
 
 /** Per-unit USD cost buckets only (cash + card; no UZS conversion). Mirrors backend Product.cost_per_unit_usd_equivalent. */
 export function productCostUsdPortion(p) {
@@ -103,18 +104,23 @@ export function layerSellingUsdNum(layer, product) {
   return null;
 }
 
-/** One sale-picker row per FIFO layer: product info, this layer's price, and available qty. */
+/**
+ * One sale-picker row per FIFO layer: product info, this layer's price, and available qty.
+ *
+ * The price comes from `layerSellingQuote`, the same function the Ombor table and the printed
+ * label use, so all three name the same figure. This row used to work it out for itself and ask
+ * the stocking order first — so a re-priced shelf line went on advertising its old price in the
+ * dropdown while the form below correctly filled in the new one. Two numbers disagreeing on one
+ * screen is worse than either of them being wrong.
+ *
+ * `product` is passed separately because the caller may have resolved it from the catalogue when
+ * the row carries no `product_detail` of its own.
+ */
 export function layerSalePickerLabel(product, layer) {
   if (!product || !layer) return '';
-  const core = productCostPickerLabel(product).replace(/\u2014/g, ' - ');
-  const summary = plannedSellingSummary(layer.stocking_order);
-  const usdNum = layerSellingUsdNum(layer, product);
-  const price =
-    (summary ? summary.replace(/\/u$/, '') : null) ||
-    (usdNum != null ? `$${usdNum.toFixed(2)}` : null) ||
-    // Falls through to here when the price is quoted in so'm, which has no dollar figure.
-    formatProductSellingUsd(product) ||
-    '—';
+  const core = productCostPickerLabel(product).replace(/—/g, ' - ');
+  const quote = layerSellingQuote({ ...layer, product_detail: layer.product_detail || product });
+  const price = formatSellingPrice(quote?.amount, quote?.currency) || '—';
   const qty = Number(layer.quantity) || 0;
   const layerNo = layer.batch_id != null ? `Layer #${layer.batch_id}` : 'Layer';
   return `${layerNo} · ${core} · ${price} · ${qty} in stock`;
@@ -130,6 +136,19 @@ export function resolveLayerListPrice(layer, product, saleCur, rate) {
   const stocking = layer.stocking_order;
   const r = parseFloat(rate);
   const hasRate = Number.isFinite(r) && r > 0;
+
+  // A price set on this layer wins over both the order and the product — somebody looked at this
+  // shelf line and decided. Checked here as well as in the Inventory table so the figure the
+  // shop sees on the shelf is the figure the sale form offers at the counter; the two reading
+  // different sources is how a re-priced row would quietly sell at its old price.
+  const own = parseFloat(layer.selling_price);
+  if (Number.isFinite(own) && own > 0) {
+    const ownCurrency = (layer.selling_price_currency || 'USD').toUpperCase();
+    if (ownCurrency === saleCur) return own;
+    if (!hasRate) return own;
+    return saleCur === 'UZS' ? Math.round(own * r) : Math.round((own / r) * 100) / 100;
+  }
+
   if (stocking) {
     if (saleCur === 'UZS') {
       const native = plannedSellingUzsPerUnit(stocking);

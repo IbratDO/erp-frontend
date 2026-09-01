@@ -41,7 +41,7 @@ export function layerToLabelData(layer) {
     color: product.color || '',
     // The same figure the Inventory table shows on this very row — `layerSellingQuote` decides
     // which price that is — written the label's way.
-    price: formatLabelPrice(layerSellingQuote(product, layer.stocking_order)),
+    price: formatLabelPrice(layerSellingQuote(layer)),
     maxCopies: Number(layer.quantity) || 0,
   };
 }
