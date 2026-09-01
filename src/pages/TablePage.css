@@ -9,6 +9,18 @@
   margin-bottom: 20px;
 }
 
+/*
+  Several buttons at the right of a page heading. The heading itself is `space-between`, so
+  without a wrapper a second button would be pushed to the middle of the row instead of sitting
+  beside the first.
+*/
+.page-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .page-header h1 {
   color: #2c3e50;
   margin: 0;
@@ -1168,6 +1180,47 @@
   border-color: #3498db;
   color: #fff;
 }
+
+/* Inventarizatsiya — the count report. */
+.stock-count__totals {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+
+.stock-count__chip {
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.85em;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stock-count__chip--ok { background: #dcfce7; color: #166534; }
+.stock-count__chip--short { background: #fee2e2; color: #991b1b; }
+.stock-count__chip--over { background: #fef3c7; color: #92400e; }
+
+/* The full-count warning. Amber, not red: it is a legitimate choice, just the costly one to
+   pick by accident — it treats everything unscanned as gone. */
+.stock-count__warn {
+  display: block;
+  margin-top: 4px;
+  color: #b45309;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.stock-count__note {
+  margin: 8px 0;
+  color: #64748b;
+  font-size: 0.88em;
+}
+
+.data-table tbody tr.row-short > td { background-color: #fef2f2; }
+.data-table tbody tr.row-over > td { background-color: #fffbeb; }
 
 /* Two buttons in one Actions cell (print label, cancel layer). */
 .inventory-row-actions {

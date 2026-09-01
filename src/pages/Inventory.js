@@ -30,6 +30,7 @@ import { inventorySellingCell, invSellingPriceNum } from '../utils/inventorySell
 import { layerToLabelData } from '../utils/layerLabel';
 import { buildBatchLabelSheetHtml, buildLabelSheetHtml, totalLabelCount } from '../components/labelPrint';
 import printHtmlDocument from '../utils/printHtml';
+import StockCountModal from '../components/StockCountModal';
 
 const EMPTY_FORM = {
   product: '',
@@ -145,6 +146,10 @@ const Inventory = () => {
   // rides on the permission that got the user to this page rather than minting a new code
   // (which would need a seed_rbac run on deploy to restrict something unrestrictable).
   const canPrintLabels = hasPermission('inventory.view');
+  // Counting the shelves. Correcting the books afterwards is a separate permission the modal
+  // checks for itself — the CEO counts, the Founder decides.
+  const canCount = hasPermission('inventory.count');
+  const [showStockCount, setShowStockCount] = useState(false);
   // Labels have their own leading column now, so Amallar is back to being about cancelling.
   const showActions = canCancelLayer;
 
@@ -584,12 +589,24 @@ const Inventory = () => {
     <div className="page-container">
       <div className="page-header">
         <PageTitle ns="inventory" />
-        {/* Opens only; the dialog carries its own way out. */}
-        {canAddInventory && (
-          <button className="btn-primary" onClick={() => setShowForm(true)}>
-            {`+ ${t('addItem')}`}
-          </button>
-        )}
+        {/* Opens only; each dialog carries its own way out. */}
+        <div className="page-header__actions">
+          {canCount && (
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={() => setShowStockCount(true)}
+              title={t('stockCount.hint')}
+            >
+              {t('stockCount.button')}
+            </button>
+          )}
+          {canAddInventory && (
+            <button className="btn-primary" onClick={() => setShowForm(true)}>
+              {`+ ${t('addItem')}`}
+            </button>
+          )}
+        </div>
       </div>
 
       <Modal
@@ -1231,6 +1248,12 @@ const Inventory = () => {
         </table>
         </div>
       </div>
+
+      <StockCountModal
+        open={showStockCount}
+        onClose={() => setShowStockCount(false)}
+        onApplied={fetchInventory}
+      />
     </div>
   );
 };
