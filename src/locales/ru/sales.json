@@ -214,7 +214,7 @@
     "stock": "Остаток",
     "qty": "Кол-во",
     "sellingPrice": "Цена продажи",
-    "discountPrice": "Цена со скидкой",
+    "discountPrice": "Сумма скидки",
     "packages": "Упаковка",
     "productPlaceholder": "— Товар —",
     "addLine": "Добавить строку",

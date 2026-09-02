@@ -214,7 +214,7 @@
     "stock": "Stock",
     "qty": "Qty",
     "sellingPrice": "Selling price",
-    "discountPrice": "Discount price",
+    "discountPrice": "Discount amount",
     "packages": "Packages",
     "productPlaceholder": "— Product —",
     "addLine": "Add line",
