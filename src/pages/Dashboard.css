@@ -188,9 +188,21 @@
   color: #64748b;
 }
 
+/*
+  Columns follow the charts, rather than the charts being poured into three fixed columns.
+
+  It was `repeat(3, 1fr)`, so every row reserved three slots whatever it held — and almost every
+  row on this page holds two. The third slot stayed empty, which is why a third of the width sat
+  blank to the right of each pair while the charts themselves were squeezed into two thirds.
+
+  `auto-fit` collapses the slots that have no chart in them and shares the whole width between
+  the ones that do: two charts take half each, three take a third each, and nothing needs to know
+  in advance which row has how many. The 320px floor is what makes it wrap instead of crushing —
+  below that a chart is too narrow for its own axis labels.
+*/
 .dash-charts-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   gap: 16px;
 }
 

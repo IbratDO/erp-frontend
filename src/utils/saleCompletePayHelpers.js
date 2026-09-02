@@ -1172,3 +1172,45 @@ export function shopDeliverySettlementRequiredForGroup(saleOrGroup) {
   const lines = _groupLines(saleOrGroup);
   return lines.some((l) => lineNeedsSettlement(l)) || groupHasPendingDeclinedReturns(lines);
 }
+
+/**
+ * What ticking (or clearing) the Bepul box does to the rest of the form.
+ *
+ * A gift is not a partly-paid sale. The whole price is written off, so Chegirma ("how much of
+ * the gap is forgiven"), Konversiya farqi ("how much of the gap is exchange-rate noise") and
+ * Nasiya ("how much of it is still owed") have nothing left to name — there is no gap, there is
+ * no sale price being collected at all.
+ *
+ * Leaving those flags set while their boxes are hidden is the failure this exists to stop: the
+ * operator ticks Bepul, the discount fields disappear, and a discount they can no longer see is
+ * still submitted with the sale. Hiding a control does not clear it — this does, in the same
+ * update, so the form can never hold a value the screen is not showing.
+ *
+ * Clearing Bepul deliberately restores nothing. The operator is back to an ordinary unpaid sale
+ * and says again what they mean; silently reinstating a discount they abandoned would be the
+ * same bug pointing the other way.
+ */
+export function applyGiveawayToggle(form, checked) {
+  const next = { ...form, apply_giveaway: checked };
+  if (!checked) return next;
+  return {
+    ...next,
+    apply_credit: false,
+    credit_amount: '',
+    credit_due_date: '',
+    balance_shortfall_type: '',
+    balance_shortfall_amount: '',
+    apply_currency_conversion_difference: false,
+  };
+}
+
+/**
+ * Whether the shortfall block — Chegirma and Konversiya farqi — should be on screen.
+ *
+ * Both answer "where did the missing money go?", which is only a question when money was typed
+ * and fell short. Under Bepul nothing was typed and nothing is missing, so the block is not
+ * merely irrelevant, it is a way to describe a gift as a discount.
+ */
+export function shortfallOptionsVisible(shortfallMeta, form) {
+  return Boolean(shortfallMeta?.needs) && !form?.apply_giveaway;
+}

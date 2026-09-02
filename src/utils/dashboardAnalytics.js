@@ -211,37 +211,62 @@ export function crossFilterSummary(crossFilter) {
  * that happened to have sales". Weekly does not: an empty calendar year is 52 mostly-flat
  * points, so it shows only weeks with activity, like the marketing charts.
  */
-export function buildSalesSeries(facts, granularity = 'monthly') {
+/**
+ * Units sold per period, returns taken off.
+ *
+ * This used to add 1 per sale rather than the units on it, so one sale of five pairs of shoes
+ * counted as one — a line labelled "sold" that no other chart on the page could be reconciled
+ * against. It now counts units, net of returns, the same way the category chart beside it does,
+ * so the two can be read together.
+ *
+ * `sold` and `returned` are kept as well as `sales` so a tooltip can show the gross figure and
+ * what came back, rather than only the difference.
+ */
+export function buildSalesSeries(facts, returnFacts = null, granularity = 'monthly') {
   const rows = new Map();
+  const keyOf = (f) =>
+    granularity === 'weekly' ? f.week_key : `${f.month}`.padStart(2, '0');
+  const blank = (period) => ({
+    period, revenue_usd: 0, revenue_uzs: 0, sales: 0, sold: 0, returned: 0,
+  });
 
   if (granularity === 'monthly') {
     for (let m = 1; m <= 12; m += 1) {
-      rows.set(`${m}`.padStart(2, '0'), {
-        period: MONTH_NAMES[m - 1] || String(m),
-        revenue_usd: 0,
-        revenue_uzs: 0,
-        sales: 0,
-      });
+      rows.set(`${m}`.padStart(2, '0'), blank(MONTH_NAMES[m - 1] || String(m)));
     }
   }
 
-  for (const fact of facts || []) {
-    const key = granularity === 'weekly' ? fact.week_key : `${fact.month}`.padStart(2, '0');
-    if (!key) continue;
+  const rowFor = (fact) => {
+    const key = keyOf(fact);
+    if (!key) return null;
     if (!rows.has(key)) {
-      rows.set(key, {
-        period: granularity === 'weekly'
+      rows.set(key, blank(
+        granularity === 'weekly'
           ? fact.week_label || key
           : MONTH_NAMES[Number(fact.month) - 1] || key,
-        revenue_usd: 0,
-        revenue_uzs: 0,
-        sales: 0,
-      });
+      ));
     }
-    const row = rows.get(key);
+    return rows.get(key);
+  };
+
+  for (const fact of facts || []) {
+    const row = rowFor(fact);
+    if (!row) continue;
     row.revenue_usd += Number(fact.revenue_usd) || 0;
     row.revenue_uzs += Number(fact.revenue_uzs) || 0;
-    row.sales += 1;
+    row.sold += Number(fact.units) || 0;
+  }
+
+  for (const fact of returnFacts || []) {
+    const row = rowFor(fact);
+    if (!row) continue;
+    row.returned += Number(fact.units) || 0;
+  }
+
+  for (const row of rows.values()) {
+    // Floored for the same reason every other net figure here is: a return processed in a later
+    // period than its sale would otherwise draw a line below zero, which reads as negative sales.
+    row.sales = Math.max(row.sold - row.returned, 0);
   }
 
   return [...rows.entries()]

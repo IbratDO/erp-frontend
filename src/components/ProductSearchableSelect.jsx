@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { productSalePickerLabel } from '../utils/productCost';
-import { productMatchesSearch } from '../utils/productSearch';
+import { layerMatchesSearch, productMatchesSearch } from '../utils/productSearch';
 import useAppTranslation from '../hooks/useAppTranslation';
 
 /**
@@ -42,7 +42,9 @@ export default function ProductSearchableSelect({
 
   const filtered = useMemo(() => {
     if (useItems) {
-      return pickerItems.filter((item) => productMatchesSearch(item.product, query));
+      // Layer rows carry their own number and barcode; both are searchable, because the
+      // number on the row is what staff read off the box in their hand.
+      return pickerItems.filter((item) => layerMatchesSearch(item, query));
     }
     return products.filter((p) => productMatchesSearch(p, query));
   }, [useItems, pickerItems, products, query]);

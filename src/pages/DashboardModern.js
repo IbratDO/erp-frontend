@@ -39,7 +39,7 @@ import {
   NetProfitChart,
   MarketingCharts,
   MarketingPerItemChart,
-  HrCharts,
+  ManagerMarginChart,
   InventoryCharts,
   MgmtChart,
   SalesMgmtCharts,
@@ -477,6 +477,8 @@ const DashboardModern = () => {
   const [expensesGranularity, setExpensesGranularity] = useState('monthly');
   const [marketingGranularity, setMarketingGranularity] = useState('weekly');
   const [salesCountGranularity, setSalesCountGranularity] = useState('monthly');
+  // Both margin series arrive in one payload, so this only picks which to draw — no refetch.
+  const [managerMarginGranularity, setManagerMarginGranularity] = useState('monthly');
 
   const loadAnalytics = useCallback(async (y) => {
     try {
@@ -569,8 +571,8 @@ const DashboardModern = () => {
   // Built from the same cross-filtered facts as the chart beside it, so clicking a legend
   // narrows both together.
   const salesCount = useMemo(
-    () => buildSalesSeries(filteredFacts, salesCountGranularity),
-    [filteredFacts, salesCountGranularity],
+    () => buildSalesSeries(filteredFacts, filteredReturnFacts, salesCountGranularity),
+    [filteredFacts, filteredReturnFacts, salesCountGranularity],
   );
 
   const weekdayUsers = useMemo(
@@ -988,13 +990,20 @@ const DashboardModern = () => {
                 onLegendClick={handleLegendUser}
                 activeCross={crossFilter.salesman}
               />
+              {/*
+                Margin sits beside the weekday averages rather than in a section of its own
+                below: the pair answers one question about a salesman — when they shift stock,
+                and what that stock earned — and the row was half empty without it.
+              */}
+              {canViewMgmt ? (
+                <ManagerMarginChart
+                  data={mgmtData}
+                  granularity={managerMarginGranularity}
+                  onGranularityChange={setManagerMarginGranularity}
+                />
+              ) : null}
             </div>
           </section>
-          {canViewMgmt ? (
-            <section className="mgmt-section">
-              <HrCharts data={mgmtData} />
-            </section>
-          ) : null}
         </>
       )}
 

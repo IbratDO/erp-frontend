@@ -727,7 +727,12 @@ const Sales = () => {
     let usd = 0;
     const saleCurrencies = new Set();
     for (const s of list) {
-      quantity += parseInt(s.quantity, 10) || 0;
+      // A cancelled sale never happened, so its units are not units sold. The row stays in the
+      // table — you still need to see that it was cancelled — but it does not add to the total,
+      // which is read as "how much went out".
+      if (s.status !== 'cancelled') {
+        quantity += parseInt(s.quantity, 10) || 0;
+      }
       totalAmount += parseFloat(s.total_amount) || 0;
       saleCurrencies.add(s.sale_currency || 'USD');
       uzs += (parseFloat(s.payment_uzs_cash) || 0) + (parseFloat(s.payment_uzs_card) || 0);

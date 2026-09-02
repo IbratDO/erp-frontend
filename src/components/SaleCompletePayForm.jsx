@@ -21,6 +21,8 @@ import {
   buildGiveawayConfirmMessage,
   saleHasOrderAdvance,
   saleAcceptsChange,
+  applyGiveawayToggle,
+  shortfallOptionsVisible,
 } from '../utils/saleCompletePayHelpers';
 
 /**
@@ -413,7 +415,7 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
               />
             </div>
           )}
-          {shortfallMeta.needs && (
+          {shortfallOptionsVisible(shortfallMeta, paymentFormData) && (
             <div className="form-group" style={{ gridColumn: '1 / -1' }}>
               <p style={{ margin: '0 0 10px 0', fontSize: '0.9em', color: '#555', lineHeight: 1.45 }}>
                 {creditAvailable ? t('completePay.shortfallHintCredit') : t('completePay.shortfallHint')}
@@ -510,22 +512,10 @@ export default function SaleCompletePayForm({ sale, onClose, onSuccess, showNoti
                   type="checkbox"
                   checked={isGiveaway}
                   onChange={(e) => {
-                    const checked = e.target.checked;
-                    // A gift cannot also be a debt or a discount: the whole price is written
-                    // off, so there is nothing left for either of them to name.
-                    setPaymentFormData({
-                      ...paymentFormData,
-                      apply_giveaway: checked,
-                      ...(checked
-                        ? {
-                          apply_credit: false,
-                          credit_amount: '',
-                          credit_due_date: '',
-                          balance_shortfall_type: '',
-                          balance_shortfall_amount: '',
-                        }
-                        : {}),
-                    });
+                    // A gift cannot also be a debt, a discount or an exchange-rate difference:
+                    // the whole price is written off, so there is nothing left for any of them
+                    // to name. Their boxes disappear, and this clears what they held.
+                    setPaymentFormData(applyGiveawayToggle(paymentFormData, e.target.checked));
                   }}
                 />
                 <span>{t('completePay.giveawayOption')}</span>

@@ -2,6 +2,8 @@ import React, { createContext, useState, useContext, useEffect, useCallback } fr
 import api from '../utils/api';
 import i18n from '../i18n';
 import { hasPermission, getRoleCode } from '../utils/permissions';
+import { identityMatchesToken } from '../utils/tokenIdentity';
+import { invalidateProductsCache } from '../utils/catalogCache';
 
 const AuthContext = createContext();
 
@@ -9,6 +11,11 @@ const AUTH_KEYS = ['access_token', 'refresh_token', 'user'];
 
 function clearAuthStorage() {
   AUTH_KEYS.forEach((key) => localStorage.removeItem(key));
+  // The product catalogue is held in a module variable for the life of the tab, so without this
+  // it outlives the session that fetched it: log out, log in as somebody else without reloading,
+  // and the previous user's catalogue is still on screen. Same shape of leak as the identity
+  // one, one level down.
+  invalidateProductsCache();
 }
 
 function hasAccessToken() {
@@ -40,6 +47,14 @@ export const AuthProvider = ({ children }) => {
     }
     try {
       const userResponse = await api.get('/users/me/');
+      // The profile has to belong to the token we are sending, or the sidebar would name one
+      // person while the server acts as another. Refusing here forces a clean re-login, which
+      // is recoverable; showing the wrong name is not, because nobody would know to doubt it.
+      if (!identityMatchesToken(userResponse.data, localStorage.getItem('access_token'))) {
+        clearAuthStorage();
+        setUser(null);
+        return null;
+      }
       setUser(userResponse.data);
       localStorage.setItem('user', JSON.stringify(userResponse.data));
       return userResponse.data;
@@ -120,6 +135,18 @@ export const AuthProvider = ({ children }) => {
         const userResponse = await api.get('/users/me/');
         userData = userResponse.data;
       } catch {
+        clearAuthStorage();
+        setUser(null);
+        return {
+          success: false,
+          error: i18n.t('auth.loginFailed', { ns: 'common' }),
+        };
+      }
+
+      // Same check as `refreshUser`, and needed separately: this is the path a person takes
+      // when they deliberately sign in as somebody else, which is precisely when being shown
+      // the previous occupant of the browser is most convincing and most wrong.
+      if (!identityMatchesToken(userData, access)) {
         clearAuthStorage();
         setUser(null);
         return {

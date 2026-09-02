@@ -108,6 +108,6 @@
   },
   "onDemandSeriesInProcess": "In process",
   "onDemandSeriesCancelled": "Cancelled",
-  "salesCountChart": "Number of sales",
-  "salesCountSeries": "Sales"
+  "salesCountChart": "Units sold",
+  "salesCountSeries": "Units sold"
 }

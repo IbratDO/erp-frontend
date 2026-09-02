@@ -108,6 +108,6 @@
   },
   "onDemandSeriesInProcess": "В работе",
   "onDemandSeriesCancelled": "Отменено",
-  "salesCountChart": "Количество продаж",
-  "salesCountSeries": "Продажи"
+  "salesCountChart": "Продано единиц",
+  "salesCountSeries": "Продано единиц"
 }

@@ -73,10 +73,14 @@ export function productLabel(p) {
   return [p.category_type, p.brand, p.model, p.color].filter(Boolean).join(' · ');
 }
 
-export function useManagerChartData(data) {
-  const managerSeries = data?.manager_margin_monthly;
+export function useManagerChartData(data, granularity = 'monthly') {
+  // Both series arrive in one payload, so switching is a re-render rather than a refetch.
+  const managerSeries =
+    granularity === 'weekly'
+      ? data?.manager_margin_weekly || data?.manager_margin_monthly
+      : data?.manager_margin_monthly;
   const managerChartData = useMemo(() => {
-    const managerKeys = managerSeries?.months || [];
+    const managerKeys = managerSeries?.periods || managerSeries?.months || [];
     if (!managerSeries?.series?.length || !managerKeys.length) return [];
     return managerKeys.map((ml, idx) => {
       const row = { monthLabel: ml };
@@ -437,33 +441,61 @@ export function MarketingCharts({ data }) {
   );
 }
 
-export function HrCharts({ data }) {
+/**
+ * Gross margin per salesman, weekly or monthly.
+ *
+ * Exported on its own rather than wrapped in a section, because it sits on the Xodim tab beside
+ * the weekday averages: the two together are the whole picture of a salesman — which days they
+ * shift stock on, and what that stock actually earned. It used to sit in a section of its own
+ * below them, with half the row beside the weekday chart left empty.
+ */
+export function ManagerMarginChart({
+  data,
+  granularity = 'monthly',
+  onGranularityChange,
+  // Matches `ChartPanel`, which it now sits beside. Left at the management default of 240 the
+  // plot would stop short of its neighbour's, and the grid stretches both cards to one height —
+  // so the difference shows up as dead space under this one rather than as a smaller chart.
+  height = 280,
+}) {
   const { t } = useAppTranslation(['dashboard', 'common']);
-  const { managerChartData, managerNames } = useManagerChartData(data);
+  const { managerChartData, managerNames } = useManagerChartData(data, granularity);
   return (
-    <div className="mgmt-charts-grid">
-      <MgmtChart title={t('mgmt.managerMargin')}>
-        <ResponsiveContainer width="100%" height={240}>
-          <LineChart data={managerChartData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
-            <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
-            <YAxis tick={{ fontSize: 12 }} />
-            <Tooltip contentStyle={tooltipStyle} />
-            <Legend wrapperStyle={{ fontSize: 11 }} />
-            {managerNames.map((name, i) => (
-              <Line
-                key={name}
-                type="monotone"
-                dataKey={name}
-                stroke={CHART_PALETTE[i % CHART_PALETTE.length]}
-                strokeWidth={2}
-                dot={false}
-              />
-            ))}
-          </LineChart>
-        </ResponsiveContainer>
-      </MgmtChart>
-    </div>
+    <MgmtChart
+      title={t('mgmt.managerMargin')}
+      controls={
+        onGranularityChange ? (
+          <ToggleGroup
+            value={granularity}
+            onChange={onGranularityChange}
+            options={[
+              { value: 'weekly', label: t('mgmt.weekly') },
+              { value: 'monthly', label: t('mgmt.monthly') },
+            ]}
+          />
+        ) : null
+      }
+    >
+      <ResponsiveContainer width="100%" height={height}>
+        <LineChart data={managerChartData}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+          <XAxis dataKey="monthLabel" tick={{ fontSize: 12 }} />
+          <YAxis tick={{ fontSize: 12 }} />
+          <Tooltip contentStyle={tooltipStyle} />
+          <Legend wrapperStyle={{ fontSize: 11 }} />
+          {managerNames.map((name, i) => (
+            <Line
+              key={name}
+              type="monotone"
+              dataKey={name}
+              stroke={CHART_PALETTE[i % CHART_PALETTE.length]}
+              strokeWidth={2}
+              dot={false}
+            />
+          ))}
+        </LineChart>
+      </ResponsiveContainer>
+    </MgmtChart>
   );
 }
 
