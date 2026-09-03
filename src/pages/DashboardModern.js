@@ -105,6 +105,7 @@ function ChartPanel({
   activeCross,
   emptyLabel = '',
   hideZeroSeries = false,
+  controls = null,
 }) {
   const height = 280;
 
@@ -124,10 +125,19 @@ function ChartPanel({
     fontSize: 13,
   };
 
+  // The head keeps its controls even with no data: the toggle is how a reader gets *out* of an
+  // empty view, so hiding it there would strand them.
+  const head = (
+    <div className="dash-chart-head">
+      <h3>{title}</h3>
+      {controls}
+    </div>
+  );
+
   if (!data?.length) {
     return (
       <div className="dash-chart-card">
-        <h3>{title}</h3>
+        {head}
         <p className="dash-empty">{emptyLabel}</p>
       </div>
     );
@@ -135,7 +145,7 @@ function ChartPanel({
 
   return (
     <div className="dash-chart-card">
-      <h3>{title}</h3>
+      {head}
       <ResponsiveContainer width="100%" height={height}>
         {chartType === 'area' ? (
           <AreaChart data={data} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -479,6 +489,9 @@ const DashboardModern = () => {
   const [salesCountGranularity, setSalesCountGranularity] = useState('monthly');
   // Both margin series arrive in one payload, so this only picks which to draw — no refetch.
   const [managerMarginGranularity, setManagerMarginGranularity] = useState('monthly');
+  // Changes what each weekday bar is an average *of* — months, or single weeks. The bars stay
+  // Mon-Sun either way; see `buildWeekdayAveragesFixed`.
+  const [weekdayGranularity, setWeekdayGranularity] = useState('monthly');
 
   const loadAnalytics = useCallback(async (y) => {
     try {
@@ -576,8 +589,8 @@ const DashboardModern = () => {
   );
 
   const weekdayUsers = useMemo(
-    () => buildNetWeekdayAverages(filteredFacts, filteredReturnFacts, 'salesman_name'),
-    [filteredFacts, filteredReturnFacts],
+    () => buildNetWeekdayAverages(filteredFacts, filteredReturnFacts, 'salesman_name', weekdayGranularity),
+    [filteredFacts, filteredReturnFacts, weekdayGranularity],
   );
   const weekdayCategories = useMemo(
     () => buildNetWeekdayAverages(filteredFacts, filteredReturnFacts, 'category'),
@@ -989,6 +1002,16 @@ const DashboardModern = () => {
                 hideZeroSeries
                 onLegendClick={handleLegendUser}
                 activeCross={crossFilter.salesman}
+                controls={
+                  <ToggleGroup
+                    value={weekdayGranularity}
+                    onChange={setWeekdayGranularity}
+                    options={[
+                      { value: 'weekly', label: td('mgmt.weekly') },
+                      { value: 'monthly', label: td('mgmt.monthly') },
+                    ]}
+                  />
+                }
               />
               {/*
                 Margin sits beside the weekday averages rather than in a section of its own

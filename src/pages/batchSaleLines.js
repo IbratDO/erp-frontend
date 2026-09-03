@@ -7,6 +7,8 @@
  * hand back the new key.
  */
 import { resolveLayerListPrice } from '../utils/productCost';
+import { usdToUzs, uzsToUsd } from '../utils/saleCompletePayHelpers';
+import { layerSellingQuote } from '../utils/inventorySelling';
 
 export const EMPTY_PKG_LINES = () => [{ key: `${Date.now()}`, package_type: '', quantity: 1 }];
 
@@ -136,4 +138,69 @@ export function applyScanToBatchLines(lines, pickerItem, ctx) {
 
   const appended = applyLayerToLine(emptyBatchLine(), layerId, ctx);
   return { lines: [...lines, appended], result: { kind: 'added', key: appended.key, label } };
+}
+
+function parsePriceNum(str) {
+  if (str === '' || str == null) return null;
+  const n = parseFloat(String(str).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Re-price every filled line into a new sale currency.
+ *
+ * Lifted out of the currency dropdown's own handler so the automatic flip — the one the first
+ * item triggers — runs *this* code rather than a second copy of it. Two copies of a conversion
+ * is how the manual path and the automatic path end up disagreeing about the same basket.
+ *
+ * Untouched lines stay untouched: a row with no item and no prices has nothing to convert, and
+ * rewriting it would put figures in front of the seller they never entered.
+ *
+ * With no rate loaded the numbers are left exactly as they are. That is deliberate and
+ * pre-existing — better a price in the wrong currency, which the seller sees and corrects, than
+ * a silent conversion at a rate we do not have.
+ */
+export function convertLinesToCurrency(lines, nextCurrency, cbuRate) {
+  return (lines || []).map((l) => {
+    if (!l.layer && !l.list_price && !l.selling_price && !l.discount_price) return l;
+    const convert = (val) => {
+      const num = parsePriceNum(val);
+      if (num == null) return val;
+      if (!cbuRate) return val;
+      const converted =
+        nextCurrency === 'UZS' ? usdToUzs(num, cbuRate) : uzsToUsd(num, cbuRate);
+      return formatSalePriceForCurrency(converted, nextCurrency);
+    };
+    return {
+      ...l,
+      list_price: convert(l.list_price),
+      selling_price: convert(l.selling_price),
+      discount_price: convert(l.discount_price),
+    };
+  });
+}
+
+/**
+ * The currency the first row's item is priced in, or null if it does not name one.
+ *
+ * Only the first row is asked. A basket is struck in one currency, and letting every row vote
+ * would mean the last item chosen silently re-prices everything already in the basket.
+ *
+ * Null — rather than a guess of USD — when there is no item yet or the layer names no currency,
+ * so the caller can tell "this item wants so'm" apart from "this item has nothing to say", and
+ * leave the seller's own choice alone in the second case.
+ */
+export function currencyForLayer(layerId, inventory, products) {
+  if (!layerId) return null;
+  const layer = findInventoryLayer(inventory, layerId);
+  if (!layer) return null;
+  const product = productForLayer(layer, products);
+  const quote = layerSellingQuote({ ...layer, product_detail: layer.product_detail || product });
+  const currency = quote?.currency ? String(quote.currency).toUpperCase() : null;
+  return currency === 'USD' || currency === 'UZS' ? currency : null;
+}
+
+/** The same question asked of a basket: what currency does its first row want? */
+export function currencyForFirstLine(lines, inventory, products) {
+  return currencyForLayer((lines || [])[0]?.layer, inventory, products);
 }

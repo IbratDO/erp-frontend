@@ -221,6 +221,25 @@
   min-height: 340px;
 }
 
+/*
+  Title on the left, any controls on the right — the same head `.mgmt-chart-card` uses, so a
+  toggle sits in the same place whichever kind of card it is on. `flex-wrap` lets the toggle drop
+  under a long title on a narrow column instead of squeezing the title to nothing.
+*/
+.dash-chart-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* The head owns the spacing now; a margin here would double it. */
+.dash-chart-head h3 {
+  margin: 0;
+}
+
 .dash-chart-card h3 {
   margin: 0 0 12px;
   font-size: 0.95rem;

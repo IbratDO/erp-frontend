@@ -2050,3 +2050,31 @@ input.batch-sale-lines__control[type='number']::-webkit-outer-spin-button {
     position: static;
   }
 }
+
+/*
+  The sale currency field, tinted by what it holds.
+
+  The shop prices some stock in dollars and some in so'm, and the field now changes on its own
+  when the first item is picked. A dropdown that changes by itself needs to be noticeable when it
+  does — a seller who does not see it happen would read the prices below in the wrong currency.
+
+  Pale on purpose. This is a background tint on a form control the seller reads figures next to,
+  not a status badge; strong colour here would pull the eye away from the prices themselves. The
+  text stays near-black on both so contrast holds.
+
+  Colour is never the only signal — the option text still says USD or UZS. Anyone who cannot
+  distinguish the two tints loses nothing.
+*/
+.sale-currency-select {
+  transition: background-color 0.15s ease;
+}
+
+.sale-currency-select--usd {
+  background-color: #e7f6ec;
+  border-color: #a8d5b8;
+}
+
+.sale-currency-select--uzs {
+  background-color: #fdf5d8;
+  border-color: #e3cf8a;
+}

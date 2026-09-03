@@ -32,6 +32,8 @@ import {
   applyLayerToLine,
   applyScanToBatchLines,
   clearLayerFromLine,
+  convertLinesToCurrency,
+  currencyForLayer,
   emptyBatchLine,
   findInventoryLayer,
   formatSalePriceForCurrency,
@@ -49,8 +51,6 @@ import {
   buildSplitCurrencyConfirmMessage,
   buildAdditionalProfitConfirmMessage,
   buildCreditConfirmMessage,
-  uzsToUsd,
-  usdToUzs,
 } from '../utils/saleCompletePayHelpers';
 import { runSalePaymentSubmitFlow } from '../utils/salePaymentFlowHelpers';
 import ShortfallClassificationFields, {
@@ -830,10 +830,39 @@ const Sales = () => {
   };
 
   const updateBatchLine = (key, field, value) => {
-    setBatchLines((lines) =>
-      lines.map((l) => {
+    const currentCurrency = batchDefaults.sale_currency || 'USD';
+    let saleCur = currentCurrency;
+
+    // The first row decides the basket's currency.
+    //
+    // A shop that prices some stock in so'm and some in dollars was picking an item and then
+    // having to remember to change the dropdown to match it — and when they forgot, the sale was
+    // struck in the wrong currency at a converted price. The item knows what it is worth, so it
+    // says so.
+    //
+    // Only the first row, and deliberately: a basket is struck in one currency, so letting every
+    // row vote would mean the last item added silently re-prices everything already in it.
+    if (field === 'layer' && batchLines[0]?.key === key) {
+      const wanted = currencyForLayer(value, inventory, products);
+      // Null means the item names no currency of its own — not a reason to overrule the seller.
+      if (wanted) saleCur = wanted;
+    }
+
+    if (saleCur !== currentCurrency) {
+      setBatchDefaults((prev) => ({ ...prev, sale_currency: saleCur }));
+    }
+
+    setBatchLines((lines) => {
+      // Exactly what the dropdown itself does, because it is the same function. The rows already
+      // in the basket are converted first, and only then is the new item applied below — so the
+      // item that caused the flip is priced natively from its own layer rather than being
+      // round-tripped through the rate like the rest.
+      const base =
+        saleCur !== currentCurrency
+          ? convertLinesToCurrency(lines, saleCur, batchCbuRate)
+          : lines;
+      return base.map((l) => {
         if (l.key !== key) return l;
-        const saleCur = batchDefaults.sale_currency || 'USD';
         if (field === 'category') {
           const next = { ...l, category: value };
           if (value && l.layer) {
@@ -874,8 +903,8 @@ const Sales = () => {
           return { ...l, ...applyListDiscountFinal(listNum, discNum, null, saleCur) };
         }
         return { ...l, [field]: value };
-      })
-    );
+      });
+    });
   };
 
   const addBatchLine = () => {
@@ -3273,6 +3302,7 @@ const Sales = () => {
               <div className="form-group">
                 <label>{t('batch.currencyAll')}</label>
                 <select
+                  className={`sale-currency-select sale-currency-select--${(batchDefaults.sale_currency || 'USD').toLowerCase()}`}
                   value={batchDefaults.sale_currency}
                   onChange={(e) => {
                     const nextCurrency = e.target.value;
@@ -3280,26 +3310,7 @@ const Sales = () => {
                     setBatchDefaults({ ...batchDefaults, sale_currency: nextCurrency });
                     if (nextCurrency === prevCurrency) return;
                     setBatchLines((lines) =>
-                      lines.map((l) => {
-                        if (!l.layer && !l.list_price && !l.selling_price && !l.discount_price) return l;
-                        const convert = (val) => {
-                          const num = parsePriceNum(val);
-                          if (num == null) return val;
-                          if (!batchCbuRate) return val;
-                          const converted =
-                            nextCurrency === 'UZS'
-                              ? usdToUzs(num, batchCbuRate)
-                              : uzsToUsd(num, batchCbuRate);
-                          return formatSalePriceForCurrency(converted, nextCurrency);
-                        };
-                        return {
-                          ...l,
-                          list_price: convert(l.list_price),
-                          selling_price: convert(l.selling_price),
-                          discount_price: convert(l.discount_price),
-                        };
-                      })
-                    );
+                      convertLinesToCurrency(lines, nextCurrency, batchCbuRate));
                   }}
                 >
                   <option value="USD">{t('currency.usd', { ns: 'common' })}</option>

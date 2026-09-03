@@ -63,11 +63,11 @@ export function buildNetMonthlyStacked(saleFacts, returnFacts, dimensionField) {
 }
 
 /** Weekday averages with returns subtracted per slice. */
-export function buildNetWeekdayAverages(saleFacts, returnFacts, dimensionField) {
-  const sale = buildWeekdayAveragesFixed(saleFacts, dimensionField);
+export function buildNetWeekdayAverages(saleFacts, returnFacts, dimensionField, granularity = 'monthly') {
+  const sale = buildWeekdayAveragesFixed(saleFacts, dimensionField, granularity);
   if (!returnFacts?.length) return sale;
 
-  const ret = buildWeekdayAveragesFixed(returnFacts, dimensionField);
+  const ret = buildWeekdayAveragesFixed(returnFacts, dimensionField, granularity);
   const keys = [...new Set([...sale.keys, ...ret.keys])].sort();
 
   const retByLabel = Object.fromEntries(ret.data.map((r) => [r.weekday_label, r]));
@@ -119,13 +119,24 @@ export function buildMonthlyStacked(facts, dimensionField, valueFn = (f) => f.un
 }
 
 /** Average units per weekday (mean per month-weekday slice in filtered data). */
-export function buildWeekdayAveragesFixed(facts, dimensionField) {
+export function buildWeekdayAveragesFixed(facts, dimensionField, granularity = 'monthly') {
   const keys = uniqueKeys(facts, dimensionField);
   const sliceTotals = new Map();
 
   for (const f of facts) {
     const wd = f.weekday;
-    const sliceKey = `${f.month_key}-${wd}`;
+    // The slice is what gets averaged over, and it is the whole meaning of the number:
+    //
+    //   monthly — "in an average month, Mondays sold this much" (every Monday in the month
+    //             added together, then averaged across months);
+    //   weekly  — "on a typical Monday, this much" (one Monday per week, averaged across weeks).
+    //
+    // Same bars, same data, two different questions — which is why the weekday axis stays.
+    // `week_key` falls back to the month rather than being assumed present: a payload cached
+    // before returns carried one would otherwise bucket every fact under `undefined` and average
+    // the whole year into a single slice.
+    const bucket = (granularity === 'weekly' ? f.week_key : f.month_key) || f.month_key;
+    const sliceKey = `${bucket}-${wd}`;
     const dim = f[dimensionField] || 'Other';
     if (!sliceTotals.has(sliceKey)) {
       sliceTotals.set(sliceKey, { weekday: wd, weekday_label: f.weekday_label, dims: {} });
