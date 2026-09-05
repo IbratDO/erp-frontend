@@ -226,7 +226,9 @@
     "scanIncremented": "Количество увеличено: {{name}}",
     "scanUnknown": "Этикетка не найдена: {{code}}",
     "scanSoldOut": "В этой партии товара не осталось",
-    "scanAtStockCap": "В наличии только {{count}}"
+    "scanAtStockCap": "В наличии только {{count}}",
+    "abovePriceConfirm": "В {{count}} строке(ах) цена выше магазинной. Продолжить?",
+    "abovePriceLine": "{{asked}} — цена магазина {{shelf}}"
   },
   "customer": {
     "addTitle": "Новый клиент",

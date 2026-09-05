@@ -72,7 +72,8 @@
     "location": "Where from",
     "updated": "Updated",
     "total": "Total",
-    "frozenAt": "fixed at {{rate}}"
+    "frozenAt": "fixed at {{rate}}",
+    "product": "Product"
   },
   "notifications": {
     "errQuantity": "Please enter a valid quantity (at least 1).",
@@ -126,7 +127,45 @@
     "applyNotYours": "Only the Founder may write stock off.",
     "applied": "The books have been corrected.",
     "confirmApply": "Write off {{units}} units ({{amount}})? This cannot be undone.",
-    "errGeneric": "Something went wrong ({{step}})."
+    "errGeneric": "Something went wrong ({{step}}).",
+    "history": {
+      "title": "Stocktake history",
+      "intro": "Every stocktake stays here: who counted, when, what they found and what was written off. Counts that were abandoned are shown too.",
+      "loadFailed": "Could not load the history.",
+      "empty": "No stocktake has been done yet.",
+      "resume": "Resume counting",
+      "startedAt": "Started",
+      "startedBy": "Counted by",
+      "scope": "Stocktake type",
+      "status": "Status",
+      "appliedAt": "Corrected on",
+      "appliedBy": "Corrected by",
+      "scannedLines": "Layers scanned",
+      "countedUnits": "Units found",
+      "missingUnits": "Missing",
+      "surplusUnits": "Surplus",
+      "notCountedLines": "Layers not counted",
+      "loss": "Loss",
+      "lossUsd": "Loss (USD)",
+      "lossUzs": "Loss (UZS)",
+      "barcode": "Barcode",
+      "color": "Colour",
+      "verdict": "Verdict",
+      "reportTitle": "Stocktake #{{id}}",
+      "downloadOneHint": "Download this stocktake as a CSV for Excel",
+      "statuses": {
+        "open": "Counting",
+        "counted": "Counted — awaiting a decision",
+        "applied": "Books corrected",
+        "cancelled": "Cancelled"
+      },
+      "kinds": {
+        "match": "Matched",
+        "short": "Short",
+        "over": "Over",
+        "not_counted": "Not counted"
+      }
+    }
   },
   "layerPrice": {
     "button": "Edit",

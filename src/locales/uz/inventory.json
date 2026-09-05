@@ -72,7 +72,8 @@
     "location": "Qayerdan",
     "updated": "Yangilangan",
     "total": "Jami",
-    "frozenAt": "{{rate}} kursida qotirilgan"
+    "frozenAt": "{{rate}} kursida qotirilgan",
+    "product": "Mahsulot"
   },
   "notifications": {
     "errQuantity": "To‘g‘ri miqdorni kiriting (kamida 1).",
@@ -126,7 +127,45 @@
     "applyNotYours": "Hisobdan chiqarishni faqat Founder amalga oshiradi.",
     "applied": "Kitob tuzatildi.",
     "confirmApply": "{{units}} dona mahsulot ({{amount}}) hisobdan chiqarilsinmi? Bu amalni orqaga qaytarib boʻlmaydi.",
-    "errGeneric": "Xatolik yuz berdi ({{step}})."
+    "errGeneric": "Xatolik yuz berdi ({{step}}).",
+    "history": {
+      "title": "Ombor nazorati",
+      "intro": "Har bir inventarizatsiya shu yerda qoladi: kim sanagan, qachon, nima topilgan va qancha zarar hisobdan chiqarilgan. Bekor qilingan sanashlar ham koʻrsatiladi.",
+      "loadFailed": "Maʼlumotni yuklab boʻlmadi.",
+      "empty": "Hali inventarizatsiya qilinmagan.",
+      "resume": "Sanashni davom ettirish",
+      "startedAt": "Boshlangan sana",
+      "startedBy": "Kim sanadi",
+      "scope": "Inventarizatsiya turi",
+      "status": "Holati",
+      "appliedAt": "Tuzatilgan sana",
+      "appliedBy": "Kim tuzatdi",
+      "scannedLines": "Skanerlangan qatlamlar",
+      "countedUnits": "Topilgan dona",
+      "missingUnits": "Yetishmayapti",
+      "surplusUnits": "Ortiqcha",
+      "notCountedLines": "Sanalmagan qatlamlar",
+      "loss": "Zarar",
+      "lossUsd": "Zarar (USD)",
+      "lossUzs": "Zarar (soʻm)",
+      "barcode": "Shtrix-kod",
+      "color": "Rang",
+      "verdict": "Natija",
+      "reportTitle": "Inventarizatsiya #{{id}}",
+      "downloadOneHint": "Shu inventarizatsiyani Excel uchun CSV faylga yuklab olish",
+      "statuses": {
+        "open": "Sanalmoqda",
+        "counted": "Sanaldi — qaror kutilmoqda",
+        "applied": "Kitob tuzatildi",
+        "cancelled": "Bekor qilingan"
+      },
+      "kinds": {
+        "match": "Toʻgʻri",
+        "short": "Kam",
+        "over": "Ortiqcha",
+        "not_counted": "Sanalmadi"
+      }
+    }
   },
   "layerPrice": {
     "button": "Tahrirlash",

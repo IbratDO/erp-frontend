@@ -226,7 +226,9 @@
     "scanIncremented": "Quantity increased: {{name}}",
     "scanUnknown": "Label not found: {{code}}",
     "scanSoldOut": "This layer has no stock left",
-    "scanAtStockCap": "Only {{count}} in stock"
+    "scanAtStockCap": "Only {{count}} in stock",
+    "abovePriceConfirm": "Price is above the shop price on {{count}} line(s). Continue?",
+    "abovePriceLine": "{{asked}} — shop price {{shelf}}"
   },
   "customer": {
     "addTitle": "Add new customer",

@@ -226,7 +226,9 @@
     "scanIncremented": "Miqdor oshirildi: {{name}}",
     "scanUnknown": "Yorliq topilmadi: {{code}}",
     "scanSoldOut": "Bu qatlamda mahsulot qolmagan",
-    "scanAtStockCap": "Omborda faqat {{count}} dona bor"
+    "scanAtStockCap": "Omborda faqat {{count}} dona bor",
+    "abovePriceConfirm": "{{count}} ta qatorda narx do'kon narxidan yuqori. Davom etasizmi?",
+    "abovePriceLine": "{{asked}} — do'kon narxi {{shelf}}"
   },
   "customer": {
     "addTitle": "Yangi mijoz qo‘shish",

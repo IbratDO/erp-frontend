@@ -9,6 +9,7 @@
     "inventory": "Склад",
     "inventoryProducts": "Складские позиции",
     "packages": "Упаковка",
+    "stockCounts": "Контроль склада",
     "orders": "Заказы",
     "sales": "Продажи",
     "returns": "Возвраты",

@@ -43,6 +43,7 @@ export function clearLayerFromLine(line) {
     list_price: '',
     selling_price: '',
     discount_price: '',
+    catalog_price: '',
     packageLines: EMPTY_PKG_LINES(),
   };
 }
@@ -79,6 +80,11 @@ export function applyLayerToLine(line, layerId, ctx) {
     list_price: formatted,
     selling_price: formatted,
     discount_price: '',
+    // What the item is priced at in the shop's own records, kept apart from `list_price` because
+    // that one moves: raising the price above the shelf price makes the typed figure the new base
+    // so a discount afterwards comes off it. This stays put, and is the only thing left to compare
+    // against when deciding whether to warn that a sale is going out above its shelf price.
+    catalog_price: formatted,
   };
 }
 
@@ -176,6 +182,7 @@ export function convertLinesToCurrency(lines, nextCurrency, cbuRate) {
       list_price: convert(l.list_price),
       selling_price: convert(l.selling_price),
       discount_price: convert(l.discount_price),
+      catalog_price: convert(l.catalog_price),
     };
   });
 }
@@ -203,4 +210,71 @@ export function currencyForLayer(layerId, inventory, products) {
 /** The same question asked of a basket: what currency does its first row want? */
 export function currencyForFirstLine(lines, inventory, products) {
   return currencyForLayer((lines || [])[0]?.layer, inventory, products);
+}
+
+/**
+ * What the basket comes to.
+ *
+ * The two price columns are **per unit** — `selling_price` is what one unit costs after its
+ * discount, `discount_price` is what came off one unit — so both have to be multiplied by the
+ * quantity before they mean anything as a total. Summing the columns as they appear on screen
+ * would understate a basket of five pairs by a factor of five, and would look plausible while
+ * doing it.
+ *
+ * Only rows with an item count. A half-filled row is the seller mid-thought, not a line of the
+ * sale, and folding it in would make the total jump about as they work.
+ *
+ * `amount` is what the customer pays. `discount` is what they were let off, which is worth
+ * showing beside it — a basket can be discounted heavily one line at a time without anybody
+ * noticing the size of it until the day is totalled up.
+ */
+export function batchLineTotals(lines) {
+  let quantity = 0;
+  let amount = 0;
+  let discount = 0;
+  let filledLines = 0;
+
+  for (const l of lines || []) {
+    if (!l?.layer) continue;
+    filledLines += 1;
+    const qty = parseInt(l.quantity, 10);
+    if (!Number.isFinite(qty) || qty <= 0) continue;
+    quantity += qty;
+    const unit = parsePriceNum(l.selling_price);
+    if (unit != null && unit > 0) amount += unit * qty;
+    const off = parsePriceNum(l.discount_price);
+    if (off != null && off > 0) discount += off * qty;
+  }
+
+  return { quantity, amount, discount, filledLines };
+}
+
+/**
+ * Lines being sold for more than the shop's own price for them.
+ *
+ * Selling above the shelf price is legitimate — a scarce size, a rush, a customer who wants it
+ * today — and it is now allowed. But the commonest way to type a price above list is an extra
+ * zero, and 2 790 instead of 279 reads as a perfectly ordinary sale afterwards: nothing is short,
+ * nothing fails to balance, and revenue is ten times what it should be. So the seller is asked
+ * once, before it is saved.
+ *
+ * Compared against `catalog_price`, which is fixed when the item is chosen and never moves,
+ * rather than `list_price`, which rises to whatever was typed so a later discount comes off the
+ * right figure.
+ *
+ * Returns one entry per line so the message can name them; an empty array means nothing to ask.
+ */
+export function linesPricedAboveCatalogue(lines) {
+  const above = [];
+  for (const l of lines || []) {
+    if (!l?.layer) continue;
+    const asked = parsePriceNum(l.selling_price);
+    const shelf = parsePriceNum(l.catalog_price);
+    if (asked == null || shelf == null || shelf <= 0) continue;
+    // A hair over is rounding from a currency flip, not a decision. Only a real difference asks.
+    if (asked - shelf > 0.005) {
+      above.push({ key: l.key, asked, shelf, over: asked - shelf });
+    }
+  }
+  return above;
 }

@@ -31,6 +31,8 @@ import {
   EMPTY_PKG_LINES,
   applyLayerToLine,
   applyScanToBatchLines,
+  batchLineTotals,
+  linesPricedAboveCatalogue,
   clearLayerFromLine,
   convertLinesToCurrency,
   currencyForLayer,
@@ -187,10 +189,35 @@ function renderSaleQuantityCell(quantity, orderedQuantity, t) {
   );
 }
 
-function saleRowBackground(sale) {
-  if (parseFloat(sale.credit_amount) > 0 || sale.balance_shortfall_type === 'on_credit') return '#ffebee';
-  if (sale.balance_shortfall_type === 'discount') return '#fff3e0';
-  return undefined;
+/**
+ * How a sale row is tinted: sold on nasiya, sold at a discount, or neither.
+ *
+ * A class rather than an inline background, because the two rows that most need the tint already
+ * carry one of their own. `.sale-group-row td` and `.sale-group-detail-row td` paint their
+ * backgrounds on the *cells*, and a cell's background covers the row's — so the inline style this
+ * replaces was computed correctly, applied to the `<tr>`, and then painted over on every group.
+ * A credit group has never actually looked like one.
+ */
+export function saleRowTone(sale) {
+  if (!sale) return null;
+  if (parseFloat(sale.credit_amount) > 0 || sale.balance_shortfall_type === 'on_credit') {
+    return 'credit';
+  }
+  if (sale.balance_shortfall_type === 'discount') return 'discount';
+  return null;
+}
+
+/** The tone of a group: nasiya if any line in it was sold that way. */
+export function groupRowTone(sales) {
+  const tones = (sales || []).map(saleRowTone).filter(Boolean);
+  // Credit outranks discount — money still owed is the more important fact about a sale than a
+  // reduction already given, and a group can easily carry both.
+  if (tones.includes('credit')) return 'credit';
+  return tones.includes('discount') ? 'discount' : null;
+}
+
+function toneClass(tone, ...rest) {
+  return [...rest, tone ? `sale-row--${tone}` : null].filter(Boolean).join(' ') || undefined;
 }
 
 function renderDiscountCreditCell(sale, t) {
@@ -270,10 +297,27 @@ function formatDiscountForCurrency(discNum, saleCur) {
 }
 
 /** list = full price; discount = amount off; selling = final price shown in the form. */
+/** Line break for `window.confirm`, which shows plain text rather than markup. */
+const NL = String.fromCharCode(10);
+
+/**
+ * Keep the three prices on a line consistent: list, discount off it, and what is actually charged.
+ *
+ * The final price used to be clamped to the list price, so typing more than the shelf price
+ * silently snapped back down — a shop that sells a scarce size for more than it lists simply
+ * could not record what it charged. It is allowed now, and when it happens the **list rises to
+ * meet it**: the figure the seller typed becomes this line's price, so a discount entered
+ * afterwards comes off what they charged rather than off the old shelf price. Without that, 300
+ * then a 10 discount would land on 269 and the 300 would vanish with no explanation.
+ *
+ * The invariant the rest of the form relies on survives either way: `discount = list - final`,
+ * never negative. Selling above list is a higher price, not a negative discount.
+ */
 function applyListDiscountFinal(listNum, discNum, finalNum, saleCur) {
-  const list = listNum != null && listNum >= 0 ? listNum : 0;
-  let final = finalNum != null ? finalNum : list - Math.max(0, discNum ?? 0);
-  final = Math.max(0, Math.min(final, list));
+  const asked = listNum != null && listNum >= 0 ? listNum : 0;
+  let final = finalNum != null ? finalNum : asked - Math.max(0, discNum ?? 0);
+  final = Math.max(0, final);
+  const list = Math.max(asked, final);
   const discount = Math.max(0, list - final);
   return {
     list_price: formatSalePriceForCurrency(list, saleCur),
@@ -907,6 +951,8 @@ const Sales = () => {
     });
   };
 
+  const batchTotals = useMemo(() => batchLineTotals(batchLines), [batchLines]);
+
   const addBatchLine = () => {
     setBatchLines((lines) => [...lines, emptyBatchLine()]);
   };
@@ -1015,6 +1061,23 @@ const Sales = () => {
     for (const l of withProduct) {
       if (l.selling_price === '' || l.selling_price == null) {
         showNotification(t('notifications.errSellingPrice'), 'error');
+        return;
+      }
+    }
+    // Selling above the shelf price is allowed; typing an extra zero is not something the shop
+    // finds out about later. Asked once, here, because afterwards a ten-times price reads as an
+    // ordinary sale — nothing is short and nothing fails to balance.
+    const aboveList = linesPricedAboveCatalogue(withProduct);
+    if (aboveList.length) {
+      const cur = batchDefaults.sale_currency || 'USD';
+      const detail = aboveList
+        .map((r) => t('batch.abovePriceLine', {
+          asked: formatDisplayAmount(r.asked, cur),
+          shelf: formatDisplayAmount(r.shelf, cur),
+        }))
+        .join(NL);
+      const message = `${t('batch.abovePriceConfirm', { count: aboveList.length })}${NL}${NL}${detail}`;
+      if (!window.confirm(message)) {
         return;
       }
     }
@@ -3459,6 +3522,38 @@ const Sales = () => {
                       );
                     })}
                   </tbody>
+                  {/*
+                    What the basket comes to, under the columns it is made of.
+
+                    In a `tfoot` rather than a last row of the body so it stays a summary rather
+                    than something the seller can try to edit or delete, and so it keeps its place
+                    if the table ever scrolls.
+
+                    The money sits under "Sotuv narxi", whose cells are per-unit prices — the
+                    figure here is the extended total, which is why the row is labelled and the
+                    amount carries its currency. The Sotuv table's own footer reads the same way.
+                  */}
+                  <tfoot>
+                    <tr className="batch-sale-lines__total">
+                      <td colSpan={3} className="batch-sale-lines__total-label">
+                        {t('table.totalFooter')}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        {batchTotals.quantity || '—'}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        {batchTotals.amount > 0
+                          ? formatDisplayAmount(batchTotals.amount, batchDefaults.sale_currency || 'USD')
+                          : '—'}
+                      </td>
+                      <td className="batch-sale-lines__td--num">
+                        {batchTotals.discount > 0
+                          ? formatDisplayAmount(batchTotals.discount, batchDefaults.sale_currency || 'USD')
+                          : '—'}
+                      </td>
+                      <td colSpan={2} />
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             </div>
@@ -3740,7 +3835,7 @@ const Sales = () => {
                 if (row.type === 'single') {
                   const sale = row.sale;
                   return (
-                    <tr key={row.key} style={{ backgroundColor: saleRowBackground(sale) }}>
+                    <tr key={row.key} className={toneClass(saleRowTone(sale))}>
                       <td>#{sale.id}</td>
                       <td>{formatAppDateTime(sale.display_date || sale.sale_date)}</td>
                       <td>{renderSaleActionsCell(sale)}</td>
@@ -3753,14 +3848,13 @@ const Sales = () => {
                 const sale = agg.first;
                 const expanded = expandedSaleGroups.has(row.groupId);
                 const saleTypeLabel = sale?.sale_type ? t(`saleTypes.${sale.sale_type}`, { ns: 'sales' }) : '—';
-                const flagged = row.sales.find((s) => saleRowBackground(s));
-                const groupBg = flagged ? saleRowBackground(flagged) : undefined;
+                const groupTone = groupRowTone(row.sales);
 
                 return (
                   <React.Fragment key={row.key}>
                     <tr
-                      className="sale-group-row"
-                      style={{ backgroundColor: groupBg, cursor: 'pointer' }}
+                      className={toneClass(groupTone, 'sale-group-row')}
+                      style={{ cursor: 'pointer' }}
                       onClick={(e) => {
                         if (e.target.closest('button')) return;
                         toggleSaleGroup(row.groupId);
@@ -3844,7 +3938,10 @@ const Sales = () => {
                     </tr>
                     {expanded &&
                       row.sales.map((item) => (
-                        <tr key={`${row.key}-item-${item.id}`} className="sale-group-detail-row">
+                        <tr
+                          key={`${row.key}-item-${item.id}`}
+                          className={toneClass(saleRowTone(item), 'sale-group-detail-row')}
+                        >
                           <td colSpan="3" aria-hidden />
                           {renderSaleProductCells(item, { detail: true })}
                         </tr>

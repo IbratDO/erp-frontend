@@ -3,11 +3,10 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Modal, { WIDE } from './Modal';
 import api from '../utils/api';
 import useAppTranslation from '../hooks/useAppTranslation';
-import { usePermissions } from '../hooks/usePermissions';
 import useBarcodeScanner from '../hooks/useBarcodeScanner';
 import { normalizeScan } from '../utils/layerBarcode';
 import { beepError, beepOk, primeScanBeep } from '../utils/scanBeep';
-import { formatLabelPrice } from '../utils/layerLabel';
+import StockCountReport from './StockCountReport';
 
 /**
  * Inventarizatsiya — walking the shop with a scanner and putting the books right afterwards.
@@ -17,15 +16,15 @@ import { formatLabelPrice } from '../utils/layerLabel';
  *
  *   no count   → choose what is being counted, and start
  *   open       → scan, with a running tally
- *   counted    → what was found, and (for those allowed) the button that corrects the books
+ *   counted    → what was found
  *
- * The counting screen writes nothing anyone can lose money over. Only **Apply** does, and it is
- * hidden from anyone without `inventory.count_apply` — the CEO counts, the Founder decides.
+ * **Nothing in this window changes stock or money.** It used to end with an Apply button that
+ * wrote the shortage off; that was removed at the owner's instruction, so a count now records
+ * what was seen and stops there. Every count is kept on the Ombor nazorati page, which is where
+ * what it found gets read and acted on.
  */
-export default function StockCountModal({ open, onClose, onApplied }) {
+export default function StockCountModal({ open, onClose }) {
   const { t } = useAppTranslation(['inventory', 'common']);
-  const { hasPermission } = usePermissions();
-  const canApply = hasPermission('inventory.count_apply');
 
   const [count, setCount] = useState(null);
   const [lines, setLines] = useState([]);
@@ -139,19 +138,6 @@ export default function StockCountModal({ open, onClose, onApplied }) {
     });
     await loadLines(count.id);
   }, 'correct');
-
-  const apply = () => act(async () => {
-    const totals = report?.totals;
-    if (!window.confirm(t('stockCount.confirmApply', {
-      units: totals?.missing_units ?? 0,
-      amount: formatLabelPrice({ amount: Number(totals?.loss_usd) || 0, currency: 'USD' })
-        || '0.00 y.e',
-    }))) return;
-    const res = await api.post(`/stock-counts/${count.id}/apply/`);
-    setCount(res.data.stock_count);
-    await loadReport(count.id);
-    onApplied?.();
-  }, 'apply');
 
   // Only what has actually been scanned, newest first. The full list is every layer in the shop
   // and would bury the two lines the person is looking at.
@@ -272,111 +258,8 @@ export default function StockCountModal({ open, onClose, onApplied }) {
 
       {/* ---- the result, and the decision ----------------------------------------------- */}
       {(status === 'counted' || status === 'applied') && report && (
-        <StockCountReport
-          report={report}
-          status={status}
-          canApply={canApply}
-          busy={busy}
-          onApply={apply}
-          onClose={onClose}
-          t={t}
-        />
+        <StockCountReport report={report} status={status} onClose={onClose} />
       )}
     </Modal>
-  );
-}
-
-/** The four buckets, and what the shortage is worth. Split out only to keep the file readable. */
-function StockCountReport({ report, status, canApply, busy, onApply, onClose, t }) {
-  const { totals, verdicts } = report;
-  const notable = verdicts.filter((v) => v.kind === 'short' || v.kind === 'over');
-
-  return (
-    <div>
-      <div className="stock-count__totals">
-        <span className="stock-count__chip stock-count__chip--ok">
-          {t('stockCount.totalMatch', { count: totals.match })}
-        </span>
-        <span className="stock-count__chip stock-count__chip--short">
-          {t('stockCount.totalShort', { count: totals.short, units: totals.missing_units })}
-        </span>
-        <span className="stock-count__chip stock-count__chip--over">
-          {t('stockCount.totalOver', { count: totals.over })}
-        </span>
-        <span className="stock-count__chip">
-          {t('stockCount.totalNotCounted', { count: totals.not_counted })}
-        </span>
-      </div>
-
-      <p style={{ margin: '12px 0', fontWeight: 600 }}>
-        {t('stockCount.lossTotal', {
-          usd: formatLabelPrice({ amount: Number(totals.loss_usd) || 0, currency: 'USD' }) || '—',
-          uzs: formatLabelPrice({ amount: Number(totals.loss_uzs) || 0, currency: 'UZS' }) || '—',
-        })}
-      </p>
-
-      <div className="data-table-scroll">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>{t('table.layerNo')}</th>
-              <th>{t('table.product')}</th>
-              <th>{t('stockCount.expectedAtStart')}</th>
-              <th>{t('stockCount.movedSince')}</th>
-              <th>{t('stockCount.systemNow')}</th>
-              <th>{t('stockCount.counted')}</th>
-              <th>{t('stockCount.difference')}</th>
-              <th>{t('stockCount.loss')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {notable.length === 0 ? (
-              <tr><td colSpan="8" style={{ textAlign: 'center' }}>{t('stockCount.allMatched')}</td></tr>
-            ) : notable.map((v) => (
-              <tr key={v.batch_id} className={v.kind === 'short' ? 'row-short' : 'row-over'}>
-                <td>#{v.batch_id}</td>
-                <td>
-                  {v.line?.product_detail
-                    ? `${v.line.product_detail.brand} | ${v.line.product_detail.model} · ${v.line.product_detail.size}`
-                    : '-'}
-                </td>
-                <td>{v.expected_at_start}</td>
-                {/* Nearly always the till. Shown so a difference a sale caused is not chased. */}
-                <td>{v.moved_since_start || '—'}</td>
-                <td>{v.system_now}</td>
-                <td><strong>{v.counted == null ? '—' : v.counted}</strong></td>
-                <td><strong>{v.difference > 0 ? `+${v.difference}` : v.difference}</strong></td>
-                <td>
-                  {v.missing > 0
-                    ? formatLabelPrice({ amount: Number(v.loss_usd) || 0, currency: 'USD' }) || '—'
-                    : '—'}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {totals.over > 0 && (
-        <p className="stock-count__note">{t('stockCount.surplusNote')}</p>
-      )}
-
-      <div className="form-actions">
-        {status === 'counted' && canApply && (
-          <button type="button" className="btn-danger-action" onClick={onApply} disabled={busy}>
-            {t('stockCount.apply')}
-          </button>
-        )}
-        {status === 'counted' && !canApply && (
-          <span className="stock-count__note">{t('stockCount.applyNotYours')}</span>
-        )}
-        {status === 'applied' && (
-          <span className="stock-count__note">{t('stockCount.applied')}</span>
-        )}
-        <button type="button" className="btn-edit" onClick={onClose}>
-          {t('actions.close', { ns: 'common' })}
-        </button>
-      </div>
-    </div>
   );
 }

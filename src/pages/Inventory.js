@@ -1272,10 +1272,11 @@ const Inventory = () => {
         onSaved={fetchInventory}
       />
 
+      {/* Counting no longer changes stock, so there is nothing to refresh on the way out — but a
+          count can run for a while and the table behind it will have moved on regardless. */}
       <StockCountModal
         open={showStockCount}
-        onClose={() => setShowStockCount(false)}
-        onApplied={fetchInventory}
+        onClose={() => { setShowStockCount(false); fetchInventory(); }}
       />
     </div>
   );

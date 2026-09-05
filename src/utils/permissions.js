@@ -8,6 +8,7 @@ export const ROUTE_PERMISSIONS = {
   '/products': 'products.view',
   '/inventory/products': 'inventory.view',
   '/inventory/packages': 'packages.view',
+  '/inventory/stock-counts': 'inventory.count',
   '/orders': 'orders.view',
   '/sales': 'sales.view',
   '/returns': 'returns.view',
@@ -86,10 +87,13 @@ export const MENU_ITEMS = [
     labelKey: 'nav.inventory',
     icon: '📦',
     isDropdown: true,
-    permissionAny: ['inventory.view', 'packages.view'],
+    permissionAny: ['inventory.view', 'packages.view', 'inventory.count'],
     subItems: [
       { path: '/inventory/products', labelKey: 'nav.inventoryProducts', icon: '📦', permission: 'inventory.view' },
       { path: '/inventory/packages', labelKey: 'nav.packages', icon: '📮', permission: 'packages.view' },
+      // Counting the shelves is its own permission, not `inventory.view`: a Sales Manager reads
+      // the stock table all day and has no business in the write-off history.
+      { path: '/inventory/stock-counts', labelKey: 'nav.stockCounts', icon: '📋', permission: 'inventory.count' },
     ],
   },
   { path: '/orders', labelKey: 'nav.orders', icon: '🛒', permission: 'orders.view' },

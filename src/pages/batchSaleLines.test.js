@@ -37,7 +37,9 @@ describe('emptyBatchLine', () => {
     // The four places that used to build this by hand had already drifted; a missing field
     // reaches the submit handler as `undefined`.
     expect(Object.keys(emptyBatchLine()).sort()).toEqual([
-      'category', 'discount_price', 'inventory_batch_id', 'key', 'layer',
+      // `catalog_price` joined the list when selling above the shelf price was allowed: it holds
+      // the shop's own figure, which `list_price` no longer does once a higher price is typed.
+      'catalog_price', 'category', 'discount_price', 'inventory_batch_id', 'key', 'layer',
       'list_price', 'packageLines', 'product', 'quantity', 'selling_price',
     ]);
   });

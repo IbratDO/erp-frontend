@@ -1222,6 +1222,15 @@
 .data-table tbody tr.row-short > td { background-color: #fef2f2; }
 .data-table tbody tr.row-over > td { background-color: #fffbeb; }
 
+/* ---- Ombor nazorati: the history of counts -------------------------------------------------
+   The status column was dropped from the table, so the row tint is the only thing left carrying
+   it. That is enough for the two states worth spotting at a glance.
+
+   A count still open is unfinished work sitting at the top of a list of finished ones. `td`
+   rather than `tr` — the cell background paints over the row's. */
+.data-table tbody tr.stock-count-row--open > td { background-color: #eff6ff; }
+.data-table tbody tr.stock-count-row--cancelled > td { color: #94a3b8; }
+
 /* Re-pricing one shelf line. */
 .layer-price__item {
   margin: 0 0 .35rem;
@@ -2077,4 +2086,76 @@ input.batch-sale-lines__control[type='number']::-webkit-outer-spin-button {
 .sale-currency-select--uzs {
   background-color: #fdf5d8;
   border-color: #e3cf8a;
+}
+
+/*
+  The basket total.
+
+  Sits under the line items and has to read as a conclusion rather than another row: heavier
+  weight, a rule above it, and a tint so the eye stops there. The rule is on the cells rather than
+  the row because a `<tr>` cannot carry a border in a table with collapsed borders.
+*/
+.batch-sale-lines__total > td {
+  border-top: 2px solid #cbd5e1;
+  background: #f8fafc;
+  font-weight: 600;
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.batch-sale-lines__total-label {
+  text-align: right;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.85em;
+}
+
+/*
+  Sales sold on nasiya, and sales sold at a discount.
+
+  Set on the cells, not the row. `.sale-group-row td` and `.sale-group-detail-row td` already
+  paint their own backgrounds, and a cell's background covers whatever the row underneath it is
+  painted — which is why the group heading of a credit sale used to come out plain blue however
+  correctly the colour was calculated.
+
+  Each rule below is deliberately one class more specific than the structural rule it has to beat,
+  so the tone wins on a group heading, on the lines under it, and on an ordinary row alike.
+
+  Colour is never the only signal: the Chegirma / Nasiya column spells out which it is, and the
+  Qarzdorlik page carries the debt itself. This is a way to spot them while scanning, not the
+  record.
+*/
+.sale-row--credit > td {
+  background: #ffe3e6;
+}
+
+.sale-row--discount > td {
+  background: #fff3e0;
+}
+
+/* Group headings keep their blue left edge, so a tinted one still reads as a group. */
+.sale-group-row.sale-row--credit > td {
+  background: #ffdadf;
+}
+
+.sale-group-row.sale-row--discount > td {
+  background: #ffeed6;
+}
+
+.sale-group-row.sale-row--credit:hover > td {
+  background: #ffccd3;
+}
+
+.sale-group-row.sale-row--discount:hover > td {
+  background: #ffe4bf;
+}
+
+/* Lines inside an open group: paler, since the heading above already carries the signal. */
+.sale-group-detail-row.sale-row--credit > td {
+  background: #fff0f2;
+}
+
+.sale-group-detail-row.sale-row--discount > td {
+  background: #fff8ee;
 }
