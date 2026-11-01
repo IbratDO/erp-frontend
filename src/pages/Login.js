@@ -45,7 +45,6 @@ const Login = () => {
     <div className="login-container">
       <div className="login-box">
         <h1>{shopName}</h1>
-        <h2>{t('app.subtitle')}</h2>
         <BusyForm onSubmit={handleSubmit}>
           <div className="form-group">
             <label htmlFor="username">{t('auth.username')}</label>
