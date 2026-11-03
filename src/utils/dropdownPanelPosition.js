@@ -1,7 +1,7 @@
 /**
  * Where a dropdown panel goes, for the six pickers that open one.
  *
- * **On a phone the panel opens upward; everywhere else it opens downward, as before.**
+ * **On a phone or tablet the panel opens upward; on a desktop it opens downward, as before.**
  *
  * The reason is the Mahsulot picker in the Sotuvlar batch form, but the fault was never specific
  * to it. Every one of these panels is `position: fixed` and anchored at `trigger.bottom + gap`,
@@ -11,12 +11,18 @@
  * 650px screen and the panel is told it may be 340px tall starting at y≈400, so a third of the list
  * is simply off the bottom of the glass, and the page behind it scrolls instead.
  *
- * Opening upward on mobile is the owner's call, taken over auto-flipping by whichever side has more
- * room. Auto-flip is the more usual answer and it was offered; always-up was chosen because it is
+ * **A tablet has the same fault, and the owner reported it after the phone fix shipped.** The reason
+ * it is not a desktop is height, not width: an iPad in landscape is 1024 wide but only 768 tall, so
+ * a field two thirds of the way down the page is as badly off as on a phone. Width is what this
+ * function can actually measure at the moment a panel opens, and below 1024 every device is one of
+ * the two shapes that suffer — so the tier is a width even though the cause is a height.
+ *
+ * Opening upward is the owner's call, taken over auto-flipping by whichever side has more room.
+ * Auto-flip is the more usual answer and it was offered; always-up was chosen because it is
  * predictable — the list appears in the same place relative to your thumb every time, which matters
  * more at a counter than squeezing out the last few rows.
  *
- * **The one case where it still opens down on a phone** is a trigger with less than
+ * **The one case where it still opens down** is a trigger with less than
  * `MIN_USABLE_HEIGHT` above it — a field at the very top of the screen. That is not auto-flip
  * creeping back in: upward there would mean a panel two rows tall, which is worse than the problem
  * being fixed. It is a floor, not a preference, which is why it is a height test and not a
@@ -27,8 +33,15 @@
  * bottom edge above the trigger lets it grow and shrink from there without a second measure pass.
  */
 
-/** Phone tier. The same 600px the stylesheets use, so the two cannot disagree. */
-export const DROPDOWN_MOBILE_MAX_WIDTH = 600;
+/**
+ * Widest screen that opens its dropdowns upward: phone and tablet, not desktop.
+ *
+ * 1024 because that is an iPad in landscape — the widest of the shapes that suffer — and because
+ * it stays below the window widths a laptop browser is actually opened at. It is deliberately not
+ * one of the stylesheet's breakpoints: those describe where a *layout* changes, and none of them
+ * happens to mean "phone or tablet". Changing this one number moves the whole behaviour.
+ */
+export const DROPDOWN_FLIP_UP_MAX_WIDTH = 1024;
 
 /** Breathing room kept between the panel and the edge of the screen. */
 const EDGE_GAP = 8;
@@ -36,6 +49,8 @@ const EDGE_GAP = 8;
 /**
  * Below this, opening upward is not worth doing — roughly two rows plus the search box. A field
  * this close to the top of the screen opens downward instead, where there is a whole screen free.
+ * It is a floor, not a preference: it asks only whether upward is usable, never which side is
+ * roomier, which is what keeps this from quietly becoming the auto-flip that was turned down.
  */
 const MIN_USABLE_HEIGHT = 160;
 
@@ -50,8 +65,12 @@ const MIN_USABLE_HEIGHT = 160;
  *          one of `top` and `bottom` is a number; the other is `undefined`, which React omits.
  */
 export default function dropdownPanelPosition(rect, { minWidth = 200, gap = 4, maxHeight = 340 } = {}) {
-  const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
-  const vh = typeof window !== 'undefined' ? window.innerHeight : 768;
+  // The no-window fallback is a desktop width on purpose. It used to be 1024, which was harmless
+  // while the tier was 600 and would now be the opposite of harmless: 1024 is exactly the tier, so
+  // a render with no `window` would flip upward -- the one direction it cannot verify there is room
+  // for. Without a window there is no screen to run off, and downward is the older behaviour.
+  const vw = typeof window !== 'undefined' ? window.innerWidth : 1440;
+  const vh = typeof window !== 'undefined' ? window.innerHeight : 900;
 
   const w = Math.max(rect.width, minWidth);
   const width = Math.min(w, vw - 16);
@@ -59,7 +78,7 @@ export default function dropdownPanelPosition(rect, { minWidth = 200, gap = 4, m
 
   const roomAbove = rect.top - gap - EDGE_GAP;
 
-  if (vw <= DROPDOWN_MOBILE_MAX_WIDTH && roomAbove >= MIN_USABLE_HEIGHT) {
+  if (vw <= DROPDOWN_FLIP_UP_MAX_WIDTH && roomAbove >= MIN_USABLE_HEIGHT) {
     return {
       top: undefined,
       bottom: vh - rect.top + gap,

@@ -8,9 +8,12 @@
  * The cases chosen are the ones that decide whether the owner's instruction was actually carried
  * out — opens upward on a phone, never runs off either edge, and desktop is left alone.
  */
-import dropdownPanelPosition, { DROPDOWN_MOBILE_MAX_WIDTH } from './dropdownPanelPosition';
+import dropdownPanelPosition, { DROPDOWN_FLIP_UP_MAX_WIDTH } from './dropdownPanelPosition';
 
 const PHONE = { w: 390, h: 844 };
+/** iPad in landscape: wide, but only 768 tall, which is why it has the phone's problem. */
+const TABLET_LANDSCAPE = { w: 1024, h: 768 };
+const TABLET_PORTRAIT = { w: 768, h: 1024 };
 const DESKTOP = { w: 1440, h: 900 };
 
 function withViewport({ w, h }, fn) {
@@ -30,6 +33,47 @@ function withViewport({ w, h }, fn) {
 function rect({ top, left = 20, width = 200, height = 36 }) {
   return { top, left, width, height, bottom: top + height, right: left + width };
 }
+
+describe('on a tablet', () => {
+  // Added after the owner reported the phone fix had not helped on a tablet. An iPad in landscape
+  // is wider than a laptop is tall, which is exactly why a width-only tier of 600 missed it.
+  it('opens upward in landscape, where the screen is only 768 tall', () => {
+    const pos = withViewport(TABLET_LANDSCAPE, () => dropdownPanelPosition(rect({ top: 500 }), { gap: 4 }));
+    expect(pos.top).toBeUndefined();
+    expect(pos.bottom).toBe(272);
+  });
+
+  it('opens upward in portrait too', () => {
+    const pos = withViewport(TABLET_PORTRAIT, () => dropdownPanelPosition(rect({ top: 600 }), { gap: 4 }));
+    expect(pos.top).toBeUndefined();
+  });
+
+  it('treats exactly 1024 as a tablet, and one pixel more as a desktop', () => {
+    const at = withViewport({ w: DROPDOWN_FLIP_UP_MAX_WIDTH, h: 768 },
+      () => dropdownPanelPosition(rect({ top: 500 }), { gap: 4 }));
+    const over = withViewport({ w: DROPDOWN_FLIP_UP_MAX_WIDTH + 1, h: 768 },
+      () => dropdownPanelPosition(rect({ top: 500 }), { gap: 4 }));
+    expect(at.top).toBeUndefined();
+    expect(over.bottom).toBeUndefined();
+  });
+});
+
+describe('with no window at all', () => {
+  it('opens downward, rather than flipping on the fallback width', () => {
+    // The fallback used to be 1024, which is now exactly the tier -- it would have flipped upward
+    // in the one situation where there is no screen to measure room against.
+    const realWindow = global.window;
+    // eslint-disable-next-line no-global-assign
+    delete global.window;
+    try {
+      const pos = dropdownPanelPosition(rect({ top: 500 }), { gap: 4 });
+      expect(pos.bottom).toBeUndefined();
+      expect(pos.top).toBe(540);
+    } finally {
+      global.window = realWindow;
+    }
+  });
+});
 
 describe('on a phone', () => {
   it('opens upward: the panel is pinned by its bottom edge, not its top', () => {
@@ -58,14 +102,6 @@ describe('on a phone', () => {
     const pos = withViewport(PHONE, () => dropdownPanelPosition(rect({ top: 60 }), { gap: 4 }));
     expect(pos.bottom).toBeUndefined();
     expect(pos.top).toBe(100);
-  });
-
-  it('treats exactly the breakpoint width as a phone', () => {
-    const pos = withViewport(
-      { w: DROPDOWN_MOBILE_MAX_WIDTH, h: 800 },
-      () => dropdownPanelPosition(rect({ top: 500 }), { gap: 4 }),
-    );
-    expect(pos.top).toBeUndefined();
   });
 
   it('keeps a wide panel inside the left and right edges', () => {
