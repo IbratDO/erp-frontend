@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import selectedFirst from '../utils/selectedFirst';
+import dropdownPanelPosition from '../utils/dropdownPanelPosition';
 
 function normalizeOptions(options) {
   return (options || []).map((o) =>
@@ -54,12 +55,11 @@ export default function FilterSearchableSelect({
   const updatePanelPos = useCallback(() => {
     const el = triggerRef.current;
     if (!el) return;
-    const r = el.getBoundingClientRect();
-    const vw = typeof window !== 'undefined' ? window.innerWidth : 1024;
-    const w = Math.max(r.width, 200);
-    const width = Math.min(w, vw - 16);
-    const left = Math.min(Math.max(8, r.left), vw - width - 8);
-    setPanelPos({ top: r.bottom + 4, left, width });
+    setPanelPos(dropdownPanelPosition(el.getBoundingClientRect(), {
+      minWidth: 200,
+      gap: 4,
+      maxHeight: 340,
+    }));
   }, []);
 
   useLayoutEffect(() => {
@@ -130,7 +130,10 @@ export default function FilterSearchableSelect({
             aria-label={ariaLabel}
             style={{
               position: 'fixed',
+              // Exactly one of these is a number: `bottom` on a phone (panel above the trigger),
+              // `top` everywhere else. See `dropdownPanelPosition`.
               top: panelPos.top,
+              bottom: panelPos.bottom,
               left: panelPos.left,
               width: panelPos.width,
               zIndex: 10050,
@@ -140,7 +143,7 @@ export default function FilterSearchableSelect({
               boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
               display: 'flex',
               flexDirection: 'column',
-              maxHeight: 'min(340px, calc(100vh - 96px))',
+              maxHeight: panelPos.maxHeight,
             }}
           >
             <div style={{ padding: 8, borderBottom: '1px solid #eee', flexShrink: 0 }}>

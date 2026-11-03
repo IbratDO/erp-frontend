@@ -201,7 +201,7 @@
     "onCredit": "Kreditga"
   },
   "batch": {
-    "title": "Ko‘p mahsulotli sotuv (bitta mijoz)",
+    "title": "Sotuv",
     "intro": "Har bir mahsulot uchun alohida qator qo‘shing. Mijoz va quyidagi sotuv turi hamda valyuta barcha qatorlarga qo‘llanadi. Har bir qator alohida sotuv bo‘ladi (holat: kutilmoqda — ro‘yxatda yangilang).",
     "filterCategory": "Kategoriya",
     "allCategories": "Barcha kategoriyalar",

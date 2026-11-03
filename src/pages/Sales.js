@@ -3459,9 +3459,10 @@ const Sales = () => {
         closeOnBackdrop={false}
         width={WIDE}
       >
-          <p style={{ color: '#555', fontSize: '0.9em', marginTop: 0, marginBottom: 16 }}>
-            {t('batch.intro')}
-          </p>
+          {/* The `batch.intro` paragraph used to sit here, explaining that each line becomes its
+              own pending sale. The owner asked for it to go: it was four lines of standing
+              instruction above a form the staff use every day, and it pushed the first field below
+              the fold on a phone. The strings stay in the three locale files so it can come back. */}
           <BusyForm onSubmit={handleBatchSubmit}>
             <div className="sales-batch-header-row">
               <div className="form-group">

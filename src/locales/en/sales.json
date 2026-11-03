@@ -201,7 +201,7 @@
     "onCredit": "On credit"
   },
   "batch": {
-    "title": "Multi-item sale (one customer)",
+    "title": "Sale",
     "intro": "Add one line per product. The customer and sale type and currency below apply to every line. Each line becomes a separate sale (status: pending — update in the list as usual).",
     "filterCategory": "Category",
     "allCategories": "All categories",
