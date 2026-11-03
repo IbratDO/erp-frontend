@@ -104,6 +104,20 @@ describe('on a phone', () => {
     expect(pos.top).toBe(100);
   });
 
+  it('clamps that downward fallback too, rather than letting it run off the bottom', () => {
+    // The gap between the first two fixes: direction was handled, height was not, so this branch
+    // could still hand back a 340px panel on a short screen.
+    const pos = withViewport({ w: 390, h: 420 }, () => dropdownPanelPosition(rect({ top: 60 }), { gap: 4, maxHeight: 340 }));
+    expect(pos.top).toBe(100);
+    // 420 - 96 - 4 - 8 = 312, not 340.
+    expect(pos.maxHeight).toBe(312);
+  });
+
+  it('never returns a zero-height panel for a trigger scrolled off the bottom edge', () => {
+    const pos = withViewport(PHONE, () => dropdownPanelPosition(rect({ top: 840 }), { gap: 4 }));
+    expect(pos.maxHeight).toBeGreaterThanOrEqual(96);
+  });
+
   it('keeps a wide panel inside the left and right edges', () => {
     // A 280px floor on a 390px screen, from a trigger near the right edge.
     const pos = withViewport(PHONE, () => dropdownPanelPosition(
@@ -123,16 +137,28 @@ describe('on a desktop', () => {
     expect(pos.top).toBe(540);
   });
 
-  it('keeps the viewport-based max height it always had', () => {
-    // Deliberately not clamped to the room below -- that would shorten panels near the bottom of a
-    // desktop window, which is a different change than the one asked for.
-    const pos = withViewport(DESKTOP, () => dropdownPanelPosition(rect({ top: 820 }), { maxHeight: 300 }));
-    expect(pos.maxHeight).toBe('min(300px, calc(100vh - 96px))');
+  it('clamps a downward panel to the room below it, instead of to the window height', () => {
+    // **The bug the owner hit on a tablet, reproduced at desktop size.** The old value here was the
+    // literal string `min(300px, calc(100vh - 96px))`, which asks how tall the window is and never
+    // where the trigger sits. 900 - 656 - 4 - 8 = 232.
+    const pos = withViewport(DESKTOP, () => dropdownPanelPosition(rect({ top: 620 }), { gap: 4, maxHeight: 300 }));
+    expect(pos.top).toBe(660);
+    expect(pos.maxHeight).toBe(232);
   });
 
-  it('opens downward even low on the screen, where a phone would have flipped', () => {
+  it('still prefers downward low on the screen, so long as downward is usable', () => {
+    const pos = withViewport(DESKTOP, () => dropdownPanelPosition(rect({ top: 660 }), { gap: 4 }));
+    expect(pos.top).toBe(700);
+    expect(pos.maxHeight).toBe(192);
+  });
+
+  it('flips up only when downward would be unusable', () => {
+    // A field 40px from the bottom of a desktop window. Downward gives ~0 rows; the floor applies
+    // in this direction too now, which it did not before.
     const pos = withViewport(DESKTOP, () => dropdownPanelPosition(rect({ top: 850 }), { gap: 4 }));
-    expect(pos.top).toBe(890);
+    expect(pos.top).toBeUndefined();
+    // 838px free above, so the picker's own 340 cap is what limits it, not the screen.
+    expect(pos.maxHeight).toBe(340);
   });
 });
 

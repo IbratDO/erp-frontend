@@ -25,8 +25,15 @@
  * **The one case where it still opens down** is a trigger with less than
  * `MIN_USABLE_HEIGHT` above it — a field at the very top of the screen. That is not auto-flip
  * creeping back in: upward there would mean a panel two rows tall, which is worse than the problem
- * being fixed. It is a floor, not a preference, which is why it is a height test and not a
- * comparison between the two sides.
+ * being fixed. It is a floor, not a preference.
+ *
+ * **Whichever way it opens, the panel is clamped to the room it opens into.** This was the piece
+ * missing from the first two attempts: the direction was fixed but the height was still taken from
+ * the window, so a downward panel — on a desktop, or on a tablet whose field sat too near the top
+ * to flip — could still be told it had 340px when the screen had 120. A `position: fixed` panel
+ * that overruns the edge cannot be scrolled to, because the page behind it is what scrolls, so
+ * those rows are unreachable rather than merely below the fold. Clamping is what actually makes the
+ * list complete; the direction only decides whether it is cramped or roomy.
  *
  * Anchoring upward uses `bottom`, not a computed `top`, deliberately — the panel's own height is
  * not known until it has rendered, and it changes as the search box filters the list. Pinning the
@@ -77,27 +84,31 @@ export default function dropdownPanelPosition(rect, { minWidth = 200, gap = 4, m
   const left = Math.min(Math.max(EDGE_GAP, rect.left), vw - width - EDGE_GAP);
 
   const roomAbove = rect.top - gap - EDGE_GAP;
+  const roomBelow = vh - rect.bottom - gap - EDGE_GAP;
 
-  if (vw <= DROPDOWN_FLIP_UP_MAX_WIDTH && roomAbove >= MIN_USABLE_HEIGHT) {
-    return {
-      top: undefined,
-      bottom: vh - rect.top + gap,
-      left,
-      width,
-      // Clamped to what is actually free above, so the panel can never run off the top edge —
-      // the failure the owner was warned about when choosing always-up.
-      maxHeight: Math.min(maxHeight, roomAbove),
-    };
-  }
+  // Which way it opens. The preference is upward on a phone or tablet, downward on a desktop; the
+  // second half of each test is the floor described above, and it now guards **both** directions.
+  // It used to guard only the upward one, which is how a downward panel could still be told it may
+  // be 340px tall with 120px of screen left under it.
+  const openUp = vw <= DROPDOWN_FLIP_UP_MAX_WIDTH
+    ? roomAbove >= MIN_USABLE_HEIGHT || roomAbove >= roomBelow
+    : roomBelow < MIN_USABLE_HEIGHT && roomAbove > roomBelow;
 
-  return {
-    top: rect.bottom + gap,
-    bottom: undefined,
-    left,
-    width,
-    // Unchanged from what each picker carried before: the desktop behaviour the owner is happy
-    // with. Deliberately *not* clamped to the room below — doing so would shorten panels near the
-    // bottom of a desktop window, which is a different change than the one asked for.
-    maxHeight: `min(${maxHeight}px, calc(100vh - 96px))`,
-  };
+  const room = openUp ? roomAbove : roomBelow;
+
+  // **The panel is never taller than the space it opens into.** This is the whole fix, and it has
+  // to be a measured number rather than the `min(340px, calc(100vh - 96px))` each picker used to
+  // carry: that expression asks how tall the window is and never where the trigger sits, so a field
+  // two thirds down the page was handed a panel that ran past the bottom edge. The list inside
+  // scrolls, but the page does not scroll to reach it — the panel is `position: fixed` — so the
+  // rows past the edge were simply unreachable. That is the bug as reported: "I cannot see the full
+  // list although I scroll down."
+  //
+  // The floor stops a trigger that is itself scrolled half off the screen from producing a panel of
+  // zero height, which would read as the picker being broken rather than cramped.
+  const height = Math.max(96, Math.min(maxHeight, room));
+
+  return openUp
+    ? { top: undefined, bottom: vh - rect.top + gap, left, width, maxHeight: height }
+    : { top: rect.bottom + gap, bottom: undefined, left, width, maxHeight: height };
 }
